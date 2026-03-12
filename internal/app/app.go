@@ -10,6 +10,7 @@ import (
 
 	"github.com/helloprtr/poly-prompt/internal/clipboard"
 	"github.com/helloprtr/poly-prompt/internal/config"
+	"github.com/helloprtr/poly-prompt/internal/editor"
 	"github.com/helloprtr/poly-prompt/internal/input"
 	prompttemplate "github.com/helloprtr/poly-prompt/internal/template"
 	"github.com/helloprtr/poly-prompt/internal/translate"
@@ -25,6 +26,7 @@ type Dependencies struct {
 	Stderr       io.Writer
 	Translator   translate.Translator
 	Clipboard    clipboard.Writer
+	Editor       editor.Editor
 	ConfigLoader ConfigLoader
 	ConfigInit   ConfigInit
 	LookupEnv    LookupEnv
@@ -36,6 +38,7 @@ type App struct {
 	stderr       io.Writer
 	translator   translate.Translator
 	clipboard    clipboard.Writer
+	editor       editor.Editor
 	configLoader ConfigLoader
 	configInit   ConfigInit
 	lookupEnv    LookupEnv
@@ -47,8 +50,10 @@ type usageError struct {
 
 type runOptions struct {
 	target       string
+	role         string
 	noCopy       bool
 	showOriginal bool
+	interactive  bool
 }
 
 func New(deps Dependencies) *App {
@@ -58,6 +63,7 @@ func New(deps Dependencies) *App {
 		stderr:       deps.Stderr,
 		translator:   deps.Translator,
 		clipboard:    deps.Clipboard,
+		editor:       deps.Editor,
 		configLoader: deps.ConfigLoader,
 		configInit:   deps.ConfigInit,
 		lookupEnv:    deps.LookupEnv,
@@ -128,18 +134,40 @@ func (a *App) runMain(ctx context.Context, args []string, stdin io.Reader, stdin
 		return fmt.Errorf("unknown target %q (available: %s)", target, strings.Join(available, ", "))
 	}
 
+	role := strings.TrimSpace(opts.role)
+	roleContent := ""
+	if role != "" {
+		roleConfig, ok := cfg.Roles[role]
+		if !ok {
+			available := config.AvailableRoles(cfg)
+			return fmt.Errorf("unknown role %q (available: %s)", role, strings.Join(available, ", "))
+		}
+		roleContent = roleConfig.Content
+	}
+
 	translated, err := a.translator.Translate(ctx, text)
 	if err != nil {
 		return err
 	}
 
-	finalPrompt, err := prompttemplate.Render(targetConfig.Template, translated)
+	finalPrompt, err := prompttemplate.Render(targetConfig.Template, translated, roleContent)
 	if err != nil {
 		return fmt.Errorf("render target template %q: %w", target, err)
 	}
 
 	if opts.showOriginal {
 		_, _ = fmt.Fprintf(a.stderr, "Original:\n%s\n\n", text)
+	}
+
+	if opts.interactive {
+		if a.editor == nil {
+			return errors.New("interactive mode is unavailable: editor is not configured")
+		}
+
+		finalPrompt, err = a.editor.Edit(ctx, finalPrompt)
+		if err != nil {
+			return err
+		}
 	}
 
 	_, _ = fmt.Fprintln(a.stdout, finalPrompt)
@@ -164,8 +192,12 @@ func parseRunOptions(args []string) (runOptions, []string, error) {
 	var opts runOptions
 	fs.StringVar(&opts.target, "target", "", "target profile name")
 	fs.StringVar(&opts.target, "t", "", "target profile name")
+	fs.StringVar(&opts.role, "role", "", "role profile alias")
+	fs.StringVar(&opts.role, "r", "", "role profile alias")
 	fs.BoolVar(&opts.noCopy, "no-copy", false, "skip clipboard copy")
 	fs.BoolVar(&opts.showOriginal, "show-original", false, "print the original input to stderr")
+	fs.BoolVar(&opts.interactive, "interactive", false, "open an interactive editor before writing the final prompt")
+	fs.BoolVar(&opts.interactive, "i", false, "open an interactive editor before writing the final prompt")
 
 	if err := fs.Parse(args); err != nil {
 		return runOptions{}, nil, usageError{message: err.Error()}
@@ -187,11 +219,14 @@ func usageText() string {
 		"",
 		"Flags:",
 		"  -t, --target <name>  target profile name",
+		"  -r, --role <alias>   role profile alias",
+		"  -i, --interactive    edit the final prompt in a TUI before output",
 		"      --no-copy       print the translated prompt without copying it",
 		"      --show-original print the original input to stderr",
 		"",
 		"Examples:",
 		`  prtr -t codex "한국어 질문"`,
+		`  prtr -r be -i "한국어 질문"`,
 		`  echo "한국어 질문" | prtr`,
 	}, "\n")
 }

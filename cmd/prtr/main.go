@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"github.com/helloprtr/poly-prompt/internal/app"
 	"github.com/helloprtr/poly-prompt/internal/clipboard"
 	"github.com/helloprtr/poly-prompt/internal/config"
+	"github.com/helloprtr/poly-prompt/internal/editor"
 	"github.com/helloprtr/poly-prompt/internal/input"
 	"github.com/helloprtr/poly-prompt/internal/translate"
 )
@@ -39,10 +41,14 @@ func main() {
 				Timeout: 15 * time.Second,
 			},
 		}),
-		Clipboard: clipboard.NewPBClipboard(),
+		Clipboard: clipboard.New(),
+		Editor:    editor.New(os.Stderr),
 	})
 
 	if err := application.Execute(context.Background(), os.Args[1:], os.Stdin, stdinPiped); err != nil {
+		if errors.Is(err, editor.ErrCanceled) {
+			os.Exit(130)
+		}
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

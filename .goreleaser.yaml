@@ -12,6 +12,8 @@ builds:
       - CGO_ENABLED=0
     goos:
       - darwin
+      - linux
+      - windows
     goarch:
       - arm64
       - amd64
@@ -24,6 +26,10 @@ archives:
       - prtr
     formats:
       - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
 
 checksum:
   name_template: checksums.txt
@@ -40,7 +46,7 @@ brews:
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     homepage: https://github.com/helloprtr/poly-prompt
-    description: Translate prompts to English and copy them to the macOS clipboard.
+    description: Translate prompts to English, format them, and copy them to the clipboard.
     license: MIT
     directory: Formula
     test: |

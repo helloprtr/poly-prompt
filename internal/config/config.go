@@ -14,13 +14,72 @@ import (
 const starterConfig = `default_target = "claude"
 
 [targets.claude]
-template = "{{prompt}}"
+template = """
+<role>Senior Full-stack Engineer & Data Architect</role>
+{{role}}
+<task>
+Analyze and respond to the following prompt.
+If the prompt involves code, provide a production-ready, clean, and optimized solution.
+</task>
+<constraints>
+- Use TypeScript for web tasks and Go/Python for data engineering tasks unless specified otherwise.
+- Explain the 'Why' before the 'How'.
+- If there are multiple approaches, brief the pros/cons.
+</constraints>
+
+<input_prompt>
+{{prompt}}
+</input_prompt>
+
+Please respond in English.
+"""
 
 [targets.codex]
-template = "{{prompt}}"
+template = """
+// Language: Auto-detect
+// Role: {{role}}
+// Objective: Efficient, secure, and idiomatic code implementation.
+// Context: High-performance data processing and modern web architecture.
+
+{{prompt}}
+
+// Instruction: Provide only the code snippet and essential technical notes.
+// No conversational filler.
+"""
 
 [targets.gemini]
-template = "{{prompt}}"
+template = """
+You are an expert developer.
+Role: {{role}}
+
+Follow these steps to answer:
+1. Briefly summarize the core requirement.
+2. Identify potential edge cases or data pipeline bottlenecks.
+3. Provide the most efficient solution with clear comments.
+
+User Request:
+{{prompt}}
+
+Focus on performance and scalability. Answer in English.
+"""
+
+[roles.da]
+content = "Expert Data Engineer & Analytics Architect"
+
+[roles.be]
+content = "Expert Backend Engineer & Tech Lead"
+
+[roles.fe]
+content = "Expert Frontend Engineer & UX-minded Implementer"
+
+[roles.ui]
+content = "Expert Product Designer & UI Systems Specialist"
+
+[roles.se]
+content = "Expert Security Engineer & Application Security Reviewer"
+
+[roles.pm]
+content = "Expert Product Manager & Technical Strategist"
 `
 
 var ErrConfigExists = errors.New("config already exists")
@@ -28,20 +87,27 @@ var ErrConfigExists = errors.New("config already exists")
 type Config struct {
 	DefaultTarget string
 	Targets       map[string]TargetConfig
+	Roles         map[string]RoleConfig
 }
 
 type TargetConfig struct {
 	Template string `toml:"template"`
 }
 
+type RoleConfig struct {
+	Content string `toml:"content"`
+}
+
 type fileConfig struct {
 	DefaultTarget string                  `toml:"default_target"`
 	Targets       map[string]TargetConfig `toml:"targets"`
+	Roles         map[string]RoleConfig   `toml:"roles"`
 }
 
 func Load() (Config, error) {
 	cfg := Config{
 		Targets: defaultTargets(),
+		Roles:   defaultRoles(),
 	}
 
 	path, err := Path()
@@ -72,6 +138,17 @@ func Load() (Config, error) {
 			return Config{}, fmt.Errorf("config target %q has an empty template", trimmedName)
 		}
 		cfg.Targets[trimmedName] = TargetConfig{Template: target.Template}
+	}
+
+	for name, role := range raw.Roles {
+		trimmedName := strings.TrimSpace(name)
+		if trimmedName == "" {
+			return Config{}, errors.New("config role names cannot be empty")
+		}
+		if strings.TrimSpace(role.Content) == "" {
+			return Config{}, fmt.Errorf("config role %q has empty content", trimmedName)
+		}
+		cfg.Roles[trimmedName] = RoleConfig{Content: strings.TrimSpace(role.Content)}
 	}
 
 	return cfg, nil
@@ -138,10 +215,65 @@ func AvailableTargets(cfg Config) []string {
 	return names
 }
 
+func AvailableRoles(cfg Config) []string {
+	names := make([]string, 0, len(cfg.Roles))
+	for name := range cfg.Roles {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
 func defaultTargets() map[string]TargetConfig {
 	return map[string]TargetConfig{
-		"claude": {Template: "{{prompt}}"},
-		"codex":  {Template: "{{prompt}}"},
-		"gemini": {Template: "{{prompt}}"},
+		"claude": {Template: `<role>Senior Full-stack Engineer & Data Architect</role>
+{{role}}
+<task>
+Analyze and respond to the following prompt.
+If the prompt involves code, provide a production-ready, clean, and optimized solution.
+</task>
+<constraints>
+- Use TypeScript for web tasks and Go/Python for data engineering tasks unless specified otherwise.
+- Explain the 'Why' before the 'How'.
+- If there are multiple approaches, brief the pros/cons.
+</constraints>
+
+<input_prompt>
+{{prompt}}
+</input_prompt>
+
+Please respond in English.`},
+		"codex": {Template: `// Language: Auto-detect
+// Role: {{role}}
+// Objective: Efficient, secure, and idiomatic code implementation.
+// Context: High-performance data processing and modern web architecture.
+
+{{prompt}}
+
+// Instruction: Provide only the code snippet and essential technical notes.
+// No conversational filler.`},
+		"gemini": {Template: `You are an expert developer.
+Role: {{role}}
+
+Follow these steps to answer:
+1. Briefly summarize the core requirement.
+2. Identify potential edge cases or data pipeline bottlenecks.
+3. Provide the most efficient solution with clear comments.
+
+User Request:
+{{prompt}}
+
+Focus on performance and scalability. Answer in English.`},
+	}
+}
+
+func defaultRoles() map[string]RoleConfig {
+	return map[string]RoleConfig{
+		"da": {Content: "Expert Data Engineer & Analytics Architect"},
+		"be": {Content: "Expert Backend Engineer & Tech Lead"},
+		"fe": {Content: "Expert Frontend Engineer & UX-minded Implementer"},
+		"ui": {Content: "Expert Product Designer & UI Systems Specialist"},
+		"se": {Content: "Expert Security Engineer & Application Security Reviewer"},
+		"pm": {Content: "Expert Product Manager & Technical Strategist"},
 	}
 }

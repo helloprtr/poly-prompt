@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -23,6 +24,12 @@ template = "Review this carefully:\n{{prompt}}"
 
 [targets.custom]
 template = "Custom:\n{{prompt}}"
+
+[roles.be]
+content = "Custom Backend Role"
+
+[roles.writer]
+content = "Expert Technical Writer"
 `
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
@@ -36,14 +43,23 @@ template = "Custom:\n{{prompt}}"
 	if cfg.DefaultTarget != "gemini" {
 		t.Fatalf("DefaultTarget = %q, want %q", cfg.DefaultTarget, "gemini")
 	}
-	if cfg.Targets["claude"].Template != "{{prompt}}" {
-		t.Fatalf("claude template = %q, want raw placeholder", cfg.Targets["claude"].Template)
+	if !strings.Contains(cfg.Targets["claude"].Template, "<input_prompt>") {
+		t.Fatalf("claude template = %q, want rich default template", cfg.Targets["claude"].Template)
 	}
 	if cfg.Targets["codex"].Template != "Review this carefully:\n{{prompt}}" {
 		t.Fatalf("codex template = %q", cfg.Targets["codex"].Template)
 	}
 	if cfg.Targets["custom"].Template != "Custom:\n{{prompt}}" {
 		t.Fatalf("custom template = %q", cfg.Targets["custom"].Template)
+	}
+	if cfg.Roles["be"].Content != "Custom Backend Role" {
+		t.Fatalf("be role = %q", cfg.Roles["be"].Content)
+	}
+	if cfg.Roles["writer"].Content != "Expert Technical Writer" {
+		t.Fatalf("writer role = %q", cfg.Roles["writer"].Content)
+	}
+	if cfg.Roles["da"].Content == "" {
+		t.Fatal("expected default roles to be present")
 	}
 }
 
@@ -89,5 +105,28 @@ func TestInitCreatesStarterConfigAndRefusesOverwrite(t *testing.T) {
 	}
 	if secondPath != path {
 		t.Fatalf("second Init() path = %q, want %q", secondPath, path)
+	}
+}
+
+func TestLoadRejectsEmptyRoleContent(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tempDir)
+
+	path := filepath.Join(tempDir, "prtr", "config.toml")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+
+	content := "[roles.bad]\ncontent = \"   \"\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	_, err := Load()
+	if err == nil {
+		t.Fatal("Load() expected an error, got nil")
+	}
+	if !strings.Contains(err.Error(), `config role "bad" has empty content`) {
+		t.Fatalf("Load() error = %v", err)
 	}
 }
