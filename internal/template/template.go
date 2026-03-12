@@ -12,6 +12,7 @@ const RolePlaceholder = "{{role}}"
 var repeatedNewlinesPattern = regexp.MustCompile(`\n{3,}`)
 var emptyRoleLinePattern = regexp.MustCompile(`(?m)^Role:\s*$\n?`)
 var emptyCodeRoleLinePattern = regexp.MustCompile(`(?m)^// Role:\s*$\n?`)
+var emptyGeminiRoleLinePattern = regexp.MustCompile(`(?m)^You are an\s*$\n?`)
 
 func Render(layout, prompt, role string) (string, error) {
 	if err := Validate(layout); err != nil {
@@ -24,6 +25,7 @@ func Render(layout, prompt, role string) (string, error) {
 	rendered = strings.ReplaceAll(rendered, "\n<role></role>", "")
 	rendered = emptyRoleLinePattern.ReplaceAllString(rendered, "")
 	rendered = emptyCodeRoleLinePattern.ReplaceAllString(rendered, "")
+	rendered = emptyGeminiRoleLinePattern.ReplaceAllString(rendered, "")
 	rendered = repeatedNewlinesPattern.ReplaceAllString(rendered, "\n\n")
 
 	return rendered, nil

@@ -46,6 +46,9 @@ content = "Expert Technical Writer"
 	if !strings.Contains(cfg.Targets["claude"].Template, "<input_prompt>") {
 		t.Fatalf("claude template = %q, want rich default template", cfg.Targets["claude"].Template)
 	}
+	if !strings.Contains(cfg.Targets["claude"].Template, "<role>{{role}}</role>") {
+		t.Fatalf("claude template = %q, want role placeholder wrapper", cfg.Targets["claude"].Template)
+	}
 	if cfg.Targets["codex"].Template != "Review this carefully:\n{{prompt}}" {
 		t.Fatalf("codex template = %q", cfg.Targets["codex"].Template)
 	}
@@ -105,6 +108,9 @@ func TestInitCreatesStarterConfigAndRefusesOverwrite(t *testing.T) {
 	}
 	if secondPath != path {
 		t.Fatalf("second Init() path = %q, want %q", secondPath, path)
+	}
+	if !strings.Contains(string(data), "<role>{{role}}</role>") {
+		t.Fatalf("starter config = %q, want claude role placeholder", string(data))
 	}
 }
 

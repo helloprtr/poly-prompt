@@ -450,3 +450,225 @@ func TestExecuteInteractiveCancelReturnsSentinelError(t *testing.T) {
 		t.Fatalf("Execute() error = %v, want %v", err, editor.ErrCanceled)
 	}
 }
+
+func TestExecuteShowOriginalWritesOriginalToStderr(t *testing.T) {
+	t.Parallel()
+
+	translator := &stubTranslator{output: "Translated prompt"}
+	clipboard := &stubClipboard{}
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	app := New(Dependencies{
+		Version:    "test",
+		Stdout:     &stdout,
+		Stderr:     &stderr,
+		Translator: translator,
+		Clipboard:  clipboard,
+		Editor:     &stubEditor{},
+		ConfigLoader: func() (config.Config, error) {
+			return config.Config{
+				Targets: map[string]config.TargetConfig{
+					"claude": {Template: "Answer:\n{{prompt}}"},
+				},
+				Roles: map[string]config.RoleConfig{},
+			}, nil
+		},
+		ConfigInit: func() (string, error) { return "", nil },
+		LookupEnv:  func(string) (string, bool) { return "", false },
+	})
+
+	err := app.Execute(context.Background(), []string{"--show-original", "--no-copy", "원문 프롬프트"}, strings.NewReader(""), false)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if stdout.String() != "Answer:\nTranslated prompt\n" {
+		t.Fatalf("stdout = %q, want translated output", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "Original:\n원문 프롬프트\n\n") {
+		t.Fatalf("stderr = %q, want original block", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), `target "claude" ready; clipboard skipped`) {
+		t.Fatalf("stderr = %q, want clipboard skipped status", stderr.String())
+	}
+}
+
+func TestExecuteInteractiveShowOriginalUsesShortFlag(t *testing.T) {
+	t.Parallel()
+
+	translator := &stubTranslator{output: "Rendered prompt"}
+	clipboard := &stubClipboard{}
+	editor := &stubEditor{output: "Edited prompt"}
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	app := New(Dependencies{
+		Version:    "test",
+		Stdout:     &stdout,
+		Stderr:     &stderr,
+		Translator: translator,
+		Clipboard:  clipboard,
+		Editor:     editor,
+		ConfigLoader: func() (config.Config, error) {
+			return config.Config{
+				Targets: map[string]config.TargetConfig{
+					"claude": {Template: "Answer:\n{{prompt}}"},
+				},
+				Roles: map[string]config.RoleConfig{},
+			}, nil
+		},
+		ConfigInit: func() (string, error) { return "", nil },
+		LookupEnv:  func(string) (string, bool) { return "", false },
+	})
+
+	err := app.Execute(context.Background(), []string{"-i", "--show-original", "--no-copy", "원문"}, strings.NewReader(""), false)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if editor.calls != 1 {
+		t.Fatalf("editor calls = %d, want 1", editor.calls)
+	}
+	if editor.gotInput != "Answer:\nRendered prompt" {
+		t.Fatalf("editor input = %q, want rendered prompt", editor.gotInput)
+	}
+	if stdout.String() != "Edited prompt\n" {
+		t.Fatalf("stdout = %q, want edited output", stdout.String())
+	}
+	if clipboard.calls != 0 {
+		t.Fatalf("clipboard calls = %d, want 0", clipboard.calls)
+	}
+	if !strings.Contains(stderr.String(), "Original:\n원문\n\n") {
+		t.Fatalf("stderr = %q, want original block", stderr.String())
+	}
+}
+
+func TestExecuteTargetFlagOverridesConfigAndEnv(t *testing.T) {
+	t.Parallel()
+
+	translator := &stubTranslator{output: "Translated"}
+	var stdout bytes.Buffer
+
+	app := New(Dependencies{
+		Version:    "test",
+		Stdout:     &stdout,
+		Stderr:     &bytes.Buffer{},
+		Translator: translator,
+		Clipboard:  &stubClipboard{},
+		Editor:     &stubEditor{},
+		ConfigLoader: func() (config.Config, error) {
+			return config.Config{
+				DefaultTarget: "gemini",
+				Targets: map[string]config.TargetConfig{
+					"claude": {Template: "CLAUDE:\n{{prompt}}"},
+					"codex":  {Template: "CODEX:\n{{prompt}}"},
+					"gemini": {Template: "GEMINI:\n{{prompt}}"},
+				},
+				Roles: map[string]config.RoleConfig{},
+			}, nil
+		},
+		ConfigInit: func() (string, error) { return "", nil },
+		LookupEnv:  func(string) (string, bool) { return "claude", true },
+	})
+
+	err := app.Execute(context.Background(), []string{"-t", "codex", "--no-copy", "hello"}, strings.NewReader(""), false)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if stdout.String() != "CODEX:\nTranslated\n" {
+		t.Fatalf("stdout = %q, want codex target output", stdout.String())
+	}
+}
+
+func TestExecuteUsesEnvTargetWhenConfigDefaultMissing(t *testing.T) {
+	t.Parallel()
+
+	translator := &stubTranslator{output: "Translated"}
+	var stdout bytes.Buffer
+
+	app := New(Dependencies{
+		Version:    "test",
+		Stdout:     &stdout,
+		Stderr:     &bytes.Buffer{},
+		Translator: translator,
+		Clipboard:  &stubClipboard{},
+		Editor:     &stubEditor{},
+		ConfigLoader: func() (config.Config, error) {
+			return config.Config{
+				Targets: map[string]config.TargetConfig{
+					"claude": {Template: "CLAUDE:\n{{prompt}}"},
+					"gemini": {Template: "GEMINI:\n{{prompt}}"},
+				},
+				Roles: map[string]config.RoleConfig{},
+			}, nil
+		},
+		ConfigInit: func() (string, error) { return "", nil },
+		LookupEnv:  func(string) (string, bool) { return "gemini", true },
+	})
+
+	err := app.Execute(context.Background(), []string{"--no-copy", "hello"}, strings.NewReader(""), false)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if stdout.String() != "GEMINI:\nTranslated\n" {
+		t.Fatalf("stdout = %q, want gemini target output", stdout.String())
+	}
+}
+
+func TestParseRunOptionsSupportsShortAliases(t *testing.T) {
+	t.Parallel()
+
+	opts, positional, err := parseRunOptions([]string{"-i", "-t", "codex", "-r", "be", "--show-original", "hello"})
+	if err != nil {
+		t.Fatalf("parseRunOptions() error = %v", err)
+	}
+
+	if !opts.interactive {
+		t.Fatal("interactive = false, want true")
+	}
+	if opts.target != "codex" {
+		t.Fatalf("target = %q, want %q", opts.target, "codex")
+	}
+	if opts.role != "be" {
+		t.Fatalf("role = %q, want %q", opts.role, "be")
+	}
+	if !opts.showOriginal {
+		t.Fatal("showOriginal = false, want true")
+	}
+	if len(positional) != 1 || positional[0] != "hello" {
+		t.Fatalf("positional = %v, want [hello]", positional)
+	}
+}
+
+func TestExecuteInteractiveWithoutEditorConfiguredReturnsError(t *testing.T) {
+	t.Parallel()
+
+	app := New(Dependencies{
+		Version:    "test",
+		Stdout:     &bytes.Buffer{},
+		Stderr:     &bytes.Buffer{},
+		Translator: &stubTranslator{output: "Initial"},
+		Clipboard:  &stubClipboard{},
+		ConfigLoader: func() (config.Config, error) {
+			return config.Config{
+				Targets: map[string]config.TargetConfig{
+					"claude": {Template: "{{prompt}}"},
+				},
+				Roles: map[string]config.RoleConfig{},
+			}, nil
+		},
+		ConfigInit: func() (string, error) { return "", nil },
+		LookupEnv:  func(string) (string, bool) { return "", false },
+	})
+
+	err := app.Execute(context.Background(), []string{"-i", "hello"}, strings.NewReader(""), false)
+	if err == nil {
+		t.Fatal("Execute() expected an error, got nil")
+	}
+	if !strings.Contains(err.Error(), "interactive mode is unavailable") {
+		t.Fatalf("Execute() error = %v", err)
+	}
+}

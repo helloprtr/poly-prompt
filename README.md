@@ -16,6 +16,8 @@
 
 ## Install
 
+Detailed OS-specific install and update steps are in [INSTALLATION.md](/Users/koo/dev/translateCLI-brew/INSTALLATION.md).
+
 ### Homebrew (macOS)
 
 Install from the official Homebrew tap:
@@ -59,7 +61,7 @@ prtr version
 ```
 
 Expected result:
-- A version string such as `0.1.0`
+- A version string such as `0.2.1`
 
 ### 2. Confirm the command is on your PATH
 
@@ -154,8 +156,7 @@ default_target = "claude"
 
 [targets.claude]
 template = """
-<role>Senior Full-stack Engineer & Data Architect</role>
-{{role}}
+<role>{{role}}</role>
 <task>
 Analyze and respond to the following prompt.
 If the prompt involves code, provide a production-ready, clean, and optimized solution.
@@ -179,8 +180,7 @@ template = """
 
 [targets.gemini]
 template = """
-You are an expert developer.
-Role: {{role}}
+You are an {{role}}
 
 User Request:
 {{prompt}}
@@ -408,6 +408,8 @@ Release outputs:
 - macOS binaries plus Homebrew formula update
 - Linux tarballs in GitHub Releases
 - Windows zip archives in GitHub Releases
+
+For end-user install and upgrade instructions by OS, see [INSTALLATION.md](/Users/koo/dev/translateCLI-brew/INSTALLATION.md).
 
 ## Development
 

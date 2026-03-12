@@ -15,8 +15,7 @@ const starterConfig = `default_target = "claude"
 
 [targets.claude]
 template = """
-<role>Senior Full-stack Engineer & Data Architect</role>
-{{role}}
+<role>{{role}}</role>
 <task>
 Analyze and respond to the following prompt.
 If the prompt involves code, provide a production-ready, clean, and optimized solution.
@@ -49,8 +48,7 @@ template = """
 
 [targets.gemini]
 template = """
-You are an expert developer.
-Role: {{role}}
+You are an {{role}}
 
 Follow these steps to answer:
 1. Briefly summarize the core requirement.
@@ -226,8 +224,7 @@ func AvailableRoles(cfg Config) []string {
 
 func defaultTargets() map[string]TargetConfig {
 	return map[string]TargetConfig{
-		"claude": {Template: `<role>Senior Full-stack Engineer & Data Architect</role>
-{{role}}
+		"claude": {Template: `<role>{{role}}</role>
 <task>
 Analyze and respond to the following prompt.
 If the prompt involves code, provide a production-ready, clean, and optimized solution.
@@ -252,8 +249,7 @@ Please respond in English.`},
 
 // Instruction: Provide only the code snippet and essential technical notes.
 // No conversational filler.`},
-		"gemini": {Template: `You are an expert developer.
-Role: {{role}}
+		"gemini": {Template: `You are an {{role}}
 
 Follow these steps to answer:
 1. Briefly summarize the core requirement.
