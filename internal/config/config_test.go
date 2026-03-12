@@ -11,7 +11,7 @@ func TestLoadParsesConfigFileAndMergesTargets(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", tempDir)
 
-	path := filepath.Join(tempDir, "poly-prompt", "config.toml")
+	path := filepath.Join(tempDir, "prtr", "config.toml")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("MkdirAll() error = %v", err)
 	}

@@ -1,4 +1,4 @@
-module github.com/KooEric/prtr
+module github.com/helloprtr/poly-prompt
 
 go 1.22
 

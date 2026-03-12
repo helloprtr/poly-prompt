@@ -1,13 +1,13 @@
-project_name: poly-prompt
+project_name: prtr
 
 before:
   hooks:
     - go test ./...
 
 builds:
-  - id: poly-prompt
-    main: ./cmd/poly-prompt
-    binary: poly-prompt
+  - id: prtr
+    main: ./cmd/prtr
+    binary: prtr
     env:
       - CGO_ENABLED=0
     goos:
@@ -19,9 +19,9 @@ builds:
       - -s -w -X main.version={{.Version}}
 
 archives:
-  - id: poly-prompt
+  - id: prtr
     builds:
-      - poly-prompt
+      - prtr
     formats:
       - tar.gz
 
@@ -30,20 +30,20 @@ checksum:
 
 release:
   github:
-    owner: KooEric
-    name: prtr
+    owner: helloprtr
+    name: poly-prompt
 
 brews:
-  - name: poly-prompt
+  - name: prtr
     repository:
-      owner: KooEric
+      owner: helloprtr
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-    homepage: https://github.com/KooEric/prtr
+    homepage: https://github.com/helloprtr/poly-prompt
     description: Translate prompts to English and copy them to the macOS clipboard.
     license: MIT
     directory: Formula
     test: |
-      system "#{bin}/poly-prompt", "version"
+      system "#{bin}/prtr", "version"
     install: |
-      bin.install "poly-prompt"
+      bin.install "prtr"

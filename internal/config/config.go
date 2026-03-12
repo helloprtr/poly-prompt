@@ -110,7 +110,7 @@ func Path() (string, error) {
 		base = filepath.Join(home, ".config")
 	}
 
-	return filepath.Join(base, "poly-prompt", "config.toml"), nil
+	return filepath.Join(base, "prtr", "config.toml"), nil
 }
 
 func ResolveTarget(cliTarget string, cfg Config, envTarget string) string {

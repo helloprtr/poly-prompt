@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/KooEric/prtr/internal/config"
+	"github.com/helloprtr/poly-prompt/internal/config"
 )
 
 type stubTranslator struct {
@@ -192,7 +192,7 @@ func TestExecuteVersionAndInitCommands(t *testing.T) {
 		ConfigLoader: func() (config.Config, error) {
 			return config.Config{}, nil
 		},
-		ConfigInit: func() (string, error) { return "/tmp/poly-prompt/config.toml", nil },
+		ConfigInit: func() (string, error) { return "/tmp/prtr/config.toml", nil },
 		LookupEnv:  func(string) (string, bool) { return "", false },
 	})
 
@@ -207,7 +207,7 @@ func TestExecuteVersionAndInitCommands(t *testing.T) {
 	if err := app.Execute(context.Background(), []string{"init"}, strings.NewReader(""), false); err != nil {
 		t.Fatalf("init Execute() error = %v", err)
 	}
-	if !strings.Contains(stdout.String(), "/tmp/poly-prompt/config.toml") {
+	if !strings.Contains(stdout.String(), "/tmp/prtr/config.toml") {
 		t.Fatalf("init stdout = %q", stdout.String())
 	}
 }

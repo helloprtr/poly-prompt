@@ -1,6 +1,6 @@
-# prtr
+# poly-prompt
 
-`prtr` is the repository for `poly-prompt`, a macOS-first CLI that translates prompt text into English with DeepL, prints the final prompt to `stdout`, and copies it to the clipboard so you can paste it into Claude, Codex, Gemini, or any other tool with `Cmd+V`.
+`poly-prompt` is the repository for `prtr`, a macOS-first CLI that translates prompt text into English with DeepL, prints the final prompt to `stdout`, and copies it to the clipboard so you can paste it into Claude, Codex, Gemini, or any other tool with `Cmd+V`.
 
 ## What it does
 
@@ -19,8 +19,8 @@
 Once releases are published and the tap is live:
 
 ```bash
-brew tap KooEric/homebrew-tap
-brew install poly-prompt
+brew tap helloprtr/homebrew-tap
+brew install prtr
 ```
 
 ### Build from source
@@ -34,9 +34,9 @@ brew install go
 Then build locally:
 
 ```bash
-git clone https://github.com/KooEric/prtr.git
-cd prtr
-go build ./cmd/poly-prompt
+git clone https://github.com/helloprtr/poly-prompt.git
+cd poly-prompt
+go build ./cmd/prtr
 ```
 
 ## Configuration
@@ -50,19 +50,19 @@ export DEEPL_API_KEY="your-deepl-key"
 ### Optional environment variable
 
 ```bash
-export POLY_PROMPT_TARGET="claude"
+export PRTR_TARGET="claude"
 ```
 
 ### Create the starter config
 
 ```bash
-poly-prompt init
+prtr init
 ```
 
 Config location:
 
-- `$XDG_CONFIG_HOME/poly-prompt/config.toml`
-- Fallback: `~/.config/poly-prompt/config.toml`
+- `$XDG_CONFIG_HOME/prtr/config.toml`
+- Fallback: `~/.config/prtr/config.toml`
 
 Starter config:
 
@@ -82,10 +82,10 @@ template = "{{prompt}}"
 ## Usage
 
 ```bash
-poly-prompt "도커 컨테이너 실행하는 법 알려줘"
-poly-prompt -t codex "리액트 컴포넌트 생명주기 설명해줘"
-echo "이 코드를 리뷰해줘" | poly-prompt -t gemini
-poly-prompt --no-copy --show-original "이 에러 원인 분석해줘"
+prtr "도커 컨테이너 실행하는 법 알려줘"
+prtr -t codex "리액트 컴포넌트 생명주기 설명해줘"
+echo "이 코드를 리뷰해줘" | prtr -t gemini
+prtr --no-copy --show-original "이 에러 원인 분석해줘"
 ```
 
 Flag behavior:
@@ -98,7 +98,7 @@ Target selection order:
 
 1. CLI flag
 2. Config `default_target`
-3. `POLY_PROMPT_TARGET`
+3. `PRTR_TARGET`
 4. `claude`
 
 ## Custom target templates
@@ -126,7 +126,7 @@ Releases are intended to be cut from Git tags. GitHub Actions runs GoReleaser, p
 Required GitHub secrets:
 
 - `GITHUB_TOKEN` for GitHub Releases
-- `HOMEBREW_TAP_GITHUB_TOKEN` with push access to `KooEric/homebrew-tap`
+- `HOMEBREW_TAP_GITHUB_TOKEN` with push access to `helloprtr/homebrew-tap`
 
 ## Development
 

@@ -8,11 +8,11 @@ import (
 	"io"
 	"strings"
 
-	"github.com/KooEric/prtr/internal/clipboard"
-	"github.com/KooEric/prtr/internal/config"
-	"github.com/KooEric/prtr/internal/input"
-	prompttemplate "github.com/KooEric/prtr/internal/template"
-	"github.com/KooEric/prtr/internal/translate"
+	"github.com/helloprtr/poly-prompt/internal/clipboard"
+	"github.com/helloprtr/poly-prompt/internal/config"
+	"github.com/helloprtr/poly-prompt/internal/input"
+	prompttemplate "github.com/helloprtr/poly-prompt/internal/template"
+	"github.com/helloprtr/poly-prompt/internal/translate"
 )
 
 type ConfigLoader func() (config.Config, error)
@@ -119,7 +119,7 @@ func (a *App) runMain(ctx context.Context, args []string, stdin io.Reader, stdin
 		return err
 	}
 
-	envTarget, _ := a.lookupEnv("POLY_PROMPT_TARGET")
+	envTarget, _ := a.lookupEnv("PRTR_TARGET")
 	target := config.ResolveTarget(opts.target, cfg, envTarget)
 
 	targetConfig, ok := cfg.Targets[target]
@@ -158,7 +158,7 @@ func (a *App) runMain(ctx context.Context, args []string, stdin io.Reader, stdin
 }
 
 func parseRunOptions(args []string) (runOptions, []string, error) {
-	fs := flag.NewFlagSet("poly-prompt", flag.ContinueOnError)
+	fs := flag.NewFlagSet("prtr", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 
 	var opts runOptions
@@ -181,9 +181,9 @@ func (e usageError) Error() string {
 func usageText() string {
 	return strings.Join([]string{
 		"Usage:",
-		"  poly-prompt [flags] [text...]",
-		"  poly-prompt init",
-		"  poly-prompt version",
+		"  prtr [flags] [text...]",
+		"  prtr init",
+		"  prtr version",
 		"",
 		"Flags:",
 		"  -t, --target <name>  target profile name",
@@ -191,7 +191,7 @@ func usageText() string {
 		"      --show-original print the original input to stderr",
 		"",
 		"Examples:",
-		`  poly-prompt -t codex "한국어 질문"`,
-		`  echo "한국어 질문" | poly-prompt`,
+		`  prtr -t codex "한국어 질문"`,
+		`  echo "한국어 질문" | prtr`,
 	}, "\n")
 }

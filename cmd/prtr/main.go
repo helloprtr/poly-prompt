@@ -7,11 +7,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/KooEric/prtr/internal/app"
-	"github.com/KooEric/prtr/internal/clipboard"
-	"github.com/KooEric/prtr/internal/config"
-	"github.com/KooEric/prtr/internal/input"
-	"github.com/KooEric/prtr/internal/translate"
+	"github.com/helloprtr/poly-prompt/internal/app"
+	"github.com/helloprtr/poly-prompt/internal/clipboard"
+	"github.com/helloprtr/poly-prompt/internal/config"
+	"github.com/helloprtr/poly-prompt/internal/input"
+	"github.com/helloprtr/poly-prompt/internal/translate"
 )
 
 var version = "dev"
