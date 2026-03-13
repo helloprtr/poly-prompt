@@ -283,7 +283,7 @@ func TestExecuteInjectsRoleIntoTemplate(t *testing.T) {
 					"claude": {Template: "<role>{{role}}</role>\n{{prompt}}"},
 				},
 				Roles: map[string]config.RoleConfig{
-					"be": {Content: "Expert Backend Engineer & Tech Lead"},
+					"be": {Prompt: "Expert Backend Engineer & Tech Lead"},
 				},
 			}, nil
 		},
@@ -318,8 +318,8 @@ func TestExecuteReturnsUnknownRoleError(t *testing.T) {
 					"claude": {Template: "{{prompt}}"},
 				},
 				Roles: map[string]config.RoleConfig{
-					"be": {Content: "Expert Backend Engineer & Tech Lead"},
-					"se": {Content: "Expert Security Engineer & Application Security Reviewer"},
+					"be": {Prompt: "Expert Backend Engineer & Tech Lead"},
+					"se": {Prompt: "Expert Security Engineer & Application Security Reviewer"},
 				},
 			}, nil
 		},

@@ -26,7 +26,10 @@ template = "Review this carefully:\n{{prompt}}"
 template = "Custom:\n{{prompt}}"
 
 [roles.be]
-content = "Custom Backend Role"
+prompt = """
+Expert Backend Engineer & Tech Lead.
+Focus on API design.
+"""
 
 [roles.writer]
 content = "Expert Technical Writer"
@@ -46,7 +49,7 @@ content = "Expert Technical Writer"
 	if !strings.Contains(cfg.Targets["claude"].Template, "<input_prompt>") {
 		t.Fatalf("claude template = %q, want rich default template", cfg.Targets["claude"].Template)
 	}
-	if !strings.Contains(cfg.Targets["claude"].Template, "<role>{{role}}</role>") {
+	if !strings.Contains(cfg.Targets["claude"].Template, "<role>") || !strings.Contains(cfg.Targets["claude"].Template, "{{role}}") {
 		t.Fatalf("claude template = %q, want role placeholder wrapper", cfg.Targets["claude"].Template)
 	}
 	if cfg.Targets["codex"].Template != "Review this carefully:\n{{prompt}}" {
@@ -55,13 +58,13 @@ content = "Expert Technical Writer"
 	if cfg.Targets["custom"].Template != "Custom:\n{{prompt}}" {
 		t.Fatalf("custom template = %q", cfg.Targets["custom"].Template)
 	}
-	if cfg.Roles["be"].Content != "Custom Backend Role" {
-		t.Fatalf("be role = %q", cfg.Roles["be"].Content)
+	if !strings.Contains(cfg.Roles["be"].Prompt, "Focus on API design.") {
+		t.Fatalf("be role = %q", cfg.Roles["be"].Prompt)
 	}
-	if cfg.Roles["writer"].Content != "Expert Technical Writer" {
-		t.Fatalf("writer role = %q", cfg.Roles["writer"].Content)
+	if cfg.Roles["writer"].Prompt != "Expert Technical Writer" {
+		t.Fatalf("writer role = %q", cfg.Roles["writer"].Prompt)
 	}
-	if cfg.Roles["da"].Content == "" {
+	if cfg.Roles["da"].Prompt == "" {
 		t.Fatal("expected default roles to be present")
 	}
 }
@@ -109,12 +112,15 @@ func TestInitCreatesStarterConfigAndRefusesOverwrite(t *testing.T) {
 	if secondPath != path {
 		t.Fatalf("second Init() path = %q, want %q", secondPath, path)
 	}
-	if !strings.Contains(string(data), "<role>{{role}}</role>") {
+	if !strings.Contains(string(data), "<role>") || !strings.Contains(string(data), "{{role}}") {
 		t.Fatalf("starter config = %q, want claude role placeholder", string(data))
+	}
+	if !strings.Contains(string(data), "prompt = ") {
+		t.Fatalf("starter config = %q, want role prompt fields", string(data))
 	}
 }
 
-func TestLoadRejectsEmptyRoleContent(t *testing.T) {
+func TestLoadRejectsEmptyRolePrompt(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", tempDir)
 
@@ -123,7 +129,7 @@ func TestLoadRejectsEmptyRoleContent(t *testing.T) {
 		t.Fatalf("MkdirAll() error = %v", err)
 	}
 
-	content := "[roles.bad]\ncontent = \"   \"\n"
+	content := "[roles.bad]\nprompt = \"   \"\n"
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
@@ -132,7 +138,7 @@ func TestLoadRejectsEmptyRoleContent(t *testing.T) {
 	if err == nil {
 		t.Fatal("Load() expected an error, got nil")
 	}
-	if !strings.Contains(err.Error(), `config role "bad" has empty content`) {
+	if !strings.Contains(err.Error(), `config role "bad" has empty prompt`) {
 		t.Fatalf("Load() error = %v", err)
 	}
 }

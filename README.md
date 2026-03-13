@@ -1,6 +1,6 @@
 # poly-prompt
 
-`poly-prompt` is the repository for `prtr`, a cross-platform CLI that translates prompt text into English with DeepL, applies target-optimized prompt templates, optionally lets you review the final prompt in a TUI editor, prints the confirmed result to `stdout`, and copies it to your clipboard.
+`poly-prompt` is the repository for `prtr`, a cross-platform CLI that translates prompt text into English with DeepL, applies target-specific prompt wrappers, optionally layers in role-specific guidance, lets you review the final prompt in a TUI editor, prints the confirmed result to `stdout`, and copies it to your clipboard.
 
 ![prtr banner](images/prtr-banner.png)
 
@@ -151,6 +151,11 @@ Config location:
 - `$XDG_CONFIG_HOME/prtr/config.toml`
 - Fallback: `~/.config/prtr/config.toml`
 
+Schema notes:
+
+- Use `prompt` for role definitions
+- The older `content` key is still accepted for backward compatibility when loading existing configs
+
 Starter config:
 
 ```toml
@@ -158,41 +163,43 @@ default_target = "claude"
 
 [targets.claude]
 template = """
-<role>{{role}}</role>
-<task>
-Analyze and respond to the following prompt.
-If the prompt involves code, provide a production-ready, clean, and optimized solution.
-</task>
+<role>
+{{role}}
+</role>
 
 <input_prompt>
 {{prompt}}
 </input_prompt>
-
-Please respond in English.
 """
 
 [targets.codex]
 template = """
-// Language: Auto-detect
-// Role: {{role}}
-// Objective: Efficient, secure, and idiomatic code implementation.
+{{role}}
 
 {{prompt}}
 """
 
 [targets.gemini]
 template = """
-You are an {{role}}
+{{role}}
 
 User Request:
 {{prompt}}
 """
 
 [roles.be]
-content = "Expert Backend Engineer & Tech Lead"
+prompt = """
+Expert Backend Engineer & Tech Lead.
+Focus on API design, reliability, observability, maintainability, security, and production tradeoffs.
+Tailor the response to the user's request instead of assuming they want code.
+"""
 
 [roles.fe]
-content = "Expert Frontend Engineer & UX-minded Implementer"
+prompt = """
+Expert Frontend Engineer & UX-minded Implementer.
+Focus on UX clarity, accessibility, maintainable architecture, performance, and polished implementation details.
+Tailor the response to the user's request instead of assuming they want code.
+"""
 ```
 
 ## How It Works
@@ -212,7 +219,7 @@ the tool performs these steps:
 3. It resolves the target profile using this order:
    CLI flag `-t` -> config `default_target` -> `PRTR_TARGET` -> `claude`
 4. It sends the original text to DeepL and asks for an `EN-US` translation.
-5. It inserts the translated text into the selected target template using `{{prompt}}`, and if requested, inserts a role preset using `{{role}}`.
+5. It inserts the translated text into the selected target template using `{{prompt}}`, and if requested, inserts a role prompt using `{{role}}`.
 6. If `-i/--interactive` is set, it opens the rendered prompt in a single-pane TUI editor and waits for confirmation.
 7. It prints only the confirmed final prompt to `stdout`.
 8. Unless `--no-copy` is set, it copies the same final prompt to the platform clipboard.
@@ -273,11 +280,11 @@ prtr -t codex "이 함수 리팩터링해줘"
 prtr -t gemini "이 문서 요약해줘"
 ```
 
-Built-in targets ship with optimized defaults for each model family:
+Built-in targets ship with lightweight wrappers for each model family:
 
-- `claude`: XML-structured prompt with stronger instruction/data separation
-- `gemini`: step-by-step reasoning scaffold with performance/scalability emphasis
-- `codex`: code-first prompt with terse technical guidance
+- `claude`: XML-structured prompt with clearer separation between role context and user input
+- `gemini`: plain-text wrapper with a `User Request:` section
+- `codex`: minimal code-oriented shape that keeps the role prompt and request close together
 
 You can also choose an optional role profile with `-r`:
 
@@ -295,6 +302,12 @@ Built-in roles:
 - `ui`: product/UI design
 - `se`: security engineering
 - `pm`: product management
+
+The split is deliberate:
+
+- Targets define wrapper shape and model-specific formatting
+- Roles define the expert lens and response priorities
+- The translated user request stays in `{{prompt}}` without assuming they want code, design output, planning, or review unless the request asks for it
 
 Target selection order:
 
@@ -359,11 +372,15 @@ Example:
 template = "Please answer in English and keep the response concise.\n\n{{prompt}}"
 ```
 
-Role templates are opt-in and can be customized separately:
+Role prompts are opt-in and can be customized separately:
 
 ```toml
 [roles.be]
-content = "Expert Backend Engineer & Tech Lead"
+prompt = """
+Expert Backend Engineer & Tech Lead.
+Focus on API design, reliability, observability, maintainability, security, and production tradeoffs.
+Ask for tradeoffs when multiple backend approaches are viable.
+"""
 ```
 
 When you use:
@@ -398,7 +415,7 @@ If no supported clipboard tool is available, `prtr` returns an actionable error 
 
 ## Release flow
 
-Releases are intended to be cut from Git tags. GitHub Actions runs GoReleaser, publishes macOS binaries, and updates the Homebrew tap repo.
+Releases are intended to be cut from Git tags. GitHub Actions runs GoReleaser, publishes cross-platform binaries, and updates the Homebrew tap repo.
 
 Required GitHub secrets:
 

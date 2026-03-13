@@ -9,6 +9,7 @@ import (
 const Placeholder = "{{prompt}}"
 const RolePlaceholder = "{{role}}"
 
+var emptyXMLRoleBlockPattern = regexp.MustCompile(`(?s)<role>\s*</role>\n*`)
 var repeatedNewlinesPattern = regexp.MustCompile(`\n{3,}`)
 var emptyRoleLinePattern = regexp.MustCompile(`(?m)^Role:\s*$\n?`)
 var emptyCodeRoleLinePattern = regexp.MustCompile(`(?m)^// Role:\s*$\n?`)
@@ -21,12 +22,14 @@ func Render(layout, prompt, role string) (string, error) {
 
 	rendered := strings.ReplaceAll(layout, Placeholder, prompt)
 	rendered = strings.ReplaceAll(rendered, RolePlaceholder, strings.TrimSpace(role))
+	rendered = emptyXMLRoleBlockPattern.ReplaceAllString(rendered, "")
 	rendered = strings.ReplaceAll(rendered, "<role></role>\n", "")
 	rendered = strings.ReplaceAll(rendered, "\n<role></role>", "")
 	rendered = emptyRoleLinePattern.ReplaceAllString(rendered, "")
 	rendered = emptyCodeRoleLinePattern.ReplaceAllString(rendered, "")
 	rendered = emptyGeminiRoleLinePattern.ReplaceAllString(rendered, "")
 	rendered = repeatedNewlinesPattern.ReplaceAllString(rendered, "\n\n")
+	rendered = strings.TrimSpace(rendered)
 
 	return rendered, nil
 }

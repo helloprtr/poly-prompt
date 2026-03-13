@@ -15,69 +15,71 @@ const starterConfig = `default_target = "claude"
 
 [targets.claude]
 template = """
-<role>{{role}}</role>
-<task>
-Analyze and respond to the following prompt.
-If the prompt involves code, provide a production-ready, clean, and optimized solution.
-</task>
-<constraints>
-- Use TypeScript for web tasks and Go/Python for data engineering tasks unless specified otherwise.
-- Explain the 'Why' before the 'How'.
-- If there are multiple approaches, brief the pros/cons.
-</constraints>
+<role>
+{{role}}
+</role>
 
 <input_prompt>
 {{prompt}}
 </input_prompt>
-
-Please respond in English.
 """
 
 [targets.codex]
 template = """
-// Language: Auto-detect
-// Role: {{role}}
-// Objective: Efficient, secure, and idiomatic code implementation.
-// Context: High-performance data processing and modern web architecture.
+{{role}}
 
 {{prompt}}
-
-// Instruction: Provide only the code snippet and essential technical notes.
-// No conversational filler.
 """
 
 [targets.gemini]
 template = """
-You are an {{role}}
-
-Follow these steps to answer:
-1. Briefly summarize the core requirement.
-2. Identify potential edge cases or data pipeline bottlenecks.
-3. Provide the most efficient solution with clear comments.
+{{role}}
 
 User Request:
 {{prompt}}
-
-Focus on performance and scalability. Answer in English.
 """
 
 [roles.da]
-content = "Expert Data Engineer & Analytics Architect"
+prompt = """
+Expert Data Engineer & Analytics Architect.
+Focus on data modeling, pipelines, scalability, performance, data quality, and operational reliability.
+Tailor the response to the user's request instead of assuming they want code.
+"""
 
 [roles.be]
-content = "Expert Backend Engineer & Tech Lead"
+prompt = """
+Expert Backend Engineer & Tech Lead.
+Focus on API design, reliability, observability, maintainability, security, and production tradeoffs.
+Tailor the response to the user's request instead of assuming they want code.
+"""
 
 [roles.fe]
-content = "Expert Frontend Engineer & UX-minded Implementer"
+prompt = """
+Expert Frontend Engineer & UX-minded Implementer.
+Focus on UX clarity, accessibility, maintainable architecture, performance, and polished implementation details.
+Tailor the response to the user's request instead of assuming they want code.
+"""
 
 [roles.ui]
-content = "Expert Product Designer & UI Systems Specialist"
+prompt = """
+Expert Product Designer & UI Systems Specialist.
+Focus on usability, hierarchy, interaction design, visual clarity, consistency, and thoughtful product decisions.
+Tailor the response to the user's request instead of assuming they want implementation code.
+"""
 
 [roles.se]
-content = "Expert Security Engineer & Application Security Reviewer"
+prompt = """
+Expert Security Engineer & Application Security Reviewer.
+Focus on threat modeling, attack surface, authentication, authorization, secrets handling, and abuse cases.
+Tailor the response to the user's request instead of assuming they want code.
+"""
 
 [roles.pm]
-content = "Expert Product Manager & Technical Strategist"
+prompt = """
+Expert Product Manager & Technical Strategist.
+Focus on problem framing, requirements clarity, scope, prioritization, tradeoffs, and execution planning.
+Tailor the response to the user's request instead of assuming they want implementation details.
+"""
 `
 
 var ErrConfigExists = errors.New("config already exists")
@@ -93,13 +95,18 @@ type TargetConfig struct {
 }
 
 type RoleConfig struct {
-	Content string `toml:"content"`
+	Prompt string
 }
 
 type fileConfig struct {
-	DefaultTarget string                  `toml:"default_target"`
-	Targets       map[string]TargetConfig `toml:"targets"`
-	Roles         map[string]RoleConfig   `toml:"roles"`
+	DefaultTarget string                    `toml:"default_target"`
+	Targets       map[string]TargetConfig   `toml:"targets"`
+	Roles         map[string]fileRoleConfig `toml:"roles"`
+}
+
+type fileRoleConfig struct {
+	Prompt  string `toml:"prompt"`
+	Content string `toml:"content"`
 }
 
 func Load() (Config, error) {
@@ -143,10 +150,14 @@ func Load() (Config, error) {
 		if trimmedName == "" {
 			return Config{}, errors.New("config role names cannot be empty")
 		}
-		if strings.TrimSpace(role.Content) == "" {
-			return Config{}, fmt.Errorf("config role %q has empty content", trimmedName)
+		rolePrompt := strings.TrimSpace(role.Prompt)
+		if rolePrompt == "" {
+			rolePrompt = strings.TrimSpace(role.Content)
 		}
-		cfg.Roles[trimmedName] = RoleConfig{Content: strings.TrimSpace(role.Content)}
+		if rolePrompt == "" {
+			return Config{}, fmt.Errorf("config role %q has empty prompt", trimmedName)
+		}
+		cfg.Roles[trimmedName] = RoleConfig{Prompt: rolePrompt}
 	}
 
 	return cfg, nil
@@ -224,52 +235,30 @@ func AvailableRoles(cfg Config) []string {
 
 func defaultTargets() map[string]TargetConfig {
 	return map[string]TargetConfig{
-		"claude": {Template: `<role>{{role}}</role>
-<task>
-Analyze and respond to the following prompt.
-If the prompt involves code, provide a production-ready, clean, and optimized solution.
-</task>
-<constraints>
-- Use TypeScript for web tasks and Go/Python for data engineering tasks unless specified otherwise.
-- Explain the 'Why' before the 'How'.
-- If there are multiple approaches, brief the pros/cons.
-</constraints>
+		"claude": {Template: `<role>
+{{role}}
+</role>
 
 <input_prompt>
 {{prompt}}
-</input_prompt>
+</input_prompt>`},
+		"codex": {Template: `{{role}}
 
-Please respond in English.`},
-		"codex": {Template: `// Language: Auto-detect
-// Role: {{role}}
-// Objective: Efficient, secure, and idiomatic code implementation.
-// Context: High-performance data processing and modern web architecture.
-
-{{prompt}}
-
-// Instruction: Provide only the code snippet and essential technical notes.
-// No conversational filler.`},
-		"gemini": {Template: `You are an {{role}}
-
-Follow these steps to answer:
-1. Briefly summarize the core requirement.
-2. Identify potential edge cases or data pipeline bottlenecks.
-3. Provide the most efficient solution with clear comments.
+{{prompt}}`},
+		"gemini": {Template: `{{role}}
 
 User Request:
-{{prompt}}
-
-Focus on performance and scalability. Answer in English.`},
+{{prompt}}`},
 	}
 }
 
 func defaultRoles() map[string]RoleConfig {
 	return map[string]RoleConfig{
-		"da": {Content: "Expert Data Engineer & Analytics Architect"},
-		"be": {Content: "Expert Backend Engineer & Tech Lead"},
-		"fe": {Content: "Expert Frontend Engineer & UX-minded Implementer"},
-		"ui": {Content: "Expert Product Designer & UI Systems Specialist"},
-		"se": {Content: "Expert Security Engineer & Application Security Reviewer"},
-		"pm": {Content: "Expert Product Manager & Technical Strategist"},
+		"da": {Prompt: "Expert Data Engineer & Analytics Architect.\nFocus on data modeling, pipelines, scalability, performance, data quality, and operational reliability.\nTailor the response to the user's request instead of assuming they want code."},
+		"be": {Prompt: "Expert Backend Engineer & Tech Lead.\nFocus on API design, reliability, observability, maintainability, security, and production tradeoffs.\nTailor the response to the user's request instead of assuming they want code."},
+		"fe": {Prompt: "Expert Frontend Engineer & UX-minded Implementer.\nFocus on UX clarity, accessibility, maintainable architecture, performance, and polished implementation details.\nTailor the response to the user's request instead of assuming they want code."},
+		"ui": {Prompt: "Expert Product Designer & UI Systems Specialist.\nFocus on usability, hierarchy, interaction design, visual clarity, consistency, and thoughtful product decisions.\nTailor the response to the user's request instead of assuming they want implementation code."},
+		"se": {Prompt: "Expert Security Engineer & Application Security Reviewer.\nFocus on threat modeling, attack surface, authentication, authorization, secrets handling, and abuse cases.\nTailor the response to the user's request instead of assuming they want code."},
+		"pm": {Prompt: "Expert Product Manager & Technical Strategist.\nFocus on problem framing, requirements clarity, scope, prioritization, tradeoffs, and execution planning.\nTailor the response to the user's request instead of assuming they want implementation details."},
 	}
 }

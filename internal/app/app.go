@@ -135,14 +135,14 @@ func (a *App) runMain(ctx context.Context, args []string, stdin io.Reader, stdin
 	}
 
 	role := strings.TrimSpace(opts.role)
-	roleContent := ""
+	rolePrompt := ""
 	if role != "" {
 		roleConfig, ok := cfg.Roles[role]
 		if !ok {
 			available := config.AvailableRoles(cfg)
 			return fmt.Errorf("unknown role %q (available: %s)", role, strings.Join(available, ", "))
 		}
-		roleContent = roleConfig.Content
+		rolePrompt = roleConfig.Prompt
 	}
 
 	translated, err := a.translator.Translate(ctx, text)
@@ -150,7 +150,7 @@ func (a *App) runMain(ctx context.Context, args []string, stdin io.Reader, stdin
 		return err
 	}
 
-	finalPrompt, err := prompttemplate.Render(targetConfig.Template, translated, roleContent)
+	finalPrompt, err := prompttemplate.Render(targetConfig.Template, translated, rolePrompt)
 	if err != nil {
 		return fmt.Errorf("render target template %q: %w", target, err)
 	}
