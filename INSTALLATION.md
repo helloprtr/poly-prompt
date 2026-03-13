@@ -1,6 +1,6 @@
 # Installation Guide
 
-This guide covers how to install or update `prtr` for the `v0.2.1` release once it is published.
+This guide covers how to install or update `prtr` for the latest published release.
 
 Release page:
 
@@ -15,7 +15,7 @@ brew tap helloprtr/homebrew-tap
 brew install prtr
 ```
 
-### Update to `v0.2.1`
+### Update with Homebrew
 
 ```bash
 brew update
@@ -25,7 +25,7 @@ prtr version
 
 Expected result:
 
-- `prtr version` prints `0.2.1`
+- `prtr version` prints the latest installed release version
 
 ### Apple Silicon vs Intel
 
@@ -41,8 +41,8 @@ Linux release archives are published on GitHub Releases.
 ### amd64
 
 ```bash
-curl -LO https://github.com/helloprtr/poly-prompt/releases/download/v0.2.1/prtr_0.2.1_linux_amd64.tar.gz
-tar -xzf prtr_0.2.1_linux_amd64.tar.gz
+curl -LO https://github.com/helloprtr/poly-prompt/releases/download/v0.2.2/prtr_0.2.2_linux_amd64.tar.gz
+tar -xzf prtr_0.2.2_linux_amd64.tar.gz
 chmod +x prtr
 sudo mv prtr /usr/local/bin/prtr
 prtr version
@@ -51,8 +51,8 @@ prtr version
 ### arm64
 
 ```bash
-curl -LO https://github.com/helloprtr/poly-prompt/releases/download/v0.2.1/prtr_0.2.1_linux_arm64.tar.gz
-tar -xzf prtr_0.2.1_linux_arm64.tar.gz
+curl -LO https://github.com/helloprtr/poly-prompt/releases/download/v0.2.2/prtr_0.2.2_linux_arm64.tar.gz
+tar -xzf prtr_0.2.2_linux_arm64.tar.gz
 chmod +x prtr
 sudo mv prtr /usr/local/bin/prtr
 prtr version
@@ -68,7 +68,7 @@ prtr version
 
 Expected result:
 
-- `prtr version` prints `0.2.1`
+- `prtr version` prints the latest installed release version
 
 ### Clipboard dependencies
 
@@ -100,7 +100,7 @@ Windows release archives are published on GitHub Releases.
 
 ### amd64
 
-1. Download `prtr_0.2.1_windows_amd64.zip` from the releases page.
+1. Download the latest `prtr_<version>_windows_amd64.zip` from the releases page.
 2. Unzip it.
 3. Move `prtr.exe` into a folder on your `PATH`, or keep it in a tools directory and add that directory to `PATH`.
 4. Open a new terminal and run:
@@ -111,7 +111,7 @@ prtr version
 
 ### arm64
 
-1. Download `prtr_0.2.1_windows_arm64.zip` from the releases page.
+1. Download the latest `prtr_<version>_windows_arm64.zip` from the releases page.
 2. Unzip it.
 3. Move `prtr.exe` into a folder on your `PATH`, or keep it in a tools directory and add that directory to `PATH`.
 4. Open a new terminal and run:
@@ -122,7 +122,7 @@ prtr version
 
 Expected result:
 
-- `prtr version` prints `0.2.1`
+- `prtr version` prints the latest installed release version
 
 ### Clipboard support
 
@@ -130,7 +130,7 @@ Windows uses `clip.exe`, which is included with Windows.
 
 ## Build from source
 
-If you want the latest `main` branch instead of the published `v0.2.1` release:
+If you want the latest `main` branch instead of the latest published release:
 
 ```bash
 git clone https://github.com/helloprtr/poly-prompt.git
@@ -140,7 +140,13 @@ go build ./cmd/prtr
 
 ## Quick post-install smoke test
 
-Set your API key:
+Run guided setup:
+
+```bash
+prtr setup
+```
+
+Or set your API key manually:
 
 ```bash
 export DEEPL_API_KEY="your-deepl-key"
@@ -156,6 +162,12 @@ Then run:
 
 ```bash
 prtr --no-copy "이 코드 리뷰해줘"
+```
+
+Optional diagnostic check:
+
+```bash
+prtr doctor
 ```
 
 Optional interactive check:

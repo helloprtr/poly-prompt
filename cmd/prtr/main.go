@@ -12,6 +12,7 @@ import (
 	"github.com/helloprtr/poly-prompt/internal/clipboard"
 	"github.com/helloprtr/poly-prompt/internal/config"
 	"github.com/helloprtr/poly-prompt/internal/editor"
+	"github.com/helloprtr/poly-prompt/internal/history"
 	"github.com/helloprtr/poly-prompt/internal/input"
 	"github.com/helloprtr/poly-prompt/internal/translate"
 )
@@ -25,6 +26,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	historyPath, err := history.DefaultPath()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to resolve history path: %v\n", err)
+		os.Exit(1)
+	}
+
 	application := app.New(app.Dependencies{
 		Version: version,
 		Stdout:  os.Stdout,
@@ -34,15 +41,18 @@ func main() {
 		},
 		ConfigLoader: config.Load,
 		ConfigInit:   config.Init,
-		Translator: translate.NewDeepLClient(translate.ClientOptions{
-			APIKey:  os.Getenv("DEEPL_API_KEY"),
-			BaseURL: translate.DefaultBaseURL,
-			HTTPClient: &http.Client{
-				Timeout: 15 * time.Second,
-			},
-		}),
-		Clipboard: clipboard.New(),
-		Editor:    editor.New(os.Stderr),
+		TranslatorFactory: func(apiKey string) translate.Translator {
+			return translate.NewDeepLClient(translate.ClientOptions{
+				APIKey:  apiKey,
+				BaseURL: translate.DefaultBaseURL,
+				HTTPClient: &http.Client{
+					Timeout: 15 * time.Second,
+				},
+			})
+		},
+		Clipboard:    clipboard.New(),
+		Editor:       editor.New(os.Stderr),
+		HistoryStore: history.New(historyPath),
 	})
 
 	if err := application.Execute(context.Background(), os.Args[1:], os.Stdin, stdinPiped); err != nil {

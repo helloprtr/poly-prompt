@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/helloprtr/poly-prompt/internal/config"
 	"github.com/helloprtr/poly-prompt/internal/editor"
+	"github.com/helloprtr/poly-prompt/internal/history"
 )
 
 type stubTranslator struct {
@@ -26,9 +28,10 @@ func (s *stubTranslator) Translate(_ context.Context, text string) (string, erro
 }
 
 type stubClipboard struct {
-	calls  int
-	copied string
-	err    error
+	calls   int
+	copied  string
+	err     error
+	diagErr error
 }
 
 func (s *stubClipboard) Copy(_ context.Context, text string) error {
@@ -37,638 +40,364 @@ func (s *stubClipboard) Copy(_ context.Context, text string) error {
 	return s.err
 }
 
+func (s *stubClipboard) Diagnose() error {
+	return s.diagErr
+}
+
 type stubEditor struct {
 	calls    int
-	gotInput string
+	gotInput editor.Request
 	output   string
 	err      error
 }
 
-func (s *stubEditor) Edit(_ context.Context, text string) (string, error) {
+func (s *stubEditor) Edit(_ context.Context, req editor.Request) (string, error) {
 	s.calls++
-	s.gotInput = text
+	s.gotInput = req
 	if s.err != nil {
 		return "", s.err
 	}
 	return s.output, nil
 }
 
-func TestExecutePrefersArgsOverStdinAndSkipsClipboard(t *testing.T) {
-	t.Parallel()
+func testConfig() config.Config {
+	return config.Config{
+		DefaultTarget:         "claude",
+		DefaultTemplatePreset: "claude-structured",
+		Targets: map[string]config.TargetConfig{
+			"claude": {Family: "claude", DefaultTemplatePreset: "claude-structured"},
+			"codex":  {Family: "codex", DefaultTemplatePreset: "codex-implement"},
+			"gemini": {Family: "gemini", DefaultTemplatePreset: "gemini-stepwise"},
+		},
+		TemplatePresets: map[string]config.TemplatePresetConfig{
+			"claude-structured": {Template: "<role>\n{{role}}\n</role>\n<input_prompt>\n{{prompt}}\n</input_prompt>"},
+			"claude-review":     {Template: "<task>\nReview carefully.\n</task>\n<input_prompt>\n{{prompt}}\n</input_prompt>"},
+			"codex-implement":   {Template: "// Target: {{target}}\n\n{{role}}\n\n{{prompt}}"},
+			"gemini-stepwise":   {Template: "{{role}}\n\nUser Request:\n{{prompt}}"},
+		},
+		Roles: map[string]config.RoleConfig{
+			"be": {Prompt: "Expert Backend Engineer & Tech Lead"},
+			"ui": {Prompt: "Expert Product Designer & UI Systems Specialist"},
+		},
+		Profiles: map[string]config.ProfileConfig{
+			"backend_review": {Target: "claude", Role: "be", TemplatePreset: "claude-review"},
+		},
+		Shortcuts: map[string]config.ShortcutConfig{
+			"ask":    {Target: "claude", TemplatePreset: "claude-structured"},
+			"review": {Target: "claude", Role: "be", TemplatePreset: "claude-review"},
+			"fix":    {Target: "codex", Role: "be", TemplatePreset: "codex-implement"},
+			"design": {Target: "gemini", Role: "ui", TemplatePreset: "gemini-stepwise"},
+		},
+	}
+}
 
-	translator := &stubTranslator{output: "Hello world"}
-	clipboard := &stubClipboard{}
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-
-	app := New(Dependencies{
+func newTestApp(t *testing.T, cfg config.Config, translator *stubTranslator, clipboard *stubClipboard, ed *stubEditor, historyStore *history.Store) *App {
+	t.Helper()
+	return New(Dependencies{
 		Version:    "test",
-		Stdout:     &stdout,
-		Stderr:     &stderr,
+		Stdout:     &bytes.Buffer{},
+		Stderr:     &bytes.Buffer{},
 		Translator: translator,
 		Clipboard:  clipboard,
-		Editor:     &stubEditor{},
+		Editor:     ed,
 		ConfigLoader: func() (config.Config, error) {
-			return config.Config{
-				Targets: map[string]config.TargetConfig{
-					"claude": {Template: "{{prompt}}"},
-				},
-				Roles: map[string]config.RoleConfig{},
-			}, nil
+			return cfg, nil
 		},
-		ConfigInit: func() (string, error) { return "", nil },
-		LookupEnv:  func(string) (string, bool) { return "", false },
+		ConfigInit:   func() (string, error) { return "/tmp/prtr/config.toml", nil },
+		LookupEnv:    func(string) (string, bool) { return "", false },
+		HistoryStore: historyStore,
 	})
+}
 
-	err := app.Execute(context.Background(), []string{"--no-copy", "hello", "world"}, strings.NewReader("ignored"), true)
+func buffersFromApp(app *App) (*bytes.Buffer, *bytes.Buffer) {
+	return app.stdout.(*bytes.Buffer), app.stderr.(*bytes.Buffer)
+}
+
+func TestExecuteRendersPresetAndSkipsClipboard(t *testing.T) {
+	t.Parallel()
+
+	translator := &stubTranslator{output: "Translated prompt"}
+	app := newTestApp(t, testConfig(), translator, &stubClipboard{}, &stubEditor{}, history.New(filepath.Join(t.TempDir(), "history.json")))
+	stdout, stderr := buffersFromApp(app)
+
+	err := app.Execute(context.Background(), []string{"--template", "claude-structured", "-r", "be", "--no-copy", "원문"}, strings.NewReader(""), false)
 	if err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
 
-	if translator.gotInput != "hello world" {
-		t.Fatalf("translator input = %q, want %q", translator.gotInput, "hello world")
+	got := stdout.String()
+	if !strings.Contains(got, "<role>\nExpert Backend Engineer & Tech Lead\n</role>") {
+		t.Fatalf("stdout = %q", got)
 	}
-	if got := stdout.String(); got != "Hello world\n" {
-		t.Fatalf("stdout = %q, want %q", got, "Hello world\n")
-	}
-	if clipboard.calls != 0 {
-		t.Fatalf("clipboard calls = %d, want 0", clipboard.calls)
+	if !strings.Contains(got, "<input_prompt>\nTranslated prompt\n</input_prompt>") {
+		t.Fatalf("stdout = %q", got)
 	}
 	if !strings.Contains(stderr.String(), "clipboard skipped") {
-		t.Fatalf("stderr = %q, want clipboard skipped notice", stderr.String())
+		t.Fatalf("stderr = %q", stderr.String())
 	}
 }
 
-func TestExecuteReadsStdinAndCopiesRenderedPrompt(t *testing.T) {
+func TestExecuteShortcutUsesShortcutDefaults(t *testing.T) {
 	t.Parallel()
 
-	translator := &stubTranslator{output: "How do I start a Go server?"}
-	clipboard := &stubClipboard{}
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
+	translator := &stubTranslator{output: "Translated prompt"}
+	app := newTestApp(t, testConfig(), translator, &stubClipboard{}, &stubEditor{}, history.New(filepath.Join(t.TempDir(), "history.json")))
+	stdout, _ := buffersFromApp(app)
 
-	app := New(Dependencies{
-		Version:    "test",
-		Stdout:     &stdout,
-		Stderr:     &stderr,
-		Translator: translator,
-		Clipboard:  clipboard,
-		Editor:     &stubEditor{},
-		ConfigLoader: func() (config.Config, error) {
-			return config.Config{
-				DefaultTarget: "codex",
-				Targets: map[string]config.TargetConfig{
-					"codex": {Template: "Please answer in English.\n\n{{prompt}}"},
-				},
-				Roles: map[string]config.RoleConfig{},
-			}, nil
-		},
-		ConfigInit: func() (string, error) { return "", nil },
-		LookupEnv:  func(string) (string, bool) { return "", false },
-	})
-
-	err := app.Execute(context.Background(), nil, strings.NewReader("고 서버 시작법"), true)
+	err := app.Execute(context.Background(), []string{"fix", "--no-copy", "원문"}, strings.NewReader(""), false)
 	if err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
 
-	want := "Please answer in English.\n\nHow do I start a Go server?"
-	if got := strings.TrimSuffix(stdout.String(), "\n"); got != want {
-		t.Fatalf("stdout = %q, want %q", got, want)
+	got := stdout.String()
+	if !strings.Contains(got, "// Target: codex") {
+		t.Fatalf("stdout = %q", got)
 	}
-	if clipboard.copied != want {
-		t.Fatalf("clipboard copied = %q, want %q", clipboard.copied, want)
-	}
-	if !strings.Contains(stderr.String(), `target "codex"`) {
-		t.Fatalf("stderr = %q, want target status", stderr.String())
+	if !strings.Contains(got, "Expert Backend Engineer & Tech Lead") {
+		t.Fatalf("stdout = %q", got)
 	}
 }
 
-func TestExecuteReturnsUsageErrorWhenInputMissing(t *testing.T) {
+func TestExecuteCodexTemplateKeepsMultilineRoleReadable(t *testing.T) {
 	t.Parallel()
 
-	app := New(Dependencies{
-		Version:    "test",
-		Stdout:     &bytes.Buffer{},
-		Stderr:     &bytes.Buffer{},
-		Translator: &stubTranslator{},
-		Clipboard:  &stubClipboard{},
-		ConfigLoader: func() (config.Config, error) {
-			return config.Config{
-				Targets: map[string]config.TargetConfig{"claude": {Template: "{{prompt}}"}},
-				Roles:   map[string]config.RoleConfig{},
-			}, nil
-		},
-		ConfigInit: func() (string, error) { return "", nil },
-		LookupEnv:  func(string) (string, bool) { return "", false },
-	})
-
-	err := app.Execute(context.Background(), nil, strings.NewReader(""), false)
-	if err == nil {
-		t.Fatal("Execute() expected an error, got nil")
+	cfg := testConfig()
+	cfg.Roles["be"] = config.RoleConfig{
+		Prompt: "Expert Backend Engineer & Tech Lead.\nFocus on reliability and maintainability.",
 	}
-	if !strings.Contains(err.Error(), "missing prompt text") {
+
+	translator := &stubTranslator{output: "Refactor this function."}
+	app := newTestApp(t, cfg, translator, &stubClipboard{}, &stubEditor{}, history.New(filepath.Join(t.TempDir(), "history.json")))
+	stdout, _ := buffersFromApp(app)
+
+	err := app.Execute(context.Background(), []string{"-t", "codex", "--template", "codex-implement", "-r", "be", "--no-copy", "원문"}, strings.NewReader(""), false)
+	if err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
+
+	got := stdout.String()
+	if !strings.Contains(got, "// Target: codex") {
+		t.Fatalf("stdout = %q", got)
+	}
+	if strings.Contains(got, "// Role:") {
+		t.Fatalf("stdout = %q, want multiline role outside comment header", got)
+	}
+	if !strings.Contains(got, "Focus on reliability and maintainability.") {
+		t.Fatalf("stdout = %q", got)
+	}
 }
 
-func TestExecuteReturnsUnknownTargetError(t *testing.T) {
+func TestExecuteJSONExplainAndDiff(t *testing.T) {
 	t.Parallel()
 
-	app := New(Dependencies{
-		Version:    "test",
-		Stdout:     &bytes.Buffer{},
-		Stderr:     &bytes.Buffer{},
-		Translator: &stubTranslator{},
-		Clipboard:  &stubClipboard{},
-		ConfigLoader: func() (config.Config, error) {
-			return config.Config{
-				Targets: map[string]config.TargetConfig{
-					"claude": {Template: "{{prompt}}"},
-					"codex":  {Template: "{{prompt}}"},
-				},
-				Roles: map[string]config.RoleConfig{},
-			}, nil
-		},
-		ConfigInit: func() (string, error) { return "", nil },
-		LookupEnv:  func(string) (string, bool) { return "missing", true },
-	})
+	translator := &stubTranslator{output: "Translated prompt"}
+	clipboard := &stubClipboard{}
+	app := newTestApp(t, testConfig(), translator, clipboard, &stubEditor{}, history.New(filepath.Join(t.TempDir(), "history.json")))
+	stdout, stderr := buffersFromApp(app)
 
-	err := app.Execute(context.Background(), []string{"hello"}, strings.NewReader(""), false)
-	if err == nil {
-		t.Fatal("Execute() expected an error, got nil")
-	}
-	if !strings.Contains(err.Error(), `unknown target "missing"`) {
+	err := app.Execute(context.Background(), []string{"--json", "--explain", "--diff", "원문"}, strings.NewReader(""), false)
+	if err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
+
+	if !strings.Contains(stdout.String(), `"final_prompt"`) {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), `"copied": true`) {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "Resolved configuration:") || !strings.Contains(stderr.String(), "Final Prompt:") {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+	if clipboard.calls != 1 {
+		t.Fatalf("clipboard calls = %d, want 1", clipboard.calls)
+	}
 }
 
-func TestExecuteVersionAndInitCommands(t *testing.T) {
+func TestExecuteInteractiveUsesEditorRequestStatus(t *testing.T) {
 	t.Parallel()
 
-	var stdout bytes.Buffer
+	translator := &stubTranslator{output: "Translated prompt"}
+	editorStub := &stubEditor{output: "Edited prompt"}
+	app := newTestApp(t, testConfig(), translator, &stubClipboard{}, editorStub, history.New(filepath.Join(t.TempDir(), "history.json")))
+	stdout, _ := buffersFromApp(app)
 
-	app := New(Dependencies{
-		Version:    "1.2.3",
-		Stdout:     &stdout,
-		Stderr:     &bytes.Buffer{},
-		Translator: &stubTranslator{},
-		Clipboard:  &stubClipboard{},
-		ConfigLoader: func() (config.Config, error) {
-			return config.Config{}, nil
-		},
-		ConfigInit: func() (string, error) { return "/tmp/prtr/config.toml", nil },
-		LookupEnv:  func(string) (string, bool) { return "", false },
-	})
-
-	if err := app.Execute(context.Background(), []string{"version"}, strings.NewReader(""), false); err != nil {
-		t.Fatalf("version Execute() error = %v", err)
+	err := app.Execute(context.Background(), []string{"-i", "--no-copy", "-r", "be", "원문"}, strings.NewReader(""), false)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
 	}
-	if got := stdout.String(); got != "1.2.3\n" {
-		t.Fatalf("version stdout = %q", got)
+
+	if editorStub.calls != 1 {
+		t.Fatalf("editor calls = %d", editorStub.calls)
+	}
+	if !strings.Contains(editorStub.gotInput.Status, "Target: claude") || !strings.Contains(editorStub.gotInput.Status, "Role: be") {
+		t.Fatalf("editor status = %q", editorStub.gotInput.Status)
+	}
+	if stdout.String() != "Edited prompt\n" {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
+func TestExecuteTemplatesCommands(t *testing.T) {
+	t.Parallel()
+
+	app := newTestApp(t, testConfig(), &stubTranslator{}, &stubClipboard{}, &stubEditor{}, history.New(filepath.Join(t.TempDir(), "history.json")))
+	stdout, _ := buffersFromApp(app)
+
+	if err := app.Execute(context.Background(), []string{"templates", "list"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("templates list error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "claude-structured") {
+		t.Fatalf("stdout = %q", stdout.String())
 	}
 
 	stdout.Reset()
-	if err := app.Execute(context.Background(), []string{"init"}, strings.NewReader(""), false); err != nil {
-		t.Fatalf("init Execute() error = %v", err)
+	if err := app.Execute(context.Background(), []string{"templates", "show", "codex-implement"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("templates show error = %v", err)
 	}
-	if !strings.Contains(stdout.String(), "/tmp/prtr/config.toml") {
-		t.Fatalf("init stdout = %q", stdout.String())
-	}
-}
-
-func TestExecutePropagatesClipboardErrors(t *testing.T) {
-	t.Parallel()
-
-	expectedErr := errors.New("clipboard unavailable")
-	app := New(Dependencies{
-		Version:    "test",
-		Stdout:     &bytes.Buffer{},
-		Stderr:     &bytes.Buffer{},
-		Translator: &stubTranslator{output: "Hello"},
-		Clipboard:  &stubClipboard{err: expectedErr},
-		ConfigLoader: func() (config.Config, error) {
-			return config.Config{
-				Targets: map[string]config.TargetConfig{"claude": {Template: "{{prompt}}"}},
-				Roles:   map[string]config.RoleConfig{},
-			}, nil
-		},
-		ConfigInit: func() (string, error) { return "", nil },
-		LookupEnv:  func(string) (string, bool) { return "", false },
-	})
-
-	err := app.Execute(context.Background(), []string{"hello"}, strings.NewReader(""), false)
-	if !errors.Is(err, expectedErr) {
-		t.Fatalf("Execute() error = %v, want %v", err, expectedErr)
+	if !strings.Contains(stdout.String(), "// Target: {{target}}") {
+		t.Fatalf("stdout = %q", stdout.String())
 	}
 }
 
-func TestExecuteInjectsRoleIntoTemplate(t *testing.T) {
-	t.Parallel()
+func TestExecuteProfilesCommandsAndUse(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tempDir)
 
-	translator := &stubTranslator{output: "Review this service"}
-	clipboard := &stubClipboard{}
-	var stdout bytes.Buffer
+	cfg := testConfig()
+	app := newTestApp(t, cfg, &stubTranslator{}, &stubClipboard{}, &stubEditor{}, history.New(filepath.Join(t.TempDir(), "history.json")))
+	stdout, _ := buffersFromApp(app)
 
-	app := New(Dependencies{
-		Version:    "test",
-		Stdout:     &stdout,
-		Stderr:     &bytes.Buffer{},
-		Translator: translator,
-		Clipboard:  clipboard,
-		Editor:     &stubEditor{},
-		ConfigLoader: func() (config.Config, error) {
-			return config.Config{
-				Targets: map[string]config.TargetConfig{
-					"claude": {Template: "<role>{{role}}</role>\n{{prompt}}"},
-				},
-				Roles: map[string]config.RoleConfig{
-					"be": {Prompt: "Expert Backend Engineer & Tech Lead"},
-				},
-			}, nil
-		},
-		ConfigInit: func() (string, error) { return "", nil },
-		LookupEnv:  func(string) (string, bool) { return "", false },
-	})
+	if err := app.Execute(context.Background(), []string{"profiles", "list"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("profiles list error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "backend_review") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
 
-	err := app.Execute(context.Background(), []string{"-r", "be", "--no-copy", "hello"}, strings.NewReader(""), false)
+	stdout.Reset()
+	if err := app.Execute(context.Background(), []string{"profiles", "show", "backend_review"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("profiles show error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "template_preset: claude-review") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+
+	stdout.Reset()
+	if err := app.Execute(context.Background(), []string{"profiles", "use", "backend_review"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("profiles use error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "set defaults from profile") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
+func TestExecuteHistoryAndRerun(t *testing.T) {
+	tempDir := t.TempDir()
+	store := history.New(filepath.Join(tempDir, "history.json"))
+	translator := &stubTranslator{output: "Translated prompt"}
+	app := newTestApp(t, testConfig(), translator, &stubClipboard{}, &stubEditor{}, store)
+	stdout, _ := buffersFromApp(app)
+
+	if err := app.Execute(context.Background(), []string{"--no-copy", "원문"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("first execute error = %v", err)
+	}
+
+	stdout.Reset()
+	if err := app.Execute(context.Background(), []string{"history"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("history error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "target=claude") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+
+	entries, err := store.List()
 	if err != nil {
-		t.Fatalf("Execute() error = %v", err)
+		t.Fatalf("List() error = %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("entries = %d, want 1", len(entries))
 	}
 
-	want := "<role>Expert Backend Engineer & Tech Lead</role>\nReview this service\n"
-	if got := stdout.String(); got != want {
-		t.Fatalf("stdout = %q, want %q", got, want)
+	stdout.Reset()
+	translator.output = "Translated again"
+	if err := app.Execute(context.Background(), []string{"rerun", entries[0].ID, "--no-copy"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("rerun error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "Translated again") {
+		t.Fatalf("stdout = %q", stdout.String())
 	}
 }
 
-func TestExecuteReturnsUnknownRoleError(t *testing.T) {
+func TestExecuteSetupWritesDefaults(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tempDir)
+
+	cfg := testConfig()
+	app := newTestApp(t, cfg, &stubTranslator{}, &stubClipboard{}, &stubEditor{}, history.New(filepath.Join(t.TempDir(), "history.json")))
+	stdout, _ := buffersFromApp(app)
+
+	input := strings.NewReader("saved-key\ncodex\nbe\ncodex-implement\n")
+	if err := app.Execute(context.Background(), []string{"setup"}, input, false); err != nil {
+		t.Fatalf("setup error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "updated config") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
+func TestExecuteDoctorReportsFailures(t *testing.T) {
 	t.Parallel()
+
+	cfg := testConfig()
+	cfg.DefaultTemplatePreset = "missing"
 
 	app := New(Dependencies{
 		Version:    "test",
 		Stdout:     &bytes.Buffer{},
 		Stderr:     &bytes.Buffer{},
-		Translator: &stubTranslator{},
-		Clipboard:  &stubClipboard{},
+		Translator: &stubTranslator{output: "ok"},
+		Clipboard:  &stubClipboard{diagErr: errors.New("clipboard unavailable")},
 		Editor:     &stubEditor{},
 		ConfigLoader: func() (config.Config, error) {
-			return config.Config{
-				Targets: map[string]config.TargetConfig{
-					"claude": {Template: "{{prompt}}"},
-				},
-				Roles: map[string]config.RoleConfig{
-					"be": {Prompt: "Expert Backend Engineer & Tech Lead"},
-					"se": {Prompt: "Expert Security Engineer & Application Security Reviewer"},
-				},
-			}, nil
+			return cfg, nil
 		},
-		ConfigInit: func() (string, error) { return "", nil },
-		LookupEnv:  func(string) (string, bool) { return "", false },
+		ConfigInit:   func() (string, error) { return "", nil },
+		LookupEnv:    func(string) (string, bool) { return "", false },
+		HistoryStore: history.New(filepath.Join(t.TempDir(), "history.json")),
 	})
+	stdout, _ := buffersFromApp(app)
 
-	err := app.Execute(context.Background(), []string{"-r", "missing", "hello"}, strings.NewReader(""), false)
+	err := app.Execute(context.Background(), []string{"doctor"}, strings.NewReader(""), false)
+	if err == nil {
+		t.Fatal("doctor expected an error, got nil")
+	}
+	if !strings.Contains(stdout.String(), "FAIL deepl api key") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
+func TestExecuteReturnsUnknownTemplateError(t *testing.T) {
+	t.Parallel()
+
+	app := newTestApp(t, testConfig(), &stubTranslator{output: "ok"}, &stubClipboard{}, &stubEditor{}, history.New(filepath.Join(t.TempDir(), "history.json")))
+
+	err := app.Execute(context.Background(), []string{"--template", "missing", "--no-copy", "원문"}, strings.NewReader(""), false)
 	if err == nil {
 		t.Fatal("Execute() expected an error, got nil")
 	}
-	if !strings.Contains(err.Error(), `unknown role "missing"`) {
-		t.Fatalf("Execute() error = %v", err)
-	}
-	if !strings.Contains(err.Error(), "be, se") {
-		t.Fatalf("Execute() error = %v", err)
-	}
-}
-
-func TestExecuteInteractiveUsesEditedPromptForStdoutAndClipboard(t *testing.T) {
-	t.Parallel()
-
-	translator := &stubTranslator{output: "Initial"}
-	clipboard := &stubClipboard{}
-	editor := &stubEditor{output: "Edited"}
-	var stdout bytes.Buffer
-
-	app := New(Dependencies{
-		Version:    "test",
-		Stdout:     &stdout,
-		Stderr:     &bytes.Buffer{},
-		Translator: translator,
-		Clipboard:  clipboard,
-		Editor:     editor,
-		ConfigLoader: func() (config.Config, error) {
-			return config.Config{
-				Targets: map[string]config.TargetConfig{
-					"claude": {Template: "{{prompt}}"},
-				},
-				Roles: map[string]config.RoleConfig{},
-			}, nil
-		},
-		ConfigInit: func() (string, error) { return "", nil },
-		LookupEnv:  func(string) (string, bool) { return "", false },
-	})
-
-	err := app.Execute(context.Background(), []string{"-i", "hello"}, strings.NewReader(""), false)
-	if err != nil {
-		t.Fatalf("Execute() error = %v", err)
-	}
-	if editor.calls != 1 {
-		t.Fatalf("editor calls = %d, want 1", editor.calls)
-	}
-	if editor.gotInput != "Initial" {
-		t.Fatalf("editor input = %q, want %q", editor.gotInput, "Initial")
-	}
-	if stdout.String() != "Edited\n" {
-		t.Fatalf("stdout = %q, want %q", stdout.String(), "Edited\n")
-	}
-	if clipboard.copied != "Edited" {
-		t.Fatalf("clipboard copied = %q, want %q", clipboard.copied, "Edited")
-	}
-}
-
-func TestExecuteInteractiveNoCopySkipsClipboard(t *testing.T) {
-	t.Parallel()
-
-	translator := &stubTranslator{output: "Initial"}
-	clipboard := &stubClipboard{}
-	editor := &stubEditor{output: "Edited"}
-	var stdout bytes.Buffer
-
-	app := New(Dependencies{
-		Version:    "test",
-		Stdout:     &stdout,
-		Stderr:     &bytes.Buffer{},
-		Translator: translator,
-		Clipboard:  clipboard,
-		Editor:     editor,
-		ConfigLoader: func() (config.Config, error) {
-			return config.Config{
-				Targets: map[string]config.TargetConfig{
-					"claude": {Template: "{{prompt}}"},
-				},
-				Roles: map[string]config.RoleConfig{},
-			}, nil
-		},
-		ConfigInit: func() (string, error) { return "", nil },
-		LookupEnv:  func(string) (string, bool) { return "", false },
-	})
-
-	err := app.Execute(context.Background(), []string{"-i", "--no-copy", "hello"}, strings.NewReader(""), false)
-	if err != nil {
-		t.Fatalf("Execute() error = %v", err)
-	}
-	if stdout.String() != "Edited\n" {
-		t.Fatalf("stdout = %q, want %q", stdout.String(), "Edited\n")
-	}
-	if clipboard.calls != 0 {
-		t.Fatalf("clipboard calls = %d, want 0", clipboard.calls)
+	if !strings.Contains(err.Error(), `unknown template preset "missing"`) {
+		t.Fatalf("error = %v", err)
 	}
 }
 
 func TestExecuteInteractiveCancelReturnsSentinelError(t *testing.T) {
 	t.Parallel()
 
-	app := New(Dependencies{
-		Version:    "test",
-		Stdout:     &bytes.Buffer{},
-		Stderr:     &bytes.Buffer{},
-		Translator: &stubTranslator{output: "Initial"},
-		Clipboard:  &stubClipboard{},
-		Editor:     &stubEditor{err: editor.ErrCanceled},
-		ConfigLoader: func() (config.Config, error) {
-			return config.Config{
-				Targets: map[string]config.TargetConfig{
-					"claude": {Template: "{{prompt}}"},
-				},
-				Roles: map[string]config.RoleConfig{},
-			}, nil
-		},
-		ConfigInit: func() (string, error) { return "", nil },
-		LookupEnv:  func(string) (string, bool) { return "", false },
-	})
+	app := newTestApp(t, testConfig(), &stubTranslator{output: "Rendered"}, &stubClipboard{}, &stubEditor{err: editor.ErrCanceled}, history.New(filepath.Join(t.TempDir(), "history.json")))
 
-	err := app.Execute(context.Background(), []string{"-i", "hello"}, strings.NewReader(""), false)
+	err := app.Execute(context.Background(), []string{"-i", "원문"}, strings.NewReader(""), false)
 	if !errors.Is(err, editor.ErrCanceled) {
-		t.Fatalf("Execute() error = %v, want %v", err, editor.ErrCanceled)
-	}
-}
-
-func TestExecuteShowOriginalWritesOriginalToStderr(t *testing.T) {
-	t.Parallel()
-
-	translator := &stubTranslator{output: "Translated prompt"}
-	clipboard := &stubClipboard{}
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-
-	app := New(Dependencies{
-		Version:    "test",
-		Stdout:     &stdout,
-		Stderr:     &stderr,
-		Translator: translator,
-		Clipboard:  clipboard,
-		Editor:     &stubEditor{},
-		ConfigLoader: func() (config.Config, error) {
-			return config.Config{
-				Targets: map[string]config.TargetConfig{
-					"claude": {Template: "Answer:\n{{prompt}}"},
-				},
-				Roles: map[string]config.RoleConfig{},
-			}, nil
-		},
-		ConfigInit: func() (string, error) { return "", nil },
-		LookupEnv:  func(string) (string, bool) { return "", false },
-	})
-
-	err := app.Execute(context.Background(), []string{"--show-original", "--no-copy", "원문 프롬프트"}, strings.NewReader(""), false)
-	if err != nil {
-		t.Fatalf("Execute() error = %v", err)
-	}
-
-	if stdout.String() != "Answer:\nTranslated prompt\n" {
-		t.Fatalf("stdout = %q, want translated output", stdout.String())
-	}
-	if !strings.Contains(stderr.String(), "Original:\n원문 프롬프트\n\n") {
-		t.Fatalf("stderr = %q, want original block", stderr.String())
-	}
-	if !strings.Contains(stderr.String(), `target "claude" ready; clipboard skipped`) {
-		t.Fatalf("stderr = %q, want clipboard skipped status", stderr.String())
-	}
-}
-
-func TestExecuteInteractiveShowOriginalUsesShortFlag(t *testing.T) {
-	t.Parallel()
-
-	translator := &stubTranslator{output: "Rendered prompt"}
-	clipboard := &stubClipboard{}
-	editor := &stubEditor{output: "Edited prompt"}
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-
-	app := New(Dependencies{
-		Version:    "test",
-		Stdout:     &stdout,
-		Stderr:     &stderr,
-		Translator: translator,
-		Clipboard:  clipboard,
-		Editor:     editor,
-		ConfigLoader: func() (config.Config, error) {
-			return config.Config{
-				Targets: map[string]config.TargetConfig{
-					"claude": {Template: "Answer:\n{{prompt}}"},
-				},
-				Roles: map[string]config.RoleConfig{},
-			}, nil
-		},
-		ConfigInit: func() (string, error) { return "", nil },
-		LookupEnv:  func(string) (string, bool) { return "", false },
-	})
-
-	err := app.Execute(context.Background(), []string{"-i", "--show-original", "--no-copy", "원문"}, strings.NewReader(""), false)
-	if err != nil {
-		t.Fatalf("Execute() error = %v", err)
-	}
-
-	if editor.calls != 1 {
-		t.Fatalf("editor calls = %d, want 1", editor.calls)
-	}
-	if editor.gotInput != "Answer:\nRendered prompt" {
-		t.Fatalf("editor input = %q, want rendered prompt", editor.gotInput)
-	}
-	if stdout.String() != "Edited prompt\n" {
-		t.Fatalf("stdout = %q, want edited output", stdout.String())
-	}
-	if clipboard.calls != 0 {
-		t.Fatalf("clipboard calls = %d, want 0", clipboard.calls)
-	}
-	if !strings.Contains(stderr.String(), "Original:\n원문\n\n") {
-		t.Fatalf("stderr = %q, want original block", stderr.String())
-	}
-}
-
-func TestExecuteTargetFlagOverridesConfigAndEnv(t *testing.T) {
-	t.Parallel()
-
-	translator := &stubTranslator{output: "Translated"}
-	var stdout bytes.Buffer
-
-	app := New(Dependencies{
-		Version:    "test",
-		Stdout:     &stdout,
-		Stderr:     &bytes.Buffer{},
-		Translator: translator,
-		Clipboard:  &stubClipboard{},
-		Editor:     &stubEditor{},
-		ConfigLoader: func() (config.Config, error) {
-			return config.Config{
-				DefaultTarget: "gemini",
-				Targets: map[string]config.TargetConfig{
-					"claude": {Template: "CLAUDE:\n{{prompt}}"},
-					"codex":  {Template: "CODEX:\n{{prompt}}"},
-					"gemini": {Template: "GEMINI:\n{{prompt}}"},
-				},
-				Roles: map[string]config.RoleConfig{},
-			}, nil
-		},
-		ConfigInit: func() (string, error) { return "", nil },
-		LookupEnv:  func(string) (string, bool) { return "claude", true },
-	})
-
-	err := app.Execute(context.Background(), []string{"-t", "codex", "--no-copy", "hello"}, strings.NewReader(""), false)
-	if err != nil {
-		t.Fatalf("Execute() error = %v", err)
-	}
-
-	if stdout.String() != "CODEX:\nTranslated\n" {
-		t.Fatalf("stdout = %q, want codex target output", stdout.String())
-	}
-}
-
-func TestExecuteUsesEnvTargetWhenConfigDefaultMissing(t *testing.T) {
-	t.Parallel()
-
-	translator := &stubTranslator{output: "Translated"}
-	var stdout bytes.Buffer
-
-	app := New(Dependencies{
-		Version:    "test",
-		Stdout:     &stdout,
-		Stderr:     &bytes.Buffer{},
-		Translator: translator,
-		Clipboard:  &stubClipboard{},
-		Editor:     &stubEditor{},
-		ConfigLoader: func() (config.Config, error) {
-			return config.Config{
-				Targets: map[string]config.TargetConfig{
-					"claude": {Template: "CLAUDE:\n{{prompt}}"},
-					"gemini": {Template: "GEMINI:\n{{prompt}}"},
-				},
-				Roles: map[string]config.RoleConfig{},
-			}, nil
-		},
-		ConfigInit: func() (string, error) { return "", nil },
-		LookupEnv:  func(string) (string, bool) { return "gemini", true },
-	})
-
-	err := app.Execute(context.Background(), []string{"--no-copy", "hello"}, strings.NewReader(""), false)
-	if err != nil {
-		t.Fatalf("Execute() error = %v", err)
-	}
-
-	if stdout.String() != "GEMINI:\nTranslated\n" {
-		t.Fatalf("stdout = %q, want gemini target output", stdout.String())
-	}
-}
-
-func TestParseRunOptionsSupportsShortAliases(t *testing.T) {
-	t.Parallel()
-
-	opts, positional, err := parseRunOptions([]string{"-i", "-t", "codex", "-r", "be", "--show-original", "hello"})
-	if err != nil {
-		t.Fatalf("parseRunOptions() error = %v", err)
-	}
-
-	if !opts.interactive {
-		t.Fatal("interactive = false, want true")
-	}
-	if opts.target != "codex" {
-		t.Fatalf("target = %q, want %q", opts.target, "codex")
-	}
-	if opts.role != "be" {
-		t.Fatalf("role = %q, want %q", opts.role, "be")
-	}
-	if !opts.showOriginal {
-		t.Fatal("showOriginal = false, want true")
-	}
-	if len(positional) != 1 || positional[0] != "hello" {
-		t.Fatalf("positional = %v, want [hello]", positional)
-	}
-}
-
-func TestExecuteInteractiveWithoutEditorConfiguredReturnsError(t *testing.T) {
-	t.Parallel()
-
-	app := New(Dependencies{
-		Version:    "test",
-		Stdout:     &bytes.Buffer{},
-		Stderr:     &bytes.Buffer{},
-		Translator: &stubTranslator{output: "Initial"},
-		Clipboard:  &stubClipboard{},
-		ConfigLoader: func() (config.Config, error) {
-			return config.Config{
-				Targets: map[string]config.TargetConfig{
-					"claude": {Template: "{{prompt}}"},
-				},
-				Roles: map[string]config.RoleConfig{},
-			}, nil
-		},
-		ConfigInit: func() (string, error) { return "", nil },
-		LookupEnv:  func(string) (string, bool) { return "", false },
-	})
-
-	err := app.Execute(context.Background(), []string{"-i", "hello"}, strings.NewReader(""), false)
-	if err == nil {
-		t.Fatal("Execute() expected an error, got nil")
-	}
-	if !strings.Contains(err.Error(), "interactive mode is unavailable") {
 		t.Fatalf("Execute() error = %v", err)
 	}
 }

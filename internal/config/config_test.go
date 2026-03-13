@@ -8,33 +8,53 @@ import (
 	"testing"
 )
 
-func TestLoadParsesConfigFileAndMergesTargets(t *testing.T) {
+func TestLoadMergesUserAndProjectConfig(t *testing.T) {
 	tempDir := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", tempDir)
-
-	path := filepath.Join(tempDir, "prtr", "config.toml")
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	projectDir := filepath.Join(tempDir, "repo", "nested")
+	if err := os.MkdirAll(projectDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll() error = %v", err)
 	}
 
-	content := `default_target = "gemini"
+	t.Setenv("XDG_CONFIG_HOME", tempDir)
+	oldWD, _ := os.Getwd()
+	t.Cleanup(func() { _ = os.Chdir(oldWD) })
+	if err := os.Chdir(projectDir); err != nil {
+		t.Fatalf("Chdir() error = %v", err)
+	}
 
-[targets.codex]
-template = "Review this carefully:\n{{prompt}}"
+	userPath := filepath.Join(tempDir, "prtr", "config.toml")
+	if err := os.MkdirAll(filepath.Dir(userPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	userContent := `deepl_api_key = "user-key"
+default_target = "gemini"
+default_role = "be"
 
-[targets.custom]
-template = "Custom:\n{{prompt}}"
-
-[roles.be]
-prompt = """
-Expert Backend Engineer & Tech Lead.
-Focus on API design.
-"""
+[template_presets.team]
+template = "Team:\n{{prompt}}"
 
 [roles.writer]
 content = "Expert Technical Writer"
 `
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(userPath, []byte(userContent), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	projectPath := filepath.Join(tempDir, "repo", ".prtr.toml")
+	projectContent := `default_target = "codex"
+default_template_preset = "team"
+
+[profiles.backend_review]
+target = "claude"
+role = "be"
+template_preset = "claude-review"
+
+[shortcuts.fix]
+target = "codex"
+role = "fe"
+template_preset = "codex-implement"
+`
+	if err := os.WriteFile(projectPath, []byte(projectContent), 0o644); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 
@@ -43,48 +63,88 @@ content = "Expert Technical Writer"
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	if cfg.DefaultTarget != "gemini" {
-		t.Fatalf("DefaultTarget = %q, want %q", cfg.DefaultTarget, "gemini")
+	if cfg.APIKey != "user-key" {
+		t.Fatalf("APIKey = %q, want %q", cfg.APIKey, "user-key")
 	}
-	if !strings.Contains(cfg.Targets["claude"].Template, "<input_prompt>") {
-		t.Fatalf("claude template = %q, want rich default template", cfg.Targets["claude"].Template)
+	if cfg.DefaultTarget != "codex" {
+		t.Fatalf("DefaultTarget = %q, want %q", cfg.DefaultTarget, "codex")
 	}
-	if !strings.Contains(cfg.Targets["claude"].Template, "<role>") || !strings.Contains(cfg.Targets["claude"].Template, "{{role}}") {
-		t.Fatalf("claude template = %q, want role placeholder wrapper", cfg.Targets["claude"].Template)
+	if cfg.DefaultRole != "be" {
+		t.Fatalf("DefaultRole = %q, want %q", cfg.DefaultRole, "be")
 	}
-	if cfg.Targets["codex"].Template != "Review this carefully:\n{{prompt}}" {
-		t.Fatalf("codex template = %q", cfg.Targets["codex"].Template)
+	if cfg.DefaultTemplatePreset != "team" {
+		t.Fatalf("DefaultTemplatePreset = %q, want %q", cfg.DefaultTemplatePreset, "team")
 	}
-	if cfg.Targets["custom"].Template != "Custom:\n{{prompt}}" {
-		t.Fatalf("custom template = %q", cfg.Targets["custom"].Template)
+	if cfg.DefaultTargetSource != "project config" {
+		t.Fatalf("DefaultTargetSource = %q", cfg.DefaultTargetSource)
 	}
-	if !strings.Contains(cfg.Roles["be"].Prompt, "Focus on API design.") {
-		t.Fatalf("be role = %q", cfg.Roles["be"].Prompt)
+	if !cfg.HasUserConfig || !cfg.HasProjectConfig {
+		t.Fatalf("expected both user and project configs to be detected")
 	}
 	if cfg.Roles["writer"].Prompt != "Expert Technical Writer" {
 		t.Fatalf("writer role = %q", cfg.Roles["writer"].Prompt)
 	}
-	if cfg.Roles["da"].Prompt == "" {
-		t.Fatal("expected default roles to be present")
+	if cfg.TemplatePresets["team"].Template != "Team:\n{{prompt}}" {
+		t.Fatalf("team preset = %q", cfg.TemplatePresets["team"].Template)
+	}
+	if cfg.Profiles["backend_review"].TemplatePreset != "claude-review" {
+		t.Fatalf("profile template preset = %q", cfg.Profiles["backend_review"].TemplatePreset)
+	}
+	if cfg.Shortcuts["fix"].Role != "fe" {
+		t.Fatalf("shortcut role = %q", cfg.Shortcuts["fix"].Role)
 	}
 }
 
-func TestResolveTargetPrecedence(t *testing.T) {
+func TestResolveFunctions(t *testing.T) {
 	t.Parallel()
 
-	cfg := Config{DefaultTarget: "gemini"}
+	cfg := Config{
+		APIKey:                "config-key",
+		DefaultTarget:         "gemini",
+		DefaultRole:           "be",
+		DefaultTemplatePreset: "gemini-stepwise",
+	}
+
+	target := TargetConfig{DefaultTemplatePreset: "codex-implement"}
 
 	if got := ResolveTarget("codex", cfg, "claude"); got != "codex" {
-		t.Fatalf("ResolveTarget() with CLI override = %q, want %q", got, "codex")
+		t.Fatalf("ResolveTarget() = %q", got)
 	}
-	if got := ResolveTarget("", cfg, "claude"); got != "gemini" {
-		t.Fatalf("ResolveTarget() with config default = %q, want %q", got, "gemini")
+	if got := ResolveRole("", cfg); got != "be" {
+		t.Fatalf("ResolveRole() = %q", got)
 	}
-	if got := ResolveTarget("", Config{}, "claude"); got != "claude" {
-		t.Fatalf("ResolveTarget() with env default = %q, want %q", got, "claude")
+	if got := ResolveTemplatePreset("", cfg, target); got != "gemini-stepwise" {
+		t.Fatalf("ResolveTemplatePreset() = %q", got)
 	}
-	if got := ResolveTarget("", Config{}, ""); got != "claude" {
-		t.Fatalf("ResolveTarget() fallback = %q, want %q", got, "claude")
+	if key, source := ResolveAPIKey("", cfg); key != "config-key" || source == "" {
+		t.Fatalf("ResolveAPIKey() = %q, %q", key, source)
+	}
+}
+
+func TestSaveDefaultsWritesConfig(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tempDir)
+
+	path, err := SaveDefaults(DefaultsUpdate{
+		APIKey:                stringPtr("saved-key"),
+		DefaultTarget:         stringPtr("claude"),
+		DefaultRole:           stringPtr("ui"),
+		DefaultTemplatePreset: stringPtr("claude-structured"),
+	})
+	if err != nil {
+		t.Fatalf("SaveDefaults() error = %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	content := string(data)
+	if !strings.Contains(content, "deepl_api_key") || !strings.Contains(content, "saved-key") {
+		t.Fatalf("config = %q", content)
+	}
+	if !strings.Contains(content, "default_role") || !strings.Contains(content, "ui") {
+		t.Fatalf("config = %q", content)
 	}
 }
 
@@ -112,11 +172,8 @@ func TestInitCreatesStarterConfigAndRefusesOverwrite(t *testing.T) {
 	if secondPath != path {
 		t.Fatalf("second Init() path = %q, want %q", secondPath, path)
 	}
-	if !strings.Contains(string(data), "<role>") || !strings.Contains(string(data), "{{role}}") {
-		t.Fatalf("starter config = %q, want claude role placeholder", string(data))
-	}
-	if !strings.Contains(string(data), "prompt = ") {
-		t.Fatalf("starter config = %q, want role prompt fields", string(data))
+	if !strings.Contains(string(data), "[template_presets.claude-structured]") {
+		t.Fatalf("starter config = %q, want template presets", string(data))
 	}
 }
 
@@ -141,4 +198,9 @@ func TestLoadRejectsEmptyRolePrompt(t *testing.T) {
 	if !strings.Contains(err.Error(), `config role "bad" has empty prompt`) {
 		t.Fatalf("Load() error = %v", err)
 	}
+}
+
+func stringPtr(value string) *string {
+	v := value
+	return &v
 }

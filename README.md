@@ -1,28 +1,31 @@
 # poly-prompt
 
-`poly-prompt` is the repository for `prtr`, a cross-platform CLI that translates prompt text into English with DeepL, applies target-specific prompt wrappers, optionally layers in role-specific guidance, lets you review the final prompt in a TUI editor, prints the confirmed result to `stdout`, and copies it to your clipboard.
+`poly-prompt` is the repository for `prtr`, a cross-platform CLI that translates prompt text into English with DeepL, applies model-specific template presets, layers in role guidance, lets you inspect or edit the final prompt, prints the confirmed result to `stdout`, and copies it to your clipboard.
 
 ![prtr banner](images/prtr-banner.png)
 
 ## What it does
 
 - Accepts prompt text as CLI args or from `stdin`
+- Guides first-run setup with `prtr setup`
+- Runs local environment diagnostics with `prtr doctor`
 - Translates the input to English with DeepL
-- Applies a target profile template selected by `-t/--target`
-- Optionally applies a role profile selected by `-r/--role`
+- Applies a target selected by `-t/--target`
+- Applies a template preset selected by `--template`
+- Optionally applies a role selected by `-r/--role`
+- Supports reusable profiles, shortcuts, history, and rerun
 - Optionally opens the final prompt in an interactive editor with `-i/--interactive`
+- Can explain, diff, or emit JSON for the resolved prompt pipeline
 - Prints only the confirmed final prompt to `stdout`
 - Copies the final prompt to the clipboard on macOS, Linux, or Windows
 
-`stdout` is intentionally kept clean so the command can be chained in shell workflows. Status messages and optional original text are written to `stderr`.
+`stdout` stays clean for shell workflows. Status output, explain output, diffs, and optional original text are written to `stderr`.
 
 ## Install
 
 Detailed OS-specific install and update steps are in [INSTALLATION.md](/Users/koo/dev/translateCLI-brew/INSTALLATION.md).
 
 ### Homebrew (macOS)
-
-Install from the official Homebrew tap:
 
 ```bash
 brew tap helloprtr/homebrew-tap
@@ -38,152 +41,141 @@ Download the archive that matches your platform from the [releases page](https:/
 
 ### Build from source
 
-If Go is not installed yet:
-
-```bash
-brew install go
-```
-
-Then build locally:
-
 ```bash
 git clone https://github.com/helloprtr/poly-prompt.git
 cd poly-prompt
 go build ./cmd/prtr
 ```
 
-## Install Verification
+## Quick Start
 
-After installation, run through this quick smoke test checklist.
-
-### 1. Check that the binary is installed
+### 1. Check the binary
 
 ```bash
 prtr version
 ```
 
-Expected result:
-- A version string such as `0.2.1`
-
-### 2. Confirm the command is on your PATH
+### 2. Run guided setup
 
 ```bash
-which prtr
+prtr setup
 ```
 
-Expected result:
-- A Homebrew-installed path such as `/opt/homebrew/bin/prtr`
+`setup` walks through:
+- DeepL API key storage
+- default target
+- default role
+- default template preset
 
-### 3. Set your DeepL API key
+### 3. Run diagnostics
 
 ```bash
-export DEEPL_API_KEY="your-deepl-key"
+prtr doctor
 ```
 
-Optional default target:
+`doctor` checks:
+- user and project config detection
+- DeepL API key availability
+- clipboard backend support
+- target, template preset, profile, and shortcut validity
+- translation reachability
 
-```bash
-export PRTR_TARGET="claude"
-```
-
-### 4. Create the starter config
-
-```bash
-prtr init
-```
-
-Expected result:
-- A config file is created at `~/.config/prtr/config.toml`
-- Running `prtr init` a second time refuses to overwrite the existing config
-
-### 5. Run a no-clipboard smoke test
+### 4. Generate your first prompt
 
 ```bash
 prtr --no-copy "도커 컨테이너 실행하는 법 알려줘"
 ```
 
-Expected result:
-- The translated English prompt is printed to `stdout`
-- No clipboard write is attempted
-
-### 6. Run a clipboard smoke test
+### 5. Try a shortcut
 
 ```bash
-prtr "리액트 useEffect 설명해줘"
+prtr review "이 PR의 리스크를 찾아줘"
 ```
-
-Expected result:
-- The translated English prompt is printed
-- The same prompt is copied to the system clipboard
-- You can paste it into Claude, Codex, Gemini, or any text field with `Cmd+V`
-
-### 7. Test stdin input
-
-```bash
-echo "이 에러 원인 분석해줘" | prtr -t codex --no-copy
-```
-
-Expected result:
-- `stdin` input is translated and printed correctly
 
 ## Configuration
 
-### Required environment variable
+### Config locations
 
-```bash
-export DEEPL_API_KEY="your-deepl-key"
-```
+- User config: `$XDG_CONFIG_HOME/prtr/config.toml`
+- Fallback user config: `~/.config/prtr/config.toml`
+- Project config: `.prtr.toml` found by walking up from the current working directory
 
-### Optional environment variable
+### Schema notes
 
-```bash
-export PRTR_TARGET="claude"
-```
+- `deepl_api_key` can be stored in user config through `prtr setup`
+- `default_target`, `default_role`, and `default_template_preset` are supported
+- template presets are defined separately from targets
+- `prompt` is the preferred key for role definitions
+- the older `content` key is still accepted for backward compatibility when loading roles
 
-### Create the starter config
-
-```bash
-prtr init
-```
-
-Config location:
-
-- `$XDG_CONFIG_HOME/prtr/config.toml`
-- Fallback: `~/.config/prtr/config.toml`
-
-Schema notes:
-
-- Use `prompt` for role definitions
-- The older `content` key is still accepted for backward compatibility when loading existing configs
-
-Starter config:
+### Starter config
 
 ```toml
+deepl_api_key = ""
 default_target = "claude"
+default_template_preset = "claude-structured"
 
 [targets.claude]
+family = "claude"
+default_template_preset = "claude-structured"
+
+[targets.gemini]
+family = "gemini"
+default_template_preset = "gemini-stepwise"
+
+[targets.codex]
+family = "codex"
+default_template_preset = "codex-implement"
+
+[template_presets.claude-structured]
+description = "XML-structured default for Claude."
 template = """
 <role>
 {{role}}
 </role>
 
+<context>
+{{context}}
+</context>
+
 <input_prompt>
 {{prompt}}
 </input_prompt>
+
+<output_format>
+{{output_format}}
+</output_format>
 """
 
-[targets.codex]
+[template_presets.gemini-stepwise]
+description = "Stepwise reasoning scaffold for Gemini."
 template = """
 {{role}}
 
-{{prompt}}
-"""
+Context:
+{{context}}
 
-[targets.gemini]
-template = """
-{{role}}
+Follow these steps:
+1. Briefly summarize the core requirement.
+2. Identify edge cases, bottlenecks, or risks.
+3. Provide the most useful response for the user's request.
 
 User Request:
+{{prompt}}
+
+Output Format:
+{{output_format}}
+"""
+
+[template_presets.codex-implement]
+description = "Implementation-focused prompt for coding models."
+template = """
+// Target: {{target}}
+// Context: {{context}}
+// Output Format: {{output_format}}
+
+{{role}}
+
 {{prompt}}
 """
 
@@ -194,17 +186,18 @@ Focus on API design, reliability, observability, maintainability, security, and 
 Tailor the response to the user's request instead of assuming they want code.
 """
 
-[roles.fe]
-prompt = """
-Expert Frontend Engineer & UX-minded Implementer.
-Focus on UX clarity, accessibility, maintainable architecture, performance, and polished implementation details.
-Tailor the response to the user's request instead of assuming they want code.
-"""
+[profiles.backend_review]
+target = "claude"
+role = "be"
+template_preset = "claude-review"
+
+[shortcuts.review]
+target = "claude"
+role = "be"
+template_preset = "claude-review"
 ```
 
-## How It Works
-
-`prtr` is a translator, prompt formatter, and clipboard helper for terminal workflows.
+## How it works
 
 When you run a command such as:
 
@@ -214,22 +207,21 @@ prtr "이 React 에러 원인 분석해줘"
 
 the tool performs these steps:
 
-1. It reads the input text from command-line arguments or, if no arguments are present, from `stdin`.
-2. It loads your config from `~/.config/prtr/config.toml` or `$XDG_CONFIG_HOME/prtr/config.toml`.
-3. It resolves the target profile using this order:
-   CLI flag `-t` -> config `default_target` -> `PRTR_TARGET` -> `claude`
-4. It sends the original text to DeepL and asks for an `EN-US` translation.
-5. It inserts the translated text into the selected target template using `{{prompt}}`, and if requested, inserts a role prompt using `{{role}}`.
-6. If `-i/--interactive` is set, it opens the rendered prompt in a single-pane TUI editor and waits for confirmation.
-7. It prints only the confirmed final prompt to `stdout`.
-8. Unless `--no-copy` is set, it copies the same final prompt to the platform clipboard.
-9. It writes status messages, and optionally the original input, to `stderr`.
-
-This separation is intentional:
-- `stdout` stays clean for piping or scripting
-- `stderr` carries status and debugging-friendly output
-
-In practice, that means you can write in Korean, let `prtr` generate polished English, and then paste the result into Claude, Codex, Gemini, or any other prompt field.
+1. Reads input from CLI args or, if no args are present, from `stdin`
+2. Loads built-in defaults, user config, and optional project config
+3. Resolves the target using this order:
+   CLI `-t` -> shortcut -> config `default_target` -> `PRTR_TARGET` -> built-in default
+4. Resolves the template preset using this order:
+   CLI `--template` -> shortcut -> config `default_template_preset` -> target default preset
+5. Resolves the role using this order:
+   CLI `-r` -> shortcut -> config `default_role`
+6. Resolves the DeepL API key from environment or config
+7. Translates the original text to `EN-US`
+8. Renders the selected template preset with `{{prompt}}` and optional placeholders such as `{{role}}`, `{{target}}`, `{{context}}`, and `{{output_format}}`
+9. Optionally opens the result in the interactive editor
+10. Prints the final prompt to `stdout`, or emits structured JSON with `--json`
+11. Copies the final prompt unless `--no-copy` is set
+12. Stores the run in local history for `prtr history` and `prtr rerun`
 
 ## Usage
 
@@ -237,61 +229,59 @@ In practice, that means you can write in Korean, let `prtr` generate polished En
 
 ```bash
 prtr "도커 컨테이너 실행하는 법 알려줘"
-prtr -t codex "리액트 컴포넌트 생명주기 설명해줘"
-echo "이 코드를 리뷰해줘" | prtr -t gemini
-prtr -r be "고 API 서버 설계 리뷰해줘"
-prtr -t claude -r se -i "이 인증 플로우 보안 검토해줘"
-prtr --no-copy --show-original "이 에러 원인 분석해줘"
+prtr --template codex-implement "리액트 컴포넌트 생명주기 설명해줘"
+echo "이 코드를 리뷰해줘" | prtr --template gemini-stepwise
+prtr -r be --template claude-review "고 API 서버 설계 리뷰해줘"
+prtr review -i "이 인증 플로우 보안 검토해줘"
+prtr --json --explain --diff "이 에러 원인 분석해줘"
 ```
 
 ### Input modes
 
-`prtr` supports two input styles:
-
-1. Positional text arguments
-
 ```bash
 prtr "고랭으로 간단한 웹서버 예제 만들어줘"
-```
-
-2. Piped `stdin`
-
-```bash
 echo "이 쿼리 성능 문제 분석해줘" | prtr
 ```
 
 If both are present, positional arguments win and `stdin` is ignored.
 
-Flag behavior:
+### Core flags
 
-- `-t, --target <name>` chooses the target profile
-- `-r, --role <alias>` chooses the role profile
-- `-i, --interactive` opens a TUI editor before writing to `stdout`
-- `--no-copy` skips writing to the clipboard
+- `-t, --target <name>` chooses the target
+- `-r, --role <alias>` chooses the role
+- `--template <name>` chooses the template preset
+- `-i, --interactive` opens the TUI editor before output
+- `--no-copy` skips clipboard copy
 - `--show-original` prints the original input to `stderr`
+- `--explain` prints resolved config details to `stderr`
+- `--diff` prints original, translated, and final prompt sections to `stderr`
+- `--json` emits structured JSON instead of plain text
 
-### Target profiles
+## Targets, presets, and roles
 
-You can select a target profile with `-t`:
+Built-in targets define model family and default preset:
+
+- `claude` -> `claude-structured`
+- `gemini` -> `gemini-stepwise`
+- `codex` -> `codex-implement`
+
+You can select a target explicitly:
 
 ```bash
-prtr -t claude "이 코드 리뷰해줘"
-prtr -t codex "이 함수 리팩터링해줘"
-prtr -t gemini "이 문서 요약해줘"
+prtr -t claude "이 구조를 분석해줘"
+prtr -t gemini "이 데이터 파이프라인 병목 분석해줘"
+prtr -t codex "이 함수를 리팩터링해줘"
 ```
 
-Built-in targets ship with lightweight wrappers for each model family:
-
-- `claude`: XML-structured prompt with clearer separation between role context and user input
-- `gemini`: plain-text wrapper with a `User Request:` section
-- `codex`: minimal code-oriented shape that keeps the role prompt and request close together
-
-You can also choose an optional role profile with `-r`:
+You can also select a preset directly:
 
 ```bash
-prtr -r be "고 API 서버 설계 리뷰해줘"
-prtr -r da -t gemini "이 데이터 파이프라인 병목 분석해줘"
-prtr -r ui -t claude "이 온보딩 화면 개선안 제안해줘"
+prtr --template claude-structured "이 구조를 분석해줘"
+prtr --template claude-review "이 PR 리뷰해줘"
+prtr --template gemini-stepwise "이 파이프라인 병목 분석해줘"
+prtr --template gemini-scalable "이 시스템 확장 전략 제안해줘"
+prtr --template codex-implement "이 함수를 리팩터링해줘"
+prtr --template codex-review "이 코드의 리스크를 찾아줘"
 ```
 
 Built-in roles:
@@ -299,109 +289,74 @@ Built-in roles:
 - `da`: data engineering
 - `be`: backend engineering
 - `fe`: frontend engineering
-- `ui`: product/UI design
+- `ui`: product and UI design
 - `se`: security engineering
 - `pm`: product management
 
-The split is deliberate:
+The split is intentional:
 
-- Targets define wrapper shape and model-specific formatting
-- Roles define the expert lens and response priorities
-- The translated user request stays in `{{prompt}}` without assuming they want code, design output, planning, or review unless the request asks for it
+- targets define model family and default strategy
+- template presets define the actual optimized prompt shape
+- roles define the expert lens and response priorities
+- the translated user request stays in `{{prompt}}` without assuming they want code, design output, planning, or review unless the request asks for it
 
-Target selection order:
+## Profiles, shortcuts, and history
 
-1. CLI flag
-2. Config `default_target`
-3. `PRTR_TARGET`
-4. `claude`
-
-### Common workflows
-
-Translate and copy to clipboard:
+List and inspect reusable profiles:
 
 ```bash
-prtr "이 타입스크립트 에러 원인 알려줘"
+prtr profiles list
+prtr profiles show backend_review
+prtr profiles use backend_review
 ```
 
-Translate for a specific target profile:
+Use built-in shortcuts:
 
 ```bash
-prtr -t codex "이 함수 리팩터링하고 테스트도 제안해줘"
+prtr ask "이 기능 설명해줘"
+prtr review "이 설계 문제점 찾아줘"
+prtr fix "이 에러 고쳐줘"
+prtr design "이 온보딩 화면 개선해줘"
 ```
 
-Use `stdin` from another command:
+Inspect local history and rerun a past prompt:
 
 ```bash
-cat note.txt | prtr -t claude
+prtr history
+prtr rerun <history-id> -i
 ```
 
-Print only, without touching the clipboard:
+## Custom templates and project config
 
-```bash
-prtr --no-copy "도커 네트워크 구조 설명해줘"
-```
+Every template preset must include `{{prompt}}`.
 
-See the original input as well:
-
-```bash
-prtr --show-original "이 파이썬 코드 리뷰해줘"
-```
-
-Review and edit the final prompt before it is emitted:
-
-```bash
-prtr -i "이 코드 리뷰해줘"
-echo "이 쿼리 성능 문제 분석해줘" | prtr -t gemini -r da -i
-```
-
-Interactive controls:
-
-- `Ctrl+S`: confirm and emit the edited prompt
-- `Ctrl+C`: cancel without writing anything to `stdout`
-- plain text editing keys: edit the final prompt
-
-## Custom target templates
-
-Every target template must include `{{prompt}}`.
-
-Example:
+Custom user preset:
 
 ```toml
-[targets.codex]
-template = "Please answer in English and keep the response concise.\n\n{{prompt}}"
-```
+[template_presets.team-review]
+template = """
+<role>
+{{role}}
+</role>
 
-Role prompts are opt-in and can be customized separately:
+<context>
+Team coding standards and release checklist apply.
+</context>
 
-```toml
-[roles.be]
-prompt = """
-Expert Backend Engineer & Tech Lead.
-Focus on API design, reliability, observability, maintainability, security, and production tradeoffs.
-Ask for tradeoffs when multiple backend approaches are viable.
+<input_prompt>
+{{prompt}}
+</input_prompt>
 """
 ```
 
-When you use:
+Project-local override in `.prtr.toml`:
 
-```bash
-prtr -t codex "이 코드 문제 찾아줘"
+```toml
+[shortcuts.review]
+target = "claude"
+role = "se"
+template_preset = "claude-review"
 ```
-
-the output becomes something like:
-
-```text
-Please answer in English and keep the response concise.
-
-Find the problems in this code.
-```
-
-## Limitations
-
-- v1 does not launch Claude, Codex, or Gemini automatically
-- v1 does not simulate keypresses or auto-paste into another app
-- v1 only supports DeepL as the translation backend
 
 ## Clipboard support
 
@@ -413,26 +368,14 @@ Find the problems in this code.
 
 If no supported clipboard tool is available, `prtr` returns an actionable error with installation guidance. `--no-copy` skips clipboard detection entirely.
 
-## Release flow
+## Limitations
 
-Releases are intended to be cut from Git tags. GitHub Actions runs GoReleaser, publishes cross-platform binaries, and updates the Homebrew tap repo.
-
-Required GitHub secrets:
-
-- `GITHUB_TOKEN` for GitHub Releases
-- `HOMEBREW_TAP_GITHUB_TOKEN` with push access to `helloprtr/homebrew-tap`
-
-Release outputs:
-
-- macOS binaries plus Homebrew formula update
-- Linux tarballs in GitHub Releases
-- Windows zip archives in GitHub Releases
-
-For end-user install and upgrade instructions by OS, see [INSTALLATION.md](/Users/koo/dev/translateCLI-brew/INSTALLATION.md).
+- `prtr` does not launch Claude, Codex, or Gemini automatically
+- `prtr` does not simulate keypresses or auto-paste into another app
+- `prtr` currently uses DeepL as the translation backend
+- history is local-only and is capped to the most recent 200 entries
 
 ## Development
-
-Run tests locally:
 
 ```bash
 go test ./...

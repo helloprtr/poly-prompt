@@ -12,6 +12,10 @@ type Writer interface {
 	Copy(ctx context.Context, text string) error
 }
 
+type Diagnoser interface {
+	Diagnose() error
+}
+
 type LookPathFunc func(string) (string, error)
 
 type AutoClipboard struct {
@@ -45,6 +49,11 @@ func (c *AutoClipboard) Copy(ctx context.Context, text string) error {
 	}
 
 	return backend.Copy(ctx, text)
+}
+
+func (c *AutoClipboard) Diagnose() error {
+	_, err := detectClipboard(c.goos, c.lookPath)
+	return err
 }
 
 func (c *commandClipboard) Copy(ctx context.Context, text string) error {

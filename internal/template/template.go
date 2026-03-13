@@ -8,30 +8,54 @@ import (
 
 const Placeholder = "{{prompt}}"
 const RolePlaceholder = "{{role}}"
+const TargetPlaceholder = "{{target}}"
+const ContextPlaceholder = "{{context}}"
+const OutputFormatPlaceholder = "{{output_format}}"
 
-var emptyXMLRoleBlockPattern = regexp.MustCompile(`(?s)<role>\s*</role>\n*`)
+type Data struct {
+	Prompt       string
+	Role         string
+	Target       string
+	Context      string
+	OutputFormat string
+}
+
+var emptyXMLBlockPattern = regexp.MustCompile(`(?s)<(?:role|context|task|input_prompt|output_format|target)>\s*</(?:role|context|task|input_prompt|output_format|target)>\n*`)
 var repeatedNewlinesPattern = regexp.MustCompile(`\n{3,}`)
-var emptyRoleLinePattern = regexp.MustCompile(`(?m)^Role:\s*$\n?`)
-var emptyCodeRoleLinePattern = regexp.MustCompile(`(?m)^// Role:\s*$\n?`)
-var emptyGeminiRoleLinePattern = regexp.MustCompile(`(?m)^You are an\s*$\n?`)
+var emptyLabelLinePattern = regexp.MustCompile(`(?m)^(Role|Target|Context|Output Format):\s*$\n?`)
+var emptyCodeLabelLinePattern = regexp.MustCompile(`(?m)^// (Role|Target|Context|Output Format):\s*$\n?`)
 
 func Render(layout, prompt, role string) (string, error) {
+	return RenderData(layout, Data{
+		Prompt: prompt,
+		Role:   role,
+	})
+}
+
+func RenderData(layout string, data Data) (string, error) {
 	if err := Validate(layout); err != nil {
 		return "", err
 	}
 
-	rendered := strings.ReplaceAll(layout, Placeholder, prompt)
-	rendered = strings.ReplaceAll(rendered, RolePlaceholder, strings.TrimSpace(role))
-	rendered = emptyXMLRoleBlockPattern.ReplaceAllString(rendered, "")
-	rendered = strings.ReplaceAll(rendered, "<role></role>\n", "")
-	rendered = strings.ReplaceAll(rendered, "\n<role></role>", "")
-	rendered = emptyRoleLinePattern.ReplaceAllString(rendered, "")
-	rendered = emptyCodeRoleLinePattern.ReplaceAllString(rendered, "")
-	rendered = emptyGeminiRoleLinePattern.ReplaceAllString(rendered, "")
-	rendered = repeatedNewlinesPattern.ReplaceAllString(rendered, "\n\n")
-	rendered = strings.TrimSpace(rendered)
+	replacements := map[string]string{
+		Placeholder:             strings.TrimSpace(data.Prompt),
+		RolePlaceholder:         strings.TrimSpace(data.Role),
+		TargetPlaceholder:       strings.TrimSpace(data.Target),
+		ContextPlaceholder:      strings.TrimSpace(data.Context),
+		OutputFormatPlaceholder: strings.TrimSpace(data.OutputFormat),
+	}
 
-	return rendered, nil
+	rendered := layout
+	for placeholder, value := range replacements {
+		rendered = strings.ReplaceAll(rendered, placeholder, value)
+	}
+
+	rendered = emptyXMLBlockPattern.ReplaceAllString(rendered, "")
+	rendered = emptyLabelLinePattern.ReplaceAllString(rendered, "")
+	rendered = emptyCodeLabelLinePattern.ReplaceAllString(rendered, "")
+	rendered = repeatedNewlinesPattern.ReplaceAllString(rendered, "\n\n")
+
+	return strings.TrimSpace(rendered), nil
 }
 
 func Validate(layout string) error {

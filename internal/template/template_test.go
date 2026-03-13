@@ -24,128 +24,70 @@ func TestRenderRejectsMissingPlaceholder(t *testing.T) {
 	}
 }
 
-func TestRenderSubstitutesRole(t *testing.T) {
+func TestRenderDataSubstitutesExtendedPlaceholders(t *testing.T) {
 	t.Parallel()
 
-	got, err := Render("Role: {{role}}\n\n{{prompt}}", "Hello", "Expert Backend Engineer & Tech Lead")
+	got, err := RenderData("Role: {{role}}\nTarget: {{target}}\nContext: {{context}}\nOutput Format: {{output_format}}\n\n{{prompt}}", Data{
+		Prompt:       "Hello",
+		Role:         "Backend reviewer",
+		Target:       "claude",
+		Context:      "service migration",
+		OutputFormat: "bullets",
+	})
 	if err != nil {
-		t.Fatalf("Render() error = %v", err)
+		t.Fatalf("RenderData() error = %v", err)
 	}
 
-	want := "Role: Expert Backend Engineer & Tech Lead\n\nHello"
+	want := "Role: Backend reviewer\nTarget: claude\nContext: service migration\nOutput Format: bullets\n\nHello"
 	if got != want {
-		t.Fatalf("Render() = %q, want %q", got, want)
+		t.Fatalf("RenderData() = %q, want %q", got, want)
 	}
 }
 
-func TestRenderRemovesEmptyRoleLines(t *testing.T) {
+func TestRenderDataRemovesEmptyLabelLines(t *testing.T) {
 	t.Parallel()
 
-	got, err := Render("// Role: {{role}}\n\n{{prompt}}", "Hello", "")
+	got, err := RenderData("Role: {{role}}\nTarget: {{target}}\nContext: {{context}}\nOutput Format: {{output_format}}\n\n{{prompt}}", Data{
+		Prompt: "Hello",
+	})
 	if err != nil {
-		t.Fatalf("Render() error = %v", err)
+		t.Fatalf("RenderData() error = %v", err)
 	}
 
 	want := "Hello"
 	if got != want {
-		t.Fatalf("Render() = %q, want %q", got, want)
+		t.Fatalf("RenderData() = %q, want %q", got, want)
 	}
 }
 
-func TestRenderRemovesEmptyCodexRoleLine(t *testing.T) {
+func TestRenderDataRemovesEmptyCodeLabelLines(t *testing.T) {
 	t.Parallel()
 
-	got, err := Render("// Role: {{role}}\n// Objective: Test\n\n{{prompt}}", "Hello", "")
+	got, err := RenderData("// Target: {{target}}\n// Role: {{role}}\n// Context: {{context}}\n\n{{prompt}}", Data{
+		Prompt: "Hello",
+	})
 	if err != nil {
-		t.Fatalf("Render() error = %v", err)
+		t.Fatalf("RenderData() error = %v", err)
 	}
 
-	want := "// Objective: Test\n\nHello"
+	want := "Hello"
 	if got != want {
-		t.Fatalf("Render() = %q, want %q", got, want)
+		t.Fatalf("RenderData() = %q, want %q", got, want)
 	}
 }
 
-func TestRenderSubstitutesXMLRole(t *testing.T) {
+func TestRenderDataRemovesEmptyXMLBlocks(t *testing.T) {
 	t.Parallel()
 
-	got, err := Render("<role>\n{{role}}\n</role>\n<input_prompt>\n{{prompt}}\n</input_prompt>", "Hello", "Expert Backend Engineer & Tech Lead")
+	got, err := RenderData("<role>\n{{role}}\n</role>\n<context>\n{{context}}\n</context>\n<input_prompt>\n{{prompt}}\n</input_prompt>", Data{
+		Prompt: "Hello",
+	})
 	if err != nil {
-		t.Fatalf("Render() error = %v", err)
-	}
-
-	want := "<role>\nExpert Backend Engineer & Tech Lead\n</role>\n<input_prompt>\nHello\n</input_prompt>"
-	if got != want {
-		t.Fatalf("Render() = %q, want %q", got, want)
-	}
-}
-
-func TestRenderRemovesEmptyXMLRoleLine(t *testing.T) {
-	t.Parallel()
-
-	got, err := Render("<role>\n{{role}}\n</role>\n<input_prompt>\n{{prompt}}\n</input_prompt>", "Hello", "")
-	if err != nil {
-		t.Fatalf("Render() error = %v", err)
+		t.Fatalf("RenderData() error = %v", err)
 	}
 
 	want := "<input_prompt>\nHello\n</input_prompt>"
 	if got != want {
-		t.Fatalf("Render() = %q, want %q", got, want)
-	}
-}
-
-func TestRenderRemovesEmptyClaudeRoleLine(t *testing.T) {
-	t.Parallel()
-
-	got, err := Render("<role>\n{{role}}\n</role>\n\n<input_prompt>\n{{prompt}}\n</input_prompt>", "Hello", "")
-	if err != nil {
-		t.Fatalf("Render() error = %v", err)
-	}
-
-	want := "<input_prompt>\nHello\n</input_prompt>"
-	if got != want {
-		t.Fatalf("Render() = %q, want %q", got, want)
-	}
-}
-
-func TestRenderSubstitutesGeminiRoleLine(t *testing.T) {
-	t.Parallel()
-
-	got, err := Render("{{role}}\n\nUser Request:\n{{prompt}}", "Hello", "Expert Backend Engineer & Tech Lead")
-	if err != nil {
-		t.Fatalf("Render() error = %v", err)
-	}
-
-	want := "Expert Backend Engineer & Tech Lead\n\nUser Request:\nHello"
-	if got != want {
-		t.Fatalf("Render() = %q, want %q", got, want)
-	}
-}
-
-func TestRenderRemovesEmptyGeminiRoleLine(t *testing.T) {
-	t.Parallel()
-
-	got, err := Render("{{role}}\n\nUser Request:\n{{prompt}}", "Hello", "")
-	if err != nil {
-		t.Fatalf("Render() error = %v", err)
-	}
-
-	want := "User Request:\nHello"
-	if got != want {
-		t.Fatalf("Render() = %q, want %q", got, want)
-	}
-}
-
-func TestRenderRemovesEmptyGeminiRoleLineWithinDefaultShape(t *testing.T) {
-	t.Parallel()
-
-	got, err := Render("{{role}}\n\nUser Request:\n{{prompt}}", "Hello", "")
-	if err != nil {
-		t.Fatalf("Render() error = %v", err)
-	}
-
-	want := "User Request:\nHello"
-	if got != want {
-		t.Fatalf("Render() = %q, want %q", got, want)
+		t.Fatalf("RenderData() = %q, want %q", got, want)
 	}
 }

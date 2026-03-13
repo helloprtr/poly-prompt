@@ -13,8 +13,13 @@ import (
 
 var ErrCanceled = errors.New("interactive edit canceled")
 
+type Request struct {
+	Initial string
+	Status  string
+}
+
 type Editor interface {
-	Edit(ctx context.Context, initial string) (string, error)
+	Edit(ctx context.Context, req Request) (string, error)
 }
 
 type BubbleEditor struct {
@@ -25,8 +30,8 @@ func New(output io.Writer) *BubbleEditor {
 	return &BubbleEditor{output: output}
 }
 
-func (e *BubbleEditor) Edit(ctx context.Context, initial string) (string, error) {
-	initialModel := newModel(initial)
+func (e *BubbleEditor) Edit(ctx context.Context, req Request) (string, error) {
+	initialModel := newModel(req)
 	program := tea.NewProgram(
 		initialModel,
 		tea.WithContext(ctx),
@@ -57,11 +62,12 @@ type model struct {
 	canceled bool
 	width    int
 	height   int
+	status   string
 }
 
-func newModel(initial string) model {
+func newModel(req Request) model {
 	field := textarea.New()
-	field.SetValue(initial)
+	field.SetValue(req.Initial)
 	field.Focus()
 	field.ShowLineNumbers = false
 	field.Prompt = ""
@@ -69,7 +75,8 @@ func newModel(initial string) model {
 
 	return model{
 		textarea: field,
-		value:    strings.TrimSpace(initial),
+		value:    strings.TrimSpace(req.Initial),
+		status:   strings.TrimSpace(req.Status),
 	}
 }
 
@@ -83,7 +90,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.textarea.SetWidth(maxInt(20, msg.Width-2))
-		m.textarea.SetHeight(maxInt(6, msg.Height-4))
+		m.textarea.SetHeight(maxInt(6, msg.Height-5))
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c":
@@ -101,11 +108,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
-	footer := "Ctrl+S save and exit | Ctrl+C cancel"
-	if m.height > 0 {
-		return m.textarea.View() + "\n" + footer
+	help := "Ctrl+S save and exit | Ctrl+C cancel"
+	if m.status != "" {
+		help = m.status + "\n" + help
 	}
-	return footer + "\n\n" + m.textarea.View()
+
+	if m.height > 0 {
+		return m.textarea.View() + "\n" + help
+	}
+	return help + "\n\n" + m.textarea.View()
 }
 
 func maxInt(a, b int) int {
