@@ -2,6 +2,8 @@
 
 `poly-prompt` is the repository for `prtr`, a cross-platform CLI that translates prompt text into English with DeepL, applies target-optimized prompt templates, optionally lets you review the final prompt in a TUI editor, prints the confirmed result to `stdout`, and copies it to your clipboard.
 
+![prtr banner](images/prtr-banner.png)
+
 ## What it does
 
 - Accepts prompt text as CLI args or from `stdin`
