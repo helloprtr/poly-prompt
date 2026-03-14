@@ -1,0 +1,19 @@
+{
+  "name": "prtr-site",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "scripts": {
+    "sync-media": "node ./scripts/sync-media.mjs",
+    "dev": "astro dev",
+    "predev": "npm run sync-media",
+    "build": "astro build",
+    "prebuild": "npm run sync-media",
+    "preview": "astro preview",
+    "prepreview": "npm run sync-media"
+  },
+  "devDependencies": {
+    "@astrojs/sitemap": "^3.7.1",
+    "astro": "^6.0.4"
+  }
+}

@@ -3,3 +3,8 @@ bin/
 dist/
 coverage.out
 /poly-prompt
+node_modules/
+.astro/
+site/dist/
+site/public/media/
+output/

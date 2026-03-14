@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>prtr routing + history demo</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg-1: #06121f;
+        --bg-2: #0b2238;
+        --panel: rgba(7, 15, 28, 0.86);
+        --panel-border: rgba(143, 194, 255, 0.22);
+        --text: #ecf4ff;
+        --muted: #90a8c3;
+        --prompt: #8bd3ff;
+        --ok: #7ef7b2;
+        --accent: #ffc86b;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 20% 20%, rgba(84, 170, 255, 0.24), transparent 30%),
+          radial-gradient(circle at 80% 18%, rgba(255, 200, 107, 0.18), transparent 26%),
+          linear-gradient(140deg, var(--bg-1), var(--bg-2));
+        color: var(--text);
+        font-family: "SFMono-Regular", "JetBrains Mono", "Menlo", "Consolas", monospace;
+      }
+
+      .wrap {
+        width: 1240px;
+        max-width: calc(100vw - 48px);
+      }
+
+      .eyebrow {
+        margin: 0 0 14px;
+        color: rgba(236, 244, 255, 0.76);
+        font-size: 13px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+
+      .terminal {
+        min-height: 700px;
+        border-radius: 28px;
+        border: 1px solid var(--panel-border);
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0)),
+          var(--panel);
+        box-shadow:
+          0 30px 80px rgba(0, 0, 0, 0.4),
+          inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        overflow: hidden;
+        backdrop-filter: blur(22px);
+      }
+
+      .chrome {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 18px 22px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      .lights {
+        display: flex;
+        gap: 9px;
+      }
+
+      .light {
+        width: 12px;
+        height: 12px;
+        border-radius: 999px;
+      }
+
+      .light.red {
+        background: #ff6b6b;
+      }
+
+      .light.yellow {
+        background: #ffd166;
+      }
+
+      .light.green {
+        background: #79f2a0;
+      }
+
+      .title {
+        color: rgba(236, 244, 255, 0.88);
+        font-size: 13px;
+      }
+
+      .badge {
+        padding: 7px 12px;
+        border-radius: 999px;
+        background: rgba(139, 211, 255, 0.12);
+        color: var(--prompt);
+        font-size: 12px;
+      }
+
+      .screen {
+        padding: 26px 30px 28px;
+        font-size: 19px;
+        line-height: 1.58;
+        white-space: pre-wrap;
+      }
+
+      .line {
+        opacity: 0;
+        transform: translateY(8px);
+        transition: opacity 240ms ease, transform 240ms ease;
+      }
+
+      .line.visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      .line.prompt {
+        color: var(--prompt);
+      }
+
+      .line.ok {
+        color: var(--ok);
+      }
+
+      .line.muted {
+        color: var(--muted);
+      }
+
+      .line.accent {
+        color: var(--accent);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <p class="eyebrow">Routing + History Demo</p>
+      <section class="terminal">
+        <div class="chrome">
+          <div class="lights">
+            <span class="light red"></span>
+            <span class="light yellow"></span>
+            <span class="light green"></span>
+          </div>
+          <div class="title">poly-prompt / live translation flow</div>
+          <div class="badge">Korean request -> Codex-ready English prompt</div>
+        </div>
+        <div class="screen" id="screen"></div>
+      </section>
+    </div>
+
+    <script>
+      const scriptLines = [
+        { text: 'koo@demo ~/poly-prompt % prtr --no-copy --explain -t codex -r be "도커 컨테이너 실행법을 초보자용 단계로 정리해줘"', kind: "prompt", delay: 320 },
+        { text: "Resolved configuration:", delay: 280 },
+        { text: "- target: codex (cli flag)", delay: 220 },
+        { text: "- role: be (cli flag)", delay: 220 },
+        { text: "- role variant: role target override", delay: 220 },
+        { text: "- template preset: codex-implement (role target override)", delay: 240 },
+        { text: "- language route: auto -> en", delay: 220 },
+        { text: "- translation decision: translated", delay: 240, kind: "accent" },
+        { text: "- delivery mode: open-copy", delay: 220 },
+        { text: "- paste: false", delay: 200 },
+        { text: "- submit mode: manual", delay: 200 },
+        { text: "- submitted: false", delay: 200 },
+        { text: "- api key: environment", delay: 220, kind: "muted" },
+        { text: "", delay: 140 },
+        { text: 'target "codex" ready; clipboard skipped', delay: 280, kind: "ok" },
+        { text: "// Target: codex", delay: 320, kind: "prompt" },
+        { text: "Expert Backend Engineer & Tech Lead.", delay: 280 },
+        { text: "Focus on implementation details, concrete file changes, tests, and safe rollout steps.", delay: 260 },
+        { text: "Tailor the response to the user's request instead of assuming they want code.", delay: 260 },
+        { text: "", delay: 140 },
+        { text: "Please explain how to run Docker containers in beginner-friendly steps.", delay: 360 },
+        { text: "", delay: 760 },
+        { text: "koo@demo ~/poly-prompt % prtr history", kind: "prompt", delay: 260 },
+        { text: "1773385200000000000  2026-03-13 22:00:12  target=codex role=be template=codex-implement lang=auto->en -  도커 컨테이너 실행법을 초보자용 단계로 정리해줘", delay: 360, kind: "muted" }
+      ];
+
+      const screen = document.getElementById("screen");
+      let timers = [];
+
+      function clearTimers() {
+        for (const timer of timers) clearTimeout(timer);
+        timers = [];
+      }
+
+      function appendLine(text, kind = "") {
+        const line = document.createElement("div");
+        line.className = "line" + (kind ? " " + kind : "");
+        line.textContent = text;
+        screen.appendChild(line);
+        requestAnimationFrame(() => line.classList.add("visible"));
+        screen.scrollTop = screen.scrollHeight;
+      }
+
+      function play() {
+        clearTimers();
+        screen.innerHTML = "";
+        let totalDelay = 0;
+        for (const item of scriptLines) {
+          totalDelay += item.delay;
+          timers.push(setTimeout(() => appendLine(item.text, item.kind || ""), totalDelay));
+        }
+      }
+
+      window.routerDemo = {
+        restart: play,
+        durationMs: 9800,
+      };
+
+      play();
+    </script>
+  </body>
+</html>

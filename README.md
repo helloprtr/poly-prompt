@@ -1,10 +1,17 @@
 # poly-prompt
 
-**Think in your language. Send the right prompt to the right AI app in one command.**
+[![Project Site](https://img.shields.io/badge/project%20site-live-ff7a1a?style=flat-square)](https://helloprtr.github.io/poly-prompt/)
+[![Docs Hub](https://img.shields.io/badge/docs-pages-58f2c5?style=flat-square)](https://helloprtr.github.io/poly-prompt/docs/)
 
-`prtr` is a cross-platform CLI that turns your request into a ready-to-send prompt for Claude, Codex, or Gemini.
+**Think in your language. Move the whole loop forward.**
 
-Write in Korean, Japanese, German, or any language you want. `prtr` translates your request to English, adds useful context from your logs or repo, opens your AI app, and pastes the final prompt.
+The multilingual prompt router for repeatable AI work.
+
+Project site: [helloprtr.github.io/poly-prompt](https://helloprtr.github.io/poly-prompt/)
+
+`prtr` is a cross-platform CLI that turns your request into a ready-to-send prompt for Claude, Codex, or Gemini, then helps you keep the loop moving.
+
+Write in Korean, Japanese, German, or any language you want. `prtr` translates your request to English, adds useful context from your logs or repo, opens your AI app, pastes the final prompt, and keeps enough local memory around the run to make the next action cheaper.
 
 ![prtr banner](images/prtr-banner.png)
 
@@ -12,7 +19,7 @@ Write in Korean, Japanese, German, or any language you want. `prtr` translates y
 npm test 2>&1 | prtr go fix "왜 깨지는지 정확한 원인만 찾아줘"
 ```
 
-In one command, `prtr` will:
+In one command, `prtr` can:
 
 - treat your Korean text as the request
 - treat the piped test output as evidence
@@ -32,7 +39,7 @@ prtr again --edit
 prtr inspect --json "방금 흐름이 어떻게 조합됐는지 보여줘"
 ```
 
-From intent to answer to next action.
+From multilingual intent to routed prompt to next action.
 
 ## Why people keep using it
 
@@ -41,7 +48,7 @@ From intent to answer to next action.
 - No rebuilding the same context for every app
 - No tab juggling between logs, repo, and AI tools
 
-`prtr` is the command layer between what you mean and what your AI app needs.
+`prtr` is the command layer between what you mean and the AI workflow you want to repeat.
 
 ## The surface
 
@@ -130,10 +137,11 @@ prtr go "이 에러 원인 분석해줘"
 2. picks the app from `--to`, your latest run, or your default app
 3. picks the mode from the command or falls back to `ask`
 4. translates with DeepL when needed
-5. copies the final prompt
-6. opens the target CLI
-7. pastes into the active terminal session
-8. saves the run to local history
+5. auto-routes to the best app unless you override it with `--to`
+6. copies the final prompt
+7. opens the target CLI
+8. pastes into the active terminal session
+9. saves the run to local history
 
 `go` prints a one-line status summary to `stderr`, for example:
 
@@ -208,16 +216,18 @@ Turn copied AI output into the next prompt without manually rewriting it.
 
 ```bash
 prtr take patch
+prtr take clarify --from last-prompt
 prtr take test --to codex
-prtr take commit --dry-run
-prtr take summary --edit
+prtr take issue --dry-run
+prtr take plan --edit
 ```
 
-`take` reads from your clipboard, builds a new English prompt for the selected action, then routes it through the same target-aware delivery flow.
+`take` now supports `patch`, `test`, `commit`, `summary`, `clarify`, `issue`, and `plan`.
+It reads from `--from auto|clipboard|last-prompt`, builds a new English prompt for the selected action, then routes it through the same target-aware delivery flow.
 
 ### `prtr learn`
 
-Teach `prtr` the project terms that should survive translation.
+Teach `prtr` the project terms and repo memory that should survive translation.
 
 ```bash
 prtr learn
@@ -226,7 +236,7 @@ prtr learn --dry-run
 prtr learn --reset
 ```
 
-`learn` builds a repo-local `.prtr/termbook.toml` from README, docs, and code identifiers, then `go` uses those protected terms to avoid translating project names away.
+`learn` builds repo-local `.prtr/termbook.toml` and `.prtr/memory.toml` files from README, docs, and code identifiers. Then `go`, `take`, and `inspect` reuse protected terms, repo summary, and prompt guidance automatically.
 
 ## The only flags most people need
 
@@ -240,7 +250,25 @@ The first-screen send surface for `go`, `again`, `swap`, and `take` is intention
 `learn` has its own minimal surface:
 
 - `--dry-run`: preview the generated termbook
-- `--reset`: rebuild the termbook instead of merging it
+- `--reset`: rebuild the termbook and memory instead of merging them
+
+## Pack sharing
+
+Export, import, and install repo-local workflow packs:
+
+```bash
+prtr pack export backend-review --output ./backend-review.prtr-pack.toml
+prtr pack import ./backend-review.prtr-pack.toml
+prtr pack install backend-review --force
+```
+
+Packs capture:
+
+- project defaults
+- routing rules
+- repo memory
+- profiles
+- shortcuts
 
 ## Inspect mode
 
