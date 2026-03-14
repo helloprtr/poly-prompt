@@ -46,7 +46,7 @@ brews:
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     homepage: https://github.com/helloprtr/poly-prompt
-    description: Translate prompts to English, format them, and copy them to the clipboard.
+    description: Think in your language and send the right prompt to the right AI app.
     license: MIT
     directory: Formula
     test: |

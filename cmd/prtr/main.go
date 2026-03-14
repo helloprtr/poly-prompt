@@ -9,11 +9,13 @@ import (
 	"time"
 
 	"github.com/helloprtr/poly-prompt/internal/app"
+	"github.com/helloprtr/poly-prompt/internal/automation"
 	"github.com/helloprtr/poly-prompt/internal/clipboard"
 	"github.com/helloprtr/poly-prompt/internal/config"
 	"github.com/helloprtr/poly-prompt/internal/editor"
 	"github.com/helloprtr/poly-prompt/internal/history"
 	"github.com/helloprtr/poly-prompt/internal/input"
+	"github.com/helloprtr/poly-prompt/internal/launcher"
 	"github.com/helloprtr/poly-prompt/internal/translate"
 )
 
@@ -50,9 +52,12 @@ func main() {
 				},
 			})
 		},
-		Clipboard:    clipboard.New(),
-		Editor:       editor.New(os.Stderr),
-		HistoryStore: history.New(historyPath),
+		Clipboard:       clipboard.New(),
+		Editor:          editor.New(os.Stderr),
+		Launcher:        launcher.New(),
+		Automator:       automation.New(),
+		SubmitConfirmer: app.NewTTYConfirmer(os.Stderr),
+		HistoryStore:    history.New(historyPath),
 	})
 
 	if err := application.Execute(context.Background(), os.Args[1:], os.Stdin, stdinPiped); err != nil {

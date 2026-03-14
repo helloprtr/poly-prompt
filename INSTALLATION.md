@@ -41,8 +41,9 @@ Linux release archives are published on GitHub Releases.
 ### amd64
 
 ```bash
-curl -LO https://github.com/helloprtr/poly-prompt/releases/download/v0.2.2/prtr_0.2.2_linux_amd64.tar.gz
-tar -xzf prtr_0.2.2_linux_amd64.tar.gz
+VERSION=<latest-version>
+curl -LO "https://github.com/helloprtr/poly-prompt/releases/download/${VERSION}/prtr_${VERSION#v}_linux_amd64.tar.gz"
+tar -xzf "prtr_${VERSION#v}_linux_amd64.tar.gz"
 chmod +x prtr
 sudo mv prtr /usr/local/bin/prtr
 prtr version
@@ -51,8 +52,9 @@ prtr version
 ### arm64
 
 ```bash
-curl -LO https://github.com/helloprtr/poly-prompt/releases/download/v0.2.2/prtr_0.2.2_linux_arm64.tar.gz
-tar -xzf prtr_0.2.2_linux_arm64.tar.gz
+VERSION=<latest-version>
+curl -LO "https://github.com/helloprtr/poly-prompt/releases/download/${VERSION}/prtr_${VERSION#v}_linux_arm64.tar.gz"
+tar -xzf "prtr_${VERSION#v}_linux_arm64.tar.gz"
 chmod +x prtr
 sudo mv prtr /usr/local/bin/prtr
 prtr version
@@ -94,6 +96,35 @@ sudo apt-get install xclip
 sudo apt-get install xsel
 ```
 
+### Launcher dependencies
+
+`prtr --launch` on Linux requires at least one supported terminal backend. It checks in this order:
+
+- `x-terminal-emulator`
+- `gnome-terminal`
+- `konsole`
+- `kitty`
+- `wezterm`
+
+If none of these are installed, `prtr doctor` and `prtr --launch` return an actionable launcher error.
+
+### Paste automation dependencies
+
+`prtr --paste` on Linux requires a graphical session plus:
+
+- X11: `xdotool`
+- Wayland: `wtype`
+
+Examples:
+
+```bash
+sudo apt-get install xdotool
+```
+
+```bash
+sudo apt-get install wtype
+```
+
 ## Windows
 
 Windows release archives are published on GitHub Releases.
@@ -128,6 +159,26 @@ Expected result:
 
 Windows uses `clip.exe`, which is included with Windows.
 
+### Launcher dependencies
+
+`prtr --launch` on Windows checks terminal backends in this order:
+
+- `wt.exe`
+- `pwsh.exe`
+- `powershell.exe`
+- `cmd.exe`
+
+If none of these are available, `prtr doctor` and `prtr --launch` return an actionable launcher error.
+
+### Paste automation dependencies
+
+`prtr --paste` on Windows requires:
+
+- an interactive desktop session
+- `powershell.exe` or `pwsh.exe`
+
+`--submit confirm` is still macOS-only.
+
 ## Build from source
 
 If you want the latest `main` branch instead of the latest published release:
@@ -146,6 +197,12 @@ Run guided setup:
 prtr setup
 ```
 
+Optional quick language-only update later:
+
+```bash
+prtr lang
+```
+
 Or set your API key manually:
 
 ```bash
@@ -161,7 +218,9 @@ $env:DEEPL_API_KEY="your-deepl-key"
 Then run:
 
 ```bash
-prtr --no-copy "이 코드 리뷰해줘"
+prtr "이 코드 리뷰해줘"
+prtr go "이 에러 원인 분석해줘"
+prtr go review "이 PR에서 위험한 부분만 짚어줘" --dry-run
 ```
 
 Optional diagnostic check:
@@ -173,5 +232,19 @@ prtr doctor
 Optional interactive check:
 
 ```bash
-prtr -t claude -r be -i "이 API 설계 검토해줘"
+prtr go design "이 API 설계 검토해줘" --edit --dry-run
+```
+
+Optional history and launch checks:
+
+```bash
+prtr history
+prtr go "이 변경의 핵심 리스크를 요약해줘"
+```
+
+Optional paste automation checks:
+
+```bash
+prtr --paste "이 변경의 핵심 리스크를 요약해줘"
+prtr swap gemini --dry-run
 ```

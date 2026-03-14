@@ -12,20 +12,46 @@ import (
 )
 
 const starterConfig = `deepl_api_key = ""
+translation_source_lang = "auto"
+translation_target_lang = "en"
 default_target = "claude"
 default_template_preset = "claude-structured"
 
 [targets.claude]
 family = "claude"
 default_template_preset = "claude-structured"
+translation_target_lang = "en"
+default_delivery = "open-copy"
 
 [targets.gemini]
 family = "gemini"
 default_template_preset = "gemini-stepwise"
+translation_target_lang = "en"
+default_delivery = "open-copy"
 
 [targets.codex]
 family = "codex"
 default_template_preset = "codex-implement"
+translation_target_lang = "en"
+default_delivery = "open-copy"
+
+[launchers.claude]
+command = "claude"
+args = []
+paste_delay_ms = 700
+submit_mode = "manual"
+
+[launchers.gemini]
+command = "gemini"
+args = []
+paste_delay_ms = 700
+submit_mode = "manual"
+
+[launchers.codex]
+command = "codex"
+args = []
+paste_delay_ms = 800
+submit_mode = "manual"
 
 [template_presets.claude-structured]
 description = "XML-structured default for Claude."
@@ -86,21 +112,86 @@ Focus on API design, reliability, observability, maintainability, security, and 
 Tailor the response to the user's request instead of assuming they want code.
 """
 
+[roles.be.targets.claude]
+prompt = """
+Expert Backend Engineer & Tech Lead.
+Focus on reliability, architecture, operational tradeoffs, and clear structured reasoning.
+Tailor the response to the user's request instead of assuming they want code.
+"""
+template_preset = "claude-review"
+
+[roles.be.targets.codex]
+prompt = """
+Expert Backend Engineer & Tech Lead.
+Focus on implementation details, concrete file changes, tests, and safe rollout steps.
+Tailor the response to the user's request instead of assuming they want code.
+"""
+template_preset = "codex-implement"
+
+[roles.be.targets.gemini]
+prompt = """
+Expert Backend Engineer & Tech Lead.
+Focus on analysis, comparison, scalability, and stepwise reasoning.
+Tailor the response to the user's request instead of assuming they want code.
+"""
+template_preset = "gemini-stepwise"
+
+[roles.review]
+prompt = """
+Expert Reviewer.
+Focus on bugs, regressions, risk, correctness, missing tests, and tradeoffs.
+Tailor the response to the user's request instead of assuming they want code.
+"""
+
+[roles.review.targets.claude]
+prompt = """
+Expert Reviewer.
+Focus on risks, regressions, correctness, tradeoffs, and missing considerations.
+Lead with findings before suggestions.
+"""
+template_preset = "claude-review"
+
+[roles.review.targets.codex]
+prompt = """
+Expert Reviewer.
+Focus on concrete bugs, changed-file implications, missing tests, and actionable fixes.
+Lead with findings before suggestions.
+"""
+template_preset = "codex-review"
+
+[roles.review.targets.gemini]
+prompt = """
+Expert Reviewer.
+Focus on structured comparison, risks, and stepwise analysis of regressions and edge cases.
+Lead with findings before suggestions.
+"""
+template_preset = "gemini-stepwise"
+
+[roles.writer]
+prompt = """
+Expert Technical Writer.
+Focus on clarity, brevity, tone, and preserving the user's actual intent.
+"""
+
 [profiles.backend_review]
 target = "claude"
 role = "be"
 template_preset = "claude-review"
+translation_target_lang = "en"
 
 [shortcuts.review]
 target = "claude"
 role = "be"
 template_preset = "claude-review"
+translation_target_lang = "en"
 `
 
 var ErrConfigExists = errors.New("config already exists")
 
 type Config struct {
 	APIKey                string
+	TranslationSourceLang string
+	TranslationTargetLang string
 	DefaultTarget         string
 	DefaultRole           string
 	DefaultTemplatePreset string
@@ -109,6 +200,7 @@ type Config struct {
 	Roles                 map[string]RoleConfig
 	Profiles              map[string]ProfileConfig
 	Shortcuts             map[string]ShortcutConfig
+	Launchers             map[string]LauncherConfig
 	UserPath              string
 	ProjectPath           string
 	HasUserConfig         bool
@@ -116,12 +208,16 @@ type Config struct {
 	DefaultTargetSource   string
 	DefaultRoleSource     string
 	DefaultPresetSource   string
+	TranslationSource     string
+	TranslationTarget     string
 	APIKeySource          string
 }
 
 type TargetConfig struct {
 	Family                string `toml:"family"`
 	DefaultTemplatePreset string `toml:"default_template_preset"`
+	TranslationTargetLang string `toml:"translation_target_lang"`
+	DefaultDelivery       string `toml:"default_delivery"`
 	Template              string `toml:"template"`
 	Description           string `toml:"description"`
 }
@@ -132,28 +228,45 @@ type TemplatePresetConfig struct {
 }
 
 type RoleConfig struct {
-	Prompt string
+	Prompt  string
+	Targets map[string]RoleTargetConfig `toml:"targets"`
+}
+
+type RoleTargetConfig struct {
+	Prompt         string `toml:"prompt"`
+	TemplatePreset string `toml:"template_preset"`
 }
 
 type ProfileConfig struct {
-	Target         string `toml:"target"`
-	Role           string `toml:"role"`
-	TemplatePreset string `toml:"template_preset"`
-	Context        string `toml:"context"`
-	OutputFormat   string `toml:"output_format"`
+	Target                string `toml:"target"`
+	Role                  string `toml:"role"`
+	TemplatePreset        string `toml:"template_preset"`
+	TranslationTargetLang string `toml:"translation_target_lang"`
+	Context               string `toml:"context"`
+	OutputFormat          string `toml:"output_format"`
 }
 
 type ShortcutConfig struct {
-	Target         string `toml:"target"`
-	Role           string `toml:"role"`
-	TemplatePreset string `toml:"template_preset"`
-	Context        string `toml:"context"`
-	OutputFormat   string `toml:"output_format"`
-	Description    string `toml:"description"`
+	Target                string `toml:"target"`
+	Role                  string `toml:"role"`
+	TemplatePreset        string `toml:"template_preset"`
+	TranslationTargetLang string `toml:"translation_target_lang"`
+	Context               string `toml:"context"`
+	OutputFormat          string `toml:"output_format"`
+	Description           string `toml:"description"`
+}
+
+type LauncherConfig struct {
+	Command      string   `toml:"command"`
+	Args         []string `toml:"args"`
+	PasteDelayMS int      `toml:"paste_delay_ms"`
+	SubmitMode   string   `toml:"submit_mode"`
 }
 
 type DefaultsUpdate struct {
 	APIKey                *string
+	TranslationSourceLang *string
+	TranslationTargetLang *string
 	DefaultTarget         *string
 	DefaultRole           *string
 	DefaultTemplatePreset *string
@@ -161,6 +274,8 @@ type DefaultsUpdate struct {
 
 type fileConfig struct {
 	APIKey                string                          `toml:"deepl_api_key"`
+	TranslationSourceLang string                          `toml:"translation_source_lang"`
+	TranslationTargetLang string                          `toml:"translation_target_lang"`
 	DefaultTarget         string                          `toml:"default_target"`
 	DefaultRole           string                          `toml:"default_role"`
 	DefaultTemplatePreset string                          `toml:"default_template_preset"`
@@ -169,20 +284,32 @@ type fileConfig struct {
 	Roles                 map[string]fileRoleConfig       `toml:"roles"`
 	Profiles              map[string]ProfileConfig        `toml:"profiles"`
 	Shortcuts             map[string]ShortcutConfig       `toml:"shortcuts"`
+	Launchers             map[string]fileLauncherConfig   `toml:"launchers"`
 }
 
 type fileRoleConfig struct {
-	Prompt  string `toml:"prompt"`
-	Content string `toml:"content"`
+	Prompt  string                      `toml:"prompt"`
+	Content string                      `toml:"content"`
+	Targets map[string]RoleTargetConfig `toml:"targets"`
+}
+
+type fileLauncherConfig struct {
+	Command      string   `toml:"command"`
+	Args         []string `toml:"args"`
+	PasteDelayMS *int     `toml:"paste_delay_ms"`
+	SubmitMode   string   `toml:"submit_mode"`
 }
 
 func Load() (Config, error) {
 	cfg := Config{
-		Targets:         defaultTargets(),
-		TemplatePresets: defaultTemplatePresets(),
-		Roles:           defaultRoles(),
-		Profiles:        defaultProfiles(),
-		Shortcuts:       defaultShortcuts(),
+		Targets:               defaultTargets(),
+		TemplatePresets:       defaultTemplatePresets(),
+		Roles:                 defaultRoles(),
+		Profiles:              defaultProfiles(),
+		Shortcuts:             defaultShortcuts(),
+		Launchers:             defaultLaunchers(),
+		TranslationSourceLang: "auto",
+		TranslationTargetLang: "en",
 	}
 
 	userPath, err := Path()
@@ -256,6 +383,12 @@ func SaveDefaults(update DefaultsUpdate) (string, error) {
 
 	if update.APIKey != nil {
 		raw.APIKey = strings.TrimSpace(*update.APIKey)
+	}
+	if update.TranslationSourceLang != nil {
+		raw.TranslationSourceLang = strings.TrimSpace(*update.TranslationSourceLang)
+	}
+	if update.TranslationTargetLang != nil {
+		raw.TranslationTargetLang = strings.TrimSpace(*update.TranslationTargetLang)
 	}
 	if update.DefaultTarget != nil {
 		raw.DefaultTarget = strings.TrimSpace(*update.DefaultTarget)
@@ -411,6 +544,15 @@ func applyFileConfig(cfg *Config, raw fileConfig, source string, includeAPIKey b
 		}
 	}
 
+	if value := normalizeSourceLanguage(raw.TranslationSourceLang); value != "" {
+		cfg.TranslationSourceLang = value
+		cfg.TranslationSource = source
+	}
+	if value := normalizeTargetLanguage(raw.TranslationTargetLang); value != "" {
+		cfg.TranslationTargetLang = value
+		cfg.TranslationTarget = source
+	}
+
 	if target := strings.TrimSpace(raw.DefaultTarget); target != "" {
 		cfg.DefaultTarget = target
 		cfg.DefaultTargetSource = source
@@ -437,6 +579,8 @@ func applyFileConfig(cfg *Config, raw fileConfig, source string, includeAPIKey b
 		cfg.Targets[trimmedName] = TargetConfig{
 			Family:                strings.TrimSpace(target.Family),
 			DefaultTemplatePreset: strings.TrimSpace(target.DefaultTemplatePreset),
+			TranslationTargetLang: normalizeTargetLanguage(target.TranslationTargetLang),
+			DefaultDelivery:       normalizeDelivery(target.DefaultDelivery),
 			Template:              target.Template,
 			Description:           strings.TrimSpace(target.Description),
 		}
@@ -468,7 +612,18 @@ func applyFileConfig(cfg *Config, raw fileConfig, source string, includeAPIKey b
 		if rolePrompt == "" {
 			return fmt.Errorf("config role %q has empty prompt", trimmedName)
 		}
-		cfg.Roles[trimmedName] = RoleConfig{Prompt: rolePrompt}
+		roleTargets := map[string]RoleTargetConfig{}
+		for targetName, targetConfig := range role.Targets {
+			normalizedTargetName := strings.TrimSpace(targetName)
+			if normalizedTargetName == "" {
+				return fmt.Errorf("config role %q has an empty target override name", trimmedName)
+			}
+			roleTargets[normalizedTargetName] = RoleTargetConfig{
+				Prompt:         strings.TrimSpace(targetConfig.Prompt),
+				TemplatePreset: strings.TrimSpace(targetConfig.TemplatePreset),
+			}
+		}
+		cfg.Roles[trimmedName] = RoleConfig{Prompt: rolePrompt, Targets: roleTargets}
 	}
 
 	for name, profile := range raw.Profiles {
@@ -487,6 +642,14 @@ func applyFileConfig(cfg *Config, raw fileConfig, source string, includeAPIKey b
 		cfg.Shortcuts[trimmedName] = normalizeShortcut(shortcut)
 	}
 
+	for name, launcher := range raw.Launchers {
+		trimmedName := strings.TrimSpace(name)
+		if trimmedName == "" {
+			return errors.New("config launcher names cannot be empty")
+		}
+		cfg.Launchers[trimmedName] = normalizeLauncher(cfg.Launchers[trimmedName], launcher)
+	}
+
 	return nil
 }
 
@@ -502,22 +665,53 @@ func validateTemplate(templateValue, label string) error {
 
 func normalizeProfile(profile ProfileConfig) ProfileConfig {
 	return ProfileConfig{
-		Target:         strings.TrimSpace(profile.Target),
-		Role:           strings.TrimSpace(profile.Role),
-		TemplatePreset: strings.TrimSpace(profile.TemplatePreset),
-		Context:        strings.TrimSpace(profile.Context),
-		OutputFormat:   strings.TrimSpace(profile.OutputFormat),
+		Target:                strings.TrimSpace(profile.Target),
+		Role:                  strings.TrimSpace(profile.Role),
+		TemplatePreset:        strings.TrimSpace(profile.TemplatePreset),
+		TranslationTargetLang: normalizeTargetLanguage(profile.TranslationTargetLang),
+		Context:               strings.TrimSpace(profile.Context),
+		OutputFormat:          strings.TrimSpace(profile.OutputFormat),
 	}
 }
 
 func normalizeShortcut(shortcut ShortcutConfig) ShortcutConfig {
 	return ShortcutConfig{
-		Target:         strings.TrimSpace(shortcut.Target),
-		Role:           strings.TrimSpace(shortcut.Role),
-		TemplatePreset: strings.TrimSpace(shortcut.TemplatePreset),
-		Context:        strings.TrimSpace(shortcut.Context),
-		OutputFormat:   strings.TrimSpace(shortcut.OutputFormat),
-		Description:    strings.TrimSpace(shortcut.Description),
+		Target:                strings.TrimSpace(shortcut.Target),
+		Role:                  strings.TrimSpace(shortcut.Role),
+		TemplatePreset:        strings.TrimSpace(shortcut.TemplatePreset),
+		TranslationTargetLang: normalizeTargetLanguage(shortcut.TranslationTargetLang),
+		Context:               strings.TrimSpace(shortcut.Context),
+		OutputFormat:          strings.TrimSpace(shortcut.OutputFormat),
+		Description:           strings.TrimSpace(shortcut.Description),
+	}
+}
+
+func normalizeLauncher(base LauncherConfig, launcher fileLauncherConfig) LauncherConfig {
+	command := strings.TrimSpace(launcher.Command)
+	if command == "" {
+		command = strings.TrimSpace(base.Command)
+	}
+
+	args := launcher.Args
+	if args == nil {
+		args = base.Args
+	}
+
+	pasteDelay := base.PasteDelayMS
+	if launcher.PasteDelayMS != nil {
+		pasteDelay = *launcher.PasteDelayMS
+	}
+
+	submitMode := normalizeSubmitMode(base.SubmitMode)
+	if strings.TrimSpace(launcher.SubmitMode) != "" {
+		submitMode = normalizeSubmitMode(launcher.SubmitMode)
+	}
+
+	return LauncherConfig{
+		Command:      command,
+		Args:         args,
+		PasteDelayMS: pasteDelay,
+		SubmitMode:   submitMode,
 	}
 }
 
@@ -526,16 +720,22 @@ func defaultTargets() map[string]TargetConfig {
 		"claude": {
 			Family:                "claude",
 			DefaultTemplatePreset: "claude-structured",
+			TranslationTargetLang: "en",
+			DefaultDelivery:       "open-copy",
 			Description:           "Anthropic Claude family prompts.",
 		},
 		"codex": {
 			Family:                "codex",
 			DefaultTemplatePreset: "codex-implement",
+			TranslationTargetLang: "en",
+			DefaultDelivery:       "open-copy",
 			Description:           "Coding-focused prompt shapes.",
 		},
 		"gemini": {
 			Family:                "gemini",
 			DefaultTemplatePreset: "gemini-stepwise",
+			TranslationTargetLang: "en",
+			DefaultDelivery:       "open-copy",
 			Description:           "Google Gemini family prompts.",
 		},
 	}
@@ -643,11 +843,25 @@ Output Format:
 func defaultRoles() map[string]RoleConfig {
 	return map[string]RoleConfig{
 		"da": {Prompt: "Expert Data Engineer & Analytics Architect.\nFocus on data modeling, pipelines, scalability, performance, data quality, and operational reliability.\nTailor the response to the user's request instead of assuming they want code."},
-		"be": {Prompt: "Expert Backend Engineer & Tech Lead.\nFocus on API design, reliability, observability, maintainability, security, and production tradeoffs.\nTailor the response to the user's request instead of assuming they want code."},
-		"fe": {Prompt: "Expert Frontend Engineer & UX-minded Implementer.\nFocus on UX clarity, accessibility, maintainable architecture, performance, and polished implementation details.\nTailor the response to the user's request instead of assuming they want code."},
+		"be": {Prompt: "Expert Backend Engineer & Tech Lead.\nFocus on API design, reliability, observability, maintainability, security, and production tradeoffs.\nTailor the response to the user's request instead of assuming they want code.", Targets: map[string]RoleTargetConfig{
+			"claude": {Prompt: "Expert Backend Engineer & Tech Lead.\nFocus on reliability, architecture, operational tradeoffs, and clear structured reasoning.\nTailor the response to the user's request instead of assuming they want code.", TemplatePreset: "claude-review"},
+			"codex":  {Prompt: "Expert Backend Engineer & Tech Lead.\nFocus on implementation details, concrete file changes, tests, and safe rollout steps.\nTailor the response to the user's request instead of assuming they want code.", TemplatePreset: "codex-implement"},
+			"gemini": {Prompt: "Expert Backend Engineer & Tech Lead.\nFocus on analysis, comparison, scalability, and stepwise reasoning.\nTailor the response to the user's request instead of assuming they want code.", TemplatePreset: "gemini-stepwise"},
+		}},
+		"fe": {Prompt: "Expert Frontend Engineer & UX-minded Implementer.\nFocus on UX clarity, accessibility, maintainable architecture, performance, and polished implementation details.\nTailor the response to the user's request instead of assuming they want code.", Targets: map[string]RoleTargetConfig{
+			"claude": {Prompt: "Expert Frontend Engineer & UX-minded Implementer.\nFocus on architecture, UX tradeoffs, accessibility, and clear structured reasoning.\nTailor the response to the user's request instead of assuming they want code.", TemplatePreset: "claude-structured"},
+			"codex":  {Prompt: "Expert Frontend Engineer & UX-minded Implementer.\nFocus on implementation details, component changes, testing, and maintainable code.\nTailor the response to the user's request instead of assuming they want code.", TemplatePreset: "codex-implement"},
+			"gemini": {Prompt: "Expert Frontend Engineer & UX-minded Implementer.\nFocus on analysis, hierarchy, performance, and stepwise reasoning.\nTailor the response to the user's request instead of assuming they want code.", TemplatePreset: "gemini-stepwise"},
+		}},
 		"ui": {Prompt: "Expert Product Designer & UI Systems Specialist.\nFocus on usability, hierarchy, interaction design, visual clarity, consistency, and thoughtful product decisions.\nTailor the response to the user's request instead of assuming they want implementation code."},
 		"se": {Prompt: "Expert Security Engineer & Application Security Reviewer.\nFocus on threat modeling, attack surface, authentication, authorization, secrets handling, and abuse cases.\nTailor the response to the user's request instead of assuming they want code."},
 		"pm": {Prompt: "Expert Product Manager & Technical Strategist.\nFocus on problem framing, requirements clarity, scope, prioritization, tradeoffs, and execution planning.\nTailor the response to the user's request instead of assuming they want implementation details."},
+		"review": {Prompt: "Expert Reviewer.\nFocus on bugs, regressions, risk, correctness, missing tests, and tradeoffs.\nTailor the response to the user's request instead of assuming they want code.", Targets: map[string]RoleTargetConfig{
+			"claude": {Prompt: "Expert Reviewer.\nFocus on risks, regressions, correctness, tradeoffs, and missing considerations.\nLead with findings before suggestions.", TemplatePreset: "claude-review"},
+			"codex":  {Prompt: "Expert Reviewer.\nFocus on concrete bugs, changed-file implications, missing tests, and actionable fixes.\nLead with findings before suggestions.", TemplatePreset: "codex-review"},
+			"gemini": {Prompt: "Expert Reviewer.\nFocus on structured comparison, risks, and stepwise analysis of regressions and edge cases.\nLead with findings before suggestions.", TemplatePreset: "gemini-stepwise"},
+		}},
+		"writer": {Prompt: "Expert Technical Writer.\nFocus on clarity, brevity, tone, and preserving the user's actual intent."},
 	}
 }
 
@@ -686,6 +900,44 @@ func defaultShortcuts() map[string]ShortcutConfig {
 			Description:    "Design and product thinking prompt.",
 		},
 	}
+}
+
+func defaultLaunchers() map[string]LauncherConfig {
+	return map[string]LauncherConfig{
+		"claude": {Command: "claude", PasteDelayMS: 700, SubmitMode: "manual"},
+		"codex":  {Command: "codex", PasteDelayMS: 800, SubmitMode: "manual"},
+		"gemini": {Command: "gemini", PasteDelayMS: 700, SubmitMode: "manual"},
+	}
+}
+
+func normalizeSourceLanguage(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	switch value {
+	case "", "auto":
+		return value
+	default:
+		return value
+	}
+}
+
+func normalizeTargetLanguage(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func normalizeDelivery(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if value == "" {
+		return ""
+	}
+	return value
+}
+
+func normalizeSubmitMode(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if value == "" {
+		return "manual"
+	}
+	return value
 }
 
 func sortedKeys[T any](items map[string]T) []string {

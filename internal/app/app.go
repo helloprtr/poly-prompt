@@ -8,13 +8,17 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"runtime"
 	"strings"
+	"time"
 
+	"github.com/helloprtr/poly-prompt/internal/automation"
 	"github.com/helloprtr/poly-prompt/internal/clipboard"
 	"github.com/helloprtr/poly-prompt/internal/config"
 	"github.com/helloprtr/poly-prompt/internal/editor"
 	"github.com/helloprtr/poly-prompt/internal/history"
 	"github.com/helloprtr/poly-prompt/internal/input"
+	"github.com/helloprtr/poly-prompt/internal/launcher"
 	prompttemplate "github.com/helloprtr/poly-prompt/internal/template"
 	"github.com/helloprtr/poly-prompt/internal/translate"
 )
@@ -32,6 +36,9 @@ type Dependencies struct {
 	TranslatorFactory TranslatorFactory
 	Clipboard         clipboard.Writer
 	Editor            editor.Editor
+	Launcher          launcher.Launcher
+	Automator         automation.Automator
+	SubmitConfirmer   SubmitConfirmer
 	ConfigLoader      ConfigLoader
 	ConfigInit        ConfigInit
 	LookupEnv         LookupEnv
@@ -46,6 +53,9 @@ type App struct {
 	translatorFactory TranslatorFactory
 	clipboard         clipboard.Writer
 	editor            editor.Editor
+	launcher          launcher.Launcher
+	automator         automation.Automator
+	submitConfirmer   SubmitConfirmer
 	configLoader      ConfigLoader
 	configInit        ConfigInit
 	lookupEnv         LookupEnv
@@ -53,40 +63,83 @@ type App struct {
 }
 
 type usageError struct {
-	message string
+	message  string
+	helpText string
 }
 
 type runOptions struct {
-	target         string
-	role           string
-	templatePreset string
-	noCopy         bool
-	showOriginal   bool
-	interactive    bool
-	explain        bool
-	diff           bool
-	jsonOutput     bool
+	target               string
+	role                 string
+	templatePreset       string
+	sourceLang           string
+	targetLang           string
+	translationMode      string
+	noCopy               bool
+	showOriginal         bool
+	interactive          bool
+	explain              bool
+	diff                 bool
+	jsonOutput           bool
+	launch               bool
+	paste                bool
+	submitMode           string
+	rerunEdit            bool
+	compactStatus        bool
+	surfaceMode          string
+	surfaceInput         string
+	surfaceDelivery      string
+	preferTargetTemplate bool
+}
+
+type goCommandOptions struct {
+	mode      string
+	app       string
+	edit      bool
+	dryRun    bool
+	noContext bool
+	noCopy    bool
+	prompt    []string
+}
+
+type replayCommandOptions struct {
+	app       string
+	edit      bool
+	dryRun    bool
+	noContext bool
+	noCopy    bool
+	prompt    []string
 }
 
 type resolvedRun struct {
-	original       string
-	translated     string
-	finalPrompt    string
-	targetName     string
-	targetSource   string
-	targetConfig   config.TargetConfig
-	roleName       string
-	rolePrompt     string
-	roleSource     string
-	templateName   string
-	templateSource string
-	layout         string
-	context        string
-	outputFormat   string
-	shortcut       string
-	copied         bool
-	apiKeySource   string
-	config         config.Config
+	original            string
+	translated          string
+	finalPrompt         string
+	targetName          string
+	targetSource        string
+	targetConfig        config.TargetConfig
+	roleName            string
+	rolePrompt          string
+	roleSource          string
+	roleVariantSource   string
+	templateName        string
+	templateSource      string
+	layout              string
+	context             string
+	outputFormat        string
+	shortcut            string
+	copied              bool
+	launched            bool
+	launchedTarget      string
+	deliveryMode        string
+	pasted              bool
+	submitMode          string
+	submitted           bool
+	apiKeySource        string
+	sourceLang          string
+	targetLang          string
+	translationMode     string
+	translationDecision string
+	config              config.Config
 }
 
 func New(deps Dependencies) *App {
@@ -105,6 +158,9 @@ func New(deps Dependencies) *App {
 		translatorFactory: deps.TranslatorFactory,
 		clipboard:         deps.Clipboard,
 		editor:            deps.Editor,
+		launcher:          deps.Launcher,
+		automator:         deps.Automator,
+		submitConfirmer:   deps.SubmitConfirmer,
 		configLoader:      deps.ConfigLoader,
 		configInit:        deps.ConfigInit,
 		lookupEnv:         deps.LookupEnv,
@@ -115,12 +171,23 @@ func New(deps Dependencies) *App {
 func (a *App) Execute(ctx context.Context, args []string, stdin io.Reader, stdinPiped bool) error {
 	if len(args) > 0 {
 		switch args[0] {
+		case "-h", "--help":
+			return a.runHelp(nil)
+		case "help":
+			return a.runHelp(args[1:])
+		}
+	}
+
+	if len(args) > 0 {
+		switch args[0] {
 		case "init":
 			return a.runInit()
 		case "version":
 			return a.runVersion()
 		case "setup":
 			return a.runSetup(stdin)
+		case "lang":
+			return a.runLang(stdin)
 		case "doctor":
 			return a.runDoctor(ctx)
 		case "templates":
@@ -128,14 +195,41 @@ func (a *App) Execute(ctx context.Context, args []string, stdin io.Reader, stdin
 		case "profiles":
 			return a.runProfiles(args[1:])
 		case "history":
-			return a.runHistory()
+			return a.runHistory(args[1:])
 		case "rerun":
 			return a.runRerun(ctx, args[1:])
+		case "pin":
+			return a.runPin(args[1:])
+		case "favorite":
+			return a.runFavorite(args[1:])
+		case "go":
+			if wantsHelp(args[1:]) {
+				return a.runHelp([]string{"go"})
+			}
+			return a.runGo(ctx, args[1:], stdin, stdinPiped)
+		case "again":
+			if wantsHelp(args[1:]) {
+				return a.runHelp([]string{"again"})
+			}
+			return a.runAgain(ctx, args[1:], stdin, stdinPiped)
+		case "swap":
+			if wantsHelp(args[1:]) {
+				return a.runHelp([]string{"swap"})
+			}
+			return a.runSwap(ctx, args[1:], stdin, stdinPiped)
+		case "inspect":
+			if wantsHelp(args[1:]) {
+				return a.runHelp([]string{"inspect"})
+			}
+			return a.runInspect(ctx, args[1:], stdin, stdinPiped)
 		}
 	}
 
 	if len(args) > 0 {
 		if _, ok := a.builtInShortcutNames()[args[0]]; ok {
+			if wantsHelp(args[1:]) {
+				return a.runHelp([]string{"go"})
+			}
 			return a.runShortcut(ctx, args[0], args[1:], stdin, stdinPiped)
 		}
 	}
@@ -166,6 +260,25 @@ func (a *App) runVersion() error {
 	return nil
 }
 
+func (a *App) runHelp(args []string) error {
+	text := rootHelpText()
+	if len(args) > 0 {
+		switch args[0] {
+		case "go":
+			text = goHelpText()
+		case "again":
+			text = againHelpText()
+		case "swap":
+			text = swapHelpText()
+		case "inspect":
+			text = inspectHelpText()
+		}
+	}
+
+	_, _ = fmt.Fprintln(a.stdout, text)
+	return nil
+}
+
 func (a *App) runSetup(stdin io.Reader) error {
 	cfg, err := a.configLoader()
 	if err != nil {
@@ -177,6 +290,14 @@ func (a *App) runSetup(stdin io.Reader) error {
 	currentAPIKey, _ := config.ResolveAPIKey(envAPIKey, cfg)
 	currentTarget := config.ResolveTarget("", cfg, "")
 	currentRole := config.ResolveRole("", cfg)
+	currentSourceLang := cfg.TranslationSourceLang
+	if currentSourceLang == "" {
+		currentSourceLang = "auto"
+	}
+	currentTargetLang := cfg.TranslationTargetLang
+	if currentTargetLang == "" {
+		currentTargetLang = "en"
+	}
 	currentPreset := cfg.DefaultTemplatePreset
 	if currentPreset == "" {
 		if targetConfig, ok := cfg.Targets[currentTarget]; ok {
@@ -192,6 +313,28 @@ func (a *App) runSetup(stdin io.Reader) error {
 		apiPrompt += " [configured]"
 	}
 	apiValue, err := promptInput(reader, a.stdout, apiPrompt)
+	if err != nil {
+		return err
+	}
+
+	sourceLangValue, err := promptLanguage(reader, a.stdout, "Default input language", []languageOption{
+		{Label: "auto", Value: "auto", Description: "automatic detection"},
+		{Label: "ko", Value: "ko", Description: "Korean"},
+		{Label: "ja", Value: "ja", Description: "Japanese"},
+		{Label: "zh", Value: "zh", Description: "Chinese"},
+		{Label: "en", Value: "en", Description: "English"},
+	}, currentSourceLang, true)
+	if err != nil {
+		return err
+	}
+
+	targetLangValue, err := promptLanguage(reader, a.stdout, "Default output language", []languageOption{
+		{Label: "en", Value: "en", Description: "English"},
+		{Label: "ja", Value: "ja", Description: "Japanese"},
+		{Label: "zh", Value: "zh", Description: "Chinese"},
+		{Label: "de", Value: "de", Description: "German"},
+		{Label: "fr", Value: "fr", Description: "French"},
+	}, currentTargetLang, false)
 	if err != nil {
 		return err
 	}
@@ -214,6 +357,8 @@ func (a *App) runSetup(stdin io.Reader) error {
 	}
 
 	update := config.DefaultsUpdate{
+		TranslationSourceLang: stringPtr(sourceLangValue),
+		TranslationTargetLang: stringPtr(targetLangValue),
 		DefaultTarget:         stringPtr(targetValue),
 		DefaultRole:           stringPtr(roleValue),
 		DefaultTemplatePreset: stringPtr(presetValue),
@@ -234,6 +379,56 @@ func (a *App) runSetup(stdin io.Reader) error {
 	return nil
 }
 
+func (a *App) runLang(stdin io.Reader) error {
+	cfg, err := a.configLoader()
+	if err != nil {
+		return err
+	}
+
+	reader := bufio.NewReader(stdin)
+	currentSourceLang := cfg.TranslationSourceLang
+	if currentSourceLang == "" {
+		currentSourceLang = "auto"
+	}
+	currentTargetLang := cfg.TranslationTargetLang
+	if currentTargetLang == "" {
+		currentTargetLang = "en"
+	}
+
+	sourceLangValue, err := promptLanguage(reader, a.stdout, "Default input language", []languageOption{
+		{Label: "auto", Value: "auto", Description: "automatic detection"},
+		{Label: "ko", Value: "ko", Description: "Korean"},
+		{Label: "ja", Value: "ja", Description: "Japanese"},
+		{Label: "zh", Value: "zh", Description: "Chinese"},
+		{Label: "en", Value: "en", Description: "English"},
+	}, currentSourceLang, true)
+	if err != nil {
+		return err
+	}
+
+	targetLangValue, err := promptLanguage(reader, a.stdout, "Default output language", []languageOption{
+		{Label: "en", Value: "en", Description: "English"},
+		{Label: "ja", Value: "ja", Description: "Japanese"},
+		{Label: "zh", Value: "zh", Description: "Chinese"},
+		{Label: "de", Value: "de", Description: "German"},
+		{Label: "fr", Value: "fr", Description: "French"},
+	}, currentTargetLang, false)
+	if err != nil {
+		return err
+	}
+
+	path, err := config.SaveDefaults(config.DefaultsUpdate{
+		TranslationSourceLang: stringPtr(sourceLangValue),
+		TranslationTargetLang: stringPtr(targetLangValue),
+	})
+	if err != nil {
+		return err
+	}
+
+	_, _ = fmt.Fprintf(a.stdout, "updated language defaults in %s\n", path)
+	return nil
+}
+
 func (a *App) runDoctor(ctx context.Context) error {
 	cfg, err := a.configLoader()
 	if err != nil {
@@ -242,6 +437,10 @@ func (a *App) runDoctor(ctx context.Context) error {
 
 	failures := 0
 	writeCheck := func(label string, err error, detail string) {
+		if errors.Is(err, launcher.ErrUnsupportedPlatform) || errors.Is(err, automation.ErrUnsupportedPlatform) {
+			_, _ = fmt.Fprintf(a.stdout, "OK   %s: unsupported on this platform\n", label)
+			return
+		}
 		if err != nil {
 			failures++
 			_, _ = fmt.Fprintf(a.stdout, "FAIL %s: %v\n", label, err)
@@ -252,6 +451,9 @@ func (a *App) runDoctor(ctx context.Context) error {
 			return
 		}
 		_, _ = fmt.Fprintf(a.stdout, "OK   %s\n", label)
+	}
+	writeWarn := func(label, detail string) {
+		_, _ = fmt.Fprintf(a.stdout, "WARN %s: %s\n", label, detail)
 	}
 
 	if cfg.HasUserConfig {
@@ -283,15 +485,55 @@ func (a *App) runDoctor(ctx context.Context) error {
 	writeCheck("template presets", validateTemplatePresets(cfg), fmt.Sprintf("%d presets", len(cfg.TemplatePresets)))
 	writeCheck("profiles", validateProfiles(cfg), fmt.Sprintf("%d profiles", len(cfg.Profiles)))
 	writeCheck("shortcuts", validateShortcuts(cfg), fmt.Sprintf("%d shortcuts", len(cfg.Shortcuts)))
+	writeCheck("launchers", validateLaunchers(cfg), fmt.Sprintf("%d launchers", len(cfg.Launchers)))
 
 	if apiKey != "" {
 		translator := a.resolveTranslator(apiKey)
 		if translator == nil {
 			writeCheck("translation", errors.New("translator is not configured"), "")
 		} else {
-			_, err := translator.Translate(ctx, "안녕하세요")
+			_, err := translator.Translate(ctx, translate.Request{Text: "안녕하세요", SourceLang: cfg.TranslationSourceLang, TargetLang: cfg.TranslationTargetLang})
 			writeCheck("translation", err, "")
 		}
+	}
+
+	for _, targetName := range []string{"claude", "codex", "gemini"} {
+		launcherCfg := cfg.Launchers[targetName]
+		if strings.TrimSpace(launcherCfg.Command) == "" {
+			writeCheck("launcher "+targetName, errors.New("not configured"), "")
+			continue
+		}
+		if a.launcher == nil {
+			writeCheck("launcher "+targetName, errors.New("launcher is not configured"), "")
+			continue
+		}
+		req := launcher.Request{
+			Command: launcherCfg.Command,
+			Args:    launcherCfg.Args,
+		}
+		detail := launcherCfg.Command
+		if description, err := a.launcher.Describe(req); err == nil && strings.TrimSpace(description) != "" {
+			detail = fmt.Sprintf("%s via %s", launcherCfg.Command, description)
+		}
+		writeCheck("launcher "+targetName, a.launcher.Diagnose(req), detail)
+		if launcherCfg.SubmitMode == string(automation.SubmitAuto) {
+			writeWarn("launcher "+targetName+" submit mode", "auto is not supported yet; use manual or confirm")
+		}
+		if a.automator == nil {
+			writeCheck("automation "+targetName, errors.New("automator is not configured"), "")
+			continue
+		}
+		autoReq := automation.Request{
+			Target:      targetName,
+			TerminalApp: "Terminal",
+			PasteDelay:  time.Duration(maxInt(0, launcherCfg.PasteDelayMS)) * time.Millisecond,
+			SubmitMode:  automation.SubmitMode(blankDefault(launcherCfg.SubmitMode, string(automation.SubmitManual))),
+		}
+		autoDetail := fmt.Sprintf("delay=%dms", launcherCfg.PasteDelayMS)
+		if description, err := a.automator.Describe(autoReq); err == nil && strings.TrimSpace(description) != "" {
+			autoDetail = fmt.Sprintf("%s delay=%dms", description, launcherCfg.PasteDelayMS)
+		}
+		writeCheck("automation "+targetName, a.automator.Diagnose(autoReq), autoDetail)
 	}
 
 	if failures > 0 {
@@ -384,6 +626,7 @@ func (a *App) runProfiles(args []string) error {
 			return fmt.Errorf("unknown profile %q (available: %s)", args[1], strings.Join(config.AvailableProfiles(cfg), ", "))
 		}
 		path, err := config.SaveDefaults(config.DefaultsUpdate{
+			TranslationTargetLang: stringPtr(profile.TranslationTargetLang),
 			DefaultTarget:         stringPtr(profile.Target),
 			DefaultRole:           stringPtr(profile.Role),
 			DefaultTemplatePreset: stringPtr(profile.TemplatePreset),
@@ -398,7 +641,7 @@ func (a *App) runProfiles(args []string) error {
 	}
 }
 
-func (a *App) runHistory() error {
+func (a *App) runHistory(args []string) error {
 	if a.historyStore == nil {
 		return errors.New("history store is not configured")
 	}
@@ -406,6 +649,18 @@ func (a *App) runHistory() error {
 	entries, err := a.historyStore.List()
 	if err != nil {
 		return err
+	}
+	if len(args) > 0 {
+		if args[0] != "search" {
+			return usageError{message: "history requires no args or the search subcommand"}
+		}
+		if len(args) < 2 {
+			return usageError{message: "history search requires a query"}
+		}
+		entries, err = a.historyStore.Search(strings.Join(args[1:], " "))
+		if err != nil {
+			return err
+		}
 	}
 
 	if len(entries) == 0 {
@@ -416,7 +671,8 @@ func (a *App) runHistory() error {
 	limit := minInt(10, len(entries))
 	for _, entry := range entries[:limit] {
 		preview := truncateOneLine(entry.Original, 60)
-		_, _ = fmt.Fprintf(a.stdout, "%s\t%s\ttarget=%s role=%s template=%s\t%s\n", entry.ID, entry.CreatedAt.Format("2006-01-02 15:04:05"), entry.Target, entry.Role, entry.TemplatePreset, preview)
+		flags := historyFlags(entry)
+		_, _ = fmt.Fprintf(a.stdout, "%s\t%s\ttarget=%s role=%s template=%s lang=%s->%s %s\t%s\n", entry.ID, entry.CreatedAt.Format("2006-01-02 15:04:05"), entry.Target, entry.Role, entry.TemplatePreset, blankDefault(entry.SourceLang, "auto"), blankDefault(entry.TargetLang, "en"), flags, preview)
 	}
 	return nil
 }
@@ -450,12 +706,204 @@ func (a *App) runRerun(ctx context.Context, args []string) error {
 	if strings.TrimSpace(opts.templatePreset) == "" {
 		opts.templatePreset = entry.TemplatePreset
 	}
+	if strings.TrimSpace(opts.sourceLang) == "" {
+		opts.sourceLang = entry.SourceLang
+	}
+	if strings.TrimSpace(opts.targetLang) == "" {
+		opts.targetLang = entry.TargetLang
+	}
+	if strings.TrimSpace(opts.translationMode) == "" {
+		opts.translationMode = entry.TranslationMode
+	}
+	if opts.rerunEdit {
+		return a.executeStoredPrompt(ctx, opts, entry)
+	}
 
-	return a.executePrompt(ctx, opts, entry.Original, "")
+	return a.executePrompt(ctx, opts, entry.Original, entry.Shortcut)
+}
+
+func (a *App) runPin(args []string) error {
+	if len(args) == 0 {
+		return usageError{message: "pin requires a history id"}
+	}
+	if a.historyStore == nil {
+		return errors.New("history store is not configured")
+	}
+
+	entry, err := a.historyStore.TogglePinned(args[0])
+	if err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(a.stdout, "%s %s\n", pinVerb(entry.Pinned), entry.ID)
+	return nil
+}
+
+func (a *App) runFavorite(args []string) error {
+	if len(args) == 0 {
+		return usageError{message: "favorite requires a history id"}
+	}
+	if a.historyStore == nil {
+		return errors.New("history store is not configured")
+	}
+
+	entry, err := a.historyStore.ToggleFavorite(args[0])
+	if err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(a.stdout, "%s %s\n", favoriteVerb(entry.Favorite), entry.ID)
+	return nil
 }
 
 func (a *App) runShortcut(ctx context.Context, shortcut string, args []string, stdin io.Reader, stdinPiped bool) error {
 	return a.runMain(ctx, args, stdin, stdinPiped, shortcut)
+}
+
+func (a *App) runGo(ctx context.Context, args []string, stdin io.Reader, stdinPiped bool) error {
+	command, err := parseGoCommand(args, a.builtInShortcutNames())
+	if err != nil {
+		return err
+	}
+
+	text, inputSource, err := resolveSurfaceInput(command.prompt, stdin, stdinPiped, !command.noContext)
+	if err != nil {
+		if errors.Is(err, input.ErrNoInput) {
+			return usageError{message: "missing prompt text"}
+		}
+		return fmt.Errorf("read input: %w", err)
+	}
+
+	target := strings.TrimSpace(command.app)
+	if target == "" {
+		if entry, err := a.latestHistoryEntry(); err == nil {
+			target = entry.Target
+		}
+	}
+
+	opts := runOptions{
+		target:               target,
+		interactive:          command.edit,
+		noCopy:               command.dryRun || command.noCopy,
+		launch:               !command.dryRun,
+		paste:                !command.dryRun,
+		compactStatus:        true,
+		surfaceMode:          command.mode,
+		surfaceInput:         inputSource,
+		surfaceDelivery:      surfaceDeliveryLabel(command.dryRun),
+		preferTargetTemplate: true,
+	}
+
+	return a.executePrompt(ctx, opts, text, command.mode)
+}
+
+func (a *App) runAgain(ctx context.Context, args []string, stdin io.Reader, stdinPiped bool) error {
+	command, err := parseReplayCommand(args, false)
+	if err != nil {
+		return err
+	}
+
+	entry, err := a.latestHistoryEntry()
+	if err != nil {
+		return err
+	}
+
+	text := entry.Original
+	inputSource := "history"
+	if len(command.prompt) > 0 || stdinPiped {
+		text, inputSource, err = resolveSurfaceInput(command.prompt, stdin, stdinPiped, !command.noContext)
+		if err != nil {
+			if errors.Is(err, input.ErrNoInput) {
+				return usageError{message: "missing prompt text"}
+			}
+			return fmt.Errorf("read input: %w", err)
+		}
+	}
+
+	opts := runOptions{
+		target:          entry.Target,
+		role:            entry.Role,
+		templatePreset:  entry.TemplatePreset,
+		sourceLang:      entry.SourceLang,
+		targetLang:      entry.TargetLang,
+		translationMode: entry.TranslationMode,
+		interactive:     command.edit,
+		noCopy:          command.dryRun || command.noCopy,
+		launch:          !command.dryRun,
+		paste:           !command.dryRun,
+		compactStatus:   true,
+		surfaceMode:     blankDefault(entry.Shortcut, "ask"),
+		surfaceInput:    inputSource,
+		surfaceDelivery: surfaceDeliveryLabel(command.dryRun),
+	}
+
+	return a.executePrompt(ctx, opts, text, entry.Shortcut)
+}
+
+func (a *App) runSwap(ctx context.Context, args []string, stdin io.Reader, stdinPiped bool) error {
+	command, err := parseReplayCommand(args, true)
+	if err != nil {
+		return err
+	}
+
+	entry, err := a.latestHistoryEntry()
+	if err != nil {
+		return err
+	}
+
+	text := entry.Original
+	inputSource := "history"
+	if len(command.prompt) > 0 || stdinPiped {
+		text, inputSource, err = resolveSurfaceInput(command.prompt, stdin, stdinPiped, !command.noContext)
+		if err != nil {
+			if errors.Is(err, input.ErrNoInput) {
+				return usageError{message: "missing prompt text"}
+			}
+			return fmt.Errorf("read input: %w", err)
+		}
+	}
+
+	opts := runOptions{
+		target:               command.app,
+		role:                 entry.Role,
+		sourceLang:           entry.SourceLang,
+		targetLang:           entry.TargetLang,
+		translationMode:      entry.TranslationMode,
+		interactive:          command.edit,
+		noCopy:               command.dryRun || command.noCopy,
+		launch:               !command.dryRun,
+		paste:                !command.dryRun,
+		compactStatus:        true,
+		surfaceMode:          blankDefault(entry.Shortcut, "ask"),
+		surfaceInput:         inputSource,
+		surfaceDelivery:      surfaceDeliveryLabel(command.dryRun),
+		preferTargetTemplate: true,
+	}
+
+	return a.executePrompt(ctx, opts, text, entry.Shortcut)
+}
+
+func (a *App) runInspect(ctx context.Context, args []string, stdin io.Reader, stdinPiped bool) error {
+	opts, positional, err := parseRunOptions(args)
+	if err != nil {
+		return err
+	}
+
+	opts.noCopy = true
+	opts.launch = false
+	opts.paste = false
+	opts.explain = true
+	if !opts.jsonOutput {
+		opts.diff = true
+	}
+
+	text, err := input.Resolve(positional, stdin, stdinPiped)
+	if err != nil {
+		if errors.Is(err, input.ErrNoInput) {
+			return usageError{message: "missing prompt text"}
+		}
+		return fmt.Errorf("read input: %w", err)
+	}
+
+	return a.executePrompt(ctx, opts, text, "")
 }
 
 func (a *App) runMain(ctx context.Context, args []string, stdin io.Reader, stdinPiped bool, shortcut string) error {
@@ -484,9 +932,6 @@ func (a *App) executePrompt(ctx context.Context, opts runOptions, text, shortcut
 	if opts.showOriginal {
 		_, _ = fmt.Fprintf(a.stderr, "Original:\n%s\n\n", resolved.original)
 	}
-	if opts.explain {
-		a.writeExplain(resolved)
-	}
 	if opts.diff {
 		a.writeDiff(resolved)
 	}
@@ -512,6 +957,12 @@ func (a *App) executePrompt(ctx context.Context, opts runOptions, text, shortcut
 		}
 		resolved.copied = true
 	}
+	if err := a.applyDelivery(ctx, opts, &resolved); err != nil {
+		return err
+	}
+	if opts.explain {
+		a.writeExplain(resolved)
+	}
 
 	if err := a.appendHistory(resolved); err != nil {
 		return err
@@ -519,13 +970,22 @@ func (a *App) executePrompt(ctx context.Context, opts runOptions, text, shortcut
 
 	if opts.jsonOutput {
 		payload := map[string]any{
-			"original":        resolved.original,
-			"translated":      resolved.translated,
-			"target":          resolved.targetName,
-			"role":            resolved.roleName,
-			"template_preset": resolved.templateName,
-			"final_prompt":    resolved.finalPrompt,
-			"copied":          resolved.copied,
+			"original":             resolved.original,
+			"translated":           resolved.translated,
+			"target":               resolved.targetName,
+			"role":                 resolved.roleName,
+			"template_preset":      resolved.templateName,
+			"final_prompt":         resolved.finalPrompt,
+			"copied":               resolved.copied,
+			"launched":             resolved.launched,
+			"source_lang":          resolved.sourceLang,
+			"target_lang":          resolved.targetLang,
+			"translation_mode":     resolved.translationMode,
+			"translation_decision": resolved.translationDecision,
+			"delivery_mode":        resolved.deliveryMode,
+			"pasted":               resolved.pasted,
+			"submit_mode":          resolved.submitMode,
+			"submitted":            resolved.submitted,
 		}
 		data, err := json.MarshalIndent(payload, "", "  ")
 		if err != nil {
@@ -536,12 +996,122 @@ func (a *App) executePrompt(ctx context.Context, opts runOptions, text, shortcut
 		_, _ = fmt.Fprintln(a.stdout, resolved.finalPrompt)
 	}
 
+	if opts.compactStatus {
+		a.writeCompactStatus(opts, resolved)
+		return nil
+	}
+
 	if opts.noCopy {
 		_, _ = fmt.Fprintf(a.stderr, "target %q ready; clipboard skipped\n", resolved.targetName)
 	} else {
 		_, _ = fmt.Fprintf(a.stderr, "copied prompt for target %q to clipboard\n", resolved.targetName)
 	}
+	if opts.launch && resolved.launched {
+		_, _ = fmt.Fprintf(a.stderr, "opened %s CLI session\n", resolved.targetName)
+	}
+	if opts.paste && resolved.pasted {
+		_, _ = fmt.Fprintf(a.stderr, "pasted prompt into %s terminal session\n", resolved.targetName)
+	}
+	if resolved.submitted {
+		_, _ = fmt.Fprintf(a.stderr, "submitted prompt to %s\n", resolved.targetName)
+	}
 
+	return nil
+}
+
+func (a *App) executeStoredPrompt(ctx context.Context, opts runOptions, entry history.Entry) error {
+	finalPrompt := entry.FinalPrompt
+	if opts.rerunEdit {
+		if a.editor == nil {
+			return errors.New("interactive mode is unavailable: editor is not configured")
+		}
+		edited, err := a.editor.Edit(ctx, editor.Request{
+			Initial: entry.FinalPrompt,
+			Status:  "Rerun Edit | Target: " + entry.Target,
+		})
+		if err != nil {
+			return err
+		}
+		finalPrompt = edited
+	}
+
+	run := resolvedRun{
+		original:            entry.Original,
+		translated:          entry.Translated,
+		finalPrompt:         finalPrompt,
+		targetName:          entry.Target,
+		roleName:            entry.Role,
+		templateName:        entry.TemplatePreset,
+		shortcut:            entry.Shortcut,
+		sourceLang:          blankDefault(entry.SourceLang, "auto"),
+		targetLang:          blankDefault(entry.TargetLang, "en"),
+		translationMode:     blankDefault(entry.TranslationMode, string(translate.ModeAuto)),
+		translationDecision: blankDefault(entry.TranslationDecision, translate.DecisionTranslated),
+		launchedTarget:      entry.LaunchedTarget,
+		deliveryMode:        blankDefault(entry.DeliveryMode, "open-copy"),
+		submitMode:          blankDefault(entry.SubmitMode, string(automation.SubmitManual)),
+		pasted:              entry.Pasted,
+		submitted:           entry.Submitted,
+	}
+	cfg, err := a.configLoader()
+	if err != nil {
+		return err
+	}
+	resolvedSubmitMode, err := resolveSubmitMode(opts.submitMode, cfg.Launchers[entry.Target].SubmitMode)
+	if err != nil {
+		return err
+	}
+	run.config = cfg
+	run.submitMode = resolvedSubmitMode
+	if opts.paste {
+		run.deliveryMode = "open-copy-paste"
+	} else {
+		run.deliveryMode = "open-copy"
+	}
+
+	if !opts.noCopy {
+		if err := a.clipboard.Copy(ctx, finalPrompt); err != nil {
+			return err
+		}
+		run.copied = true
+	}
+	if err := a.applyDelivery(ctx, opts, &run); err != nil {
+		return err
+	}
+	if opts.explain {
+		a.writeExplain(run)
+	}
+
+	if opts.jsonOutput {
+		payload := map[string]any{
+			"original":        run.original,
+			"translated":      run.translated,
+			"target":          run.targetName,
+			"role":            run.roleName,
+			"template_preset": run.templateName,
+			"final_prompt":    run.finalPrompt,
+			"copied":          run.copied,
+			"launched":        run.launched,
+			"delivery_mode":   run.deliveryMode,
+			"pasted":          run.pasted,
+			"submit_mode":     run.submitMode,
+			"submitted":       run.submitted,
+		}
+		data, err := json.MarshalIndent(payload, "", "  ")
+		if err != nil {
+			return fmt.Errorf("encode json output: %w", err)
+		}
+		_, _ = fmt.Fprintln(a.stdout, string(data))
+	} else {
+		_, _ = fmt.Fprintln(a.stdout, finalPrompt)
+	}
+
+	if err := a.appendHistory(run); err != nil {
+		return err
+	}
+	if opts.compactStatus {
+		a.writeCompactStatus(opts, run)
+	}
 	return nil
 }
 
@@ -561,6 +1131,10 @@ func (a *App) prepareRun(ctx context.Context, opts runOptions, text, shortcutNam
 			return resolvedRun{}, fmt.Errorf("unknown shortcut %q", shortcutName)
 		}
 		shortcut = cfg.Shortcuts[shortcutName]
+		if requestedTarget := strings.TrimSpace(opts.target); requestedTarget != "" && requestedTarget != strings.TrimSpace(shortcut.Target) {
+			shortcut.Target = ""
+			shortcut.TemplatePreset = ""
+		}
 	}
 
 	target, targetSource := resolveRunTarget(opts.target, shortcut, cfg, envTarget)
@@ -568,18 +1142,35 @@ func (a *App) prepareRun(ctx context.Context, opts runOptions, text, shortcutNam
 	if !ok {
 		return resolvedRun{}, fmt.Errorf("unknown target %q (available: %s)", target, strings.Join(config.AvailableTargets(cfg), ", "))
 	}
+	if opts.launch || opts.paste || strings.TrimSpace(opts.submitMode) != "" {
+		switch target {
+		case "claude", "codex", "gemini":
+		default:
+			return resolvedRun{}, fmt.Errorf("launch, paste, and submit only support claude, codex, and gemini targets")
+		}
+	}
 
 	role, roleSource := resolveRunRole(opts.role, shortcut, cfg)
 	rolePrompt := ""
+	roleVariantSource := ""
+	roleTemplatePreset := ""
 	if role != "" {
 		roleConfig, ok := cfg.Roles[role]
 		if !ok {
 			return resolvedRun{}, fmt.Errorf("unknown role %q (available: %s)", role, strings.Join(config.AvailableRoles(cfg), ", "))
 		}
 		rolePrompt = roleConfig.Prompt
+		roleVariantSource = "base role"
+		if targetOverride, ok := roleConfig.Targets[target]; ok {
+			if strings.TrimSpace(targetOverride.Prompt) != "" {
+				rolePrompt = targetOverride.Prompt
+				roleVariantSource = "role target override"
+			}
+			roleTemplatePreset = strings.TrimSpace(targetOverride.TemplatePreset)
+		}
 	}
 
-	templateName, templateSource := resolveRunTemplate(opts.templatePreset, shortcut, cfg, targetConfig)
+	templateName, templateSource := resolveRunTemplate(opts.templatePreset, shortcut, roleTemplatePreset, cfg, targetConfig, opts.preferTargetTemplate)
 	layout, err := resolveTemplateLayout(templateName, targetConfig, cfg)
 	if err != nil {
 		return resolvedRun{}, err
@@ -587,17 +1178,27 @@ func (a *App) prepareRun(ctx context.Context, opts runOptions, text, shortcutNam
 
 	apiKey, apiKeySource := config.ResolveAPIKey(envAPIKey, cfg)
 	translator := a.resolveTranslator(apiKey)
-	if translator == nil {
-		return resolvedRun{}, errors.New("translator is not configured")
-	}
 
-	translated, err := translator.Translate(ctx, text)
+	sourceLang, targetLang := resolveRunLanguages(opts, shortcut, targetConfig, cfg)
+	resolvedSubmitMode, err := resolveSubmitMode(opts.submitMode, cfg.Launchers[target].SubmitMode)
+	if err != nil {
+		return resolvedRun{}, err
+	}
+	deliveryMode := "open-copy"
+	if opts.paste {
+		deliveryMode = "open-copy-paste"
+	}
+	outcome, err := translate.ApplyPolicy(ctx, translator, translate.Request{
+		Text:       text,
+		SourceLang: sourceLang,
+		TargetLang: targetLang,
+	}, translate.Mode(blankDefault(opts.translationMode, string(translate.ModeAuto))))
 	if err != nil {
 		return resolvedRun{}, err
 	}
 
 	finalPrompt, err := prompttemplate.RenderData(layout, prompttemplate.Data{
-		Prompt:       translated,
+		Prompt:       outcome.Text,
 		Role:         rolePrompt,
 		Target:       target,
 		Context:      shortcut.Context,
@@ -608,23 +1209,30 @@ func (a *App) prepareRun(ctx context.Context, opts runOptions, text, shortcutNam
 	}
 
 	return resolvedRun{
-		original:       text,
-		translated:     translated,
-		finalPrompt:    finalPrompt,
-		targetName:     target,
-		targetSource:   targetSource,
-		targetConfig:   targetConfig,
-		roleName:       role,
-		rolePrompt:     rolePrompt,
-		roleSource:     roleSource,
-		templateName:   templateName,
-		templateSource: templateSource,
-		layout:         layout,
-		context:        shortcut.Context,
-		outputFormat:   shortcut.OutputFormat,
-		shortcut:       shortcutName,
-		apiKeySource:   apiKeySource,
-		config:         cfg,
+		original:            text,
+		translated:          outcome.Text,
+		finalPrompt:         finalPrompt,
+		targetName:          target,
+		targetSource:        targetSource,
+		targetConfig:        targetConfig,
+		roleName:            role,
+		rolePrompt:          rolePrompt,
+		roleSource:          roleSource,
+		roleVariantSource:   roleVariantSource,
+		templateName:        templateName,
+		templateSource:      templateSource,
+		layout:              layout,
+		context:             shortcut.Context,
+		outputFormat:        shortcut.OutputFormat,
+		shortcut:            shortcutName,
+		apiKeySource:        apiKeySource,
+		sourceLang:          outcome.SourceLang,
+		targetLang:          outcome.TargetLang,
+		translationMode:     blankDefault(opts.translationMode, string(translate.ModeAuto)),
+		translationDecision: outcome.Decision,
+		deliveryMode:        deliveryMode,
+		submitMode:          resolvedSubmitMode,
+		config:              cfg,
 	}, nil
 }
 
@@ -633,10 +1241,19 @@ func (a *App) writeExplain(run resolvedRun) {
 	_, _ = fmt.Fprintf(a.stderr, "- target: %s (%s)\n", run.targetName, run.targetSource)
 	if run.roleName != "" {
 		_, _ = fmt.Fprintf(a.stderr, "- role: %s (%s)\n", run.roleName, run.roleSource)
+		if run.roleVariantSource != "" {
+			_, _ = fmt.Fprintf(a.stderr, "- role variant: %s\n", run.roleVariantSource)
+		}
 	} else {
 		_, _ = fmt.Fprintf(a.stderr, "- role: none (%s)\n", run.roleSource)
 	}
 	_, _ = fmt.Fprintf(a.stderr, "- template preset: %s (%s)\n", run.templateName, run.templateSource)
+	_, _ = fmt.Fprintf(a.stderr, "- language route: %s -> %s\n", run.sourceLang, run.targetLang)
+	_, _ = fmt.Fprintf(a.stderr, "- translation decision: %s\n", run.translationDecision)
+	_, _ = fmt.Fprintf(a.stderr, "- delivery mode: %s\n", blankDefault(run.deliveryMode, "open-copy"))
+	_, _ = fmt.Fprintf(a.stderr, "- paste: %t\n", run.pasted)
+	_, _ = fmt.Fprintf(a.stderr, "- submit mode: %s\n", blankDefault(run.submitMode, string(automation.SubmitManual)))
+	_, _ = fmt.Fprintf(a.stderr, "- submitted: %t\n", run.submitted)
 	if run.shortcut != "" {
 		_, _ = fmt.Fprintf(a.stderr, "- shortcut: %s\n", run.shortcut)
 	}
@@ -648,6 +1265,9 @@ func (a *App) writeExplain(run resolvedRun) {
 	}
 	if run.apiKeySource != "" {
 		_, _ = fmt.Fprintf(a.stderr, "- api key: %s\n", run.apiKeySource)
+	}
+	if run.launchedTarget != "" {
+		_, _ = fmt.Fprintf(a.stderr, "- launch target: %s\n", run.launchedTarget)
 	}
 	_, _ = fmt.Fprintln(a.stderr)
 }
@@ -662,14 +1282,132 @@ func (a *App) appendHistory(run resolvedRun) error {
 	}
 
 	return a.historyStore.Append(history.Entry{
-		Original:       run.original,
-		Translated:     run.translated,
-		FinalPrompt:    run.finalPrompt,
-		Target:         run.targetName,
-		Role:           run.roleName,
-		TemplatePreset: run.templateName,
-		Shortcut:       run.shortcut,
+		Original:            run.original,
+		Translated:          run.translated,
+		FinalPrompt:         run.finalPrompt,
+		Target:              run.targetName,
+		Role:                run.roleName,
+		TemplatePreset:      run.templateName,
+		Shortcut:            run.shortcut,
+		SourceLang:          run.sourceLang,
+		TargetLang:          run.targetLang,
+		TranslationMode:     run.translationMode,
+		TranslationDecision: run.translationDecision,
+		LaunchedTarget:      run.launchedTarget,
+		DeliveryMode:        run.deliveryMode,
+		Pasted:              run.pasted,
+		SubmitMode:          run.submitMode,
+		Submitted:           run.submitted,
 	})
+}
+
+func (a *App) applyDelivery(ctx context.Context, opts runOptions, run *resolvedRun) error {
+	if run == nil {
+		return nil
+	}
+	if opts.paste {
+		run.deliveryMode = "open-copy-paste"
+	} else {
+		run.deliveryMode = "open-copy"
+	}
+	launcherCfg, ok := run.config.Launchers[run.targetName]
+	if !ok {
+		launcherCfg = config.LauncherConfig{}
+	}
+	if launcherCfg.PasteDelayMS < 0 {
+		return fmt.Errorf("launcher %q has negative paste_delay_ms", run.targetName)
+	}
+
+	if opts.launch {
+		if a.launcher == nil {
+			return errors.New("launch mode is unavailable: launcher is not configured")
+		}
+		if strings.TrimSpace(launcherCfg.Command) == "" {
+			return fmt.Errorf("launcher is not configured for target %q", run.targetName)
+		}
+		if err := a.launcher.Launch(ctx, launcher.Request{
+			Command: launcherCfg.Command,
+			Args:    launcherCfg.Args,
+		}); err != nil {
+			run.launchedTarget = run.targetName
+			return err
+		}
+		run.launched = true
+		run.launchedTarget = run.targetName
+	}
+
+	if opts.paste {
+		if a.automator == nil {
+			return errors.New("paste mode is unavailable: automator is not configured")
+		}
+		if run.submitMode == string(automation.SubmitAuto) {
+			return fmt.Errorf("--submit=auto is not supported yet")
+		}
+		autoReq := automation.Request{
+			Target:           run.targetName,
+			TerminalApp:      "Terminal",
+			PasteDelay:       time.Duration(maxInt(0, launcherCfg.PasteDelayMS)) * time.Millisecond,
+			RequireClipboard: true,
+			SubmitMode:       automation.SubmitMode(run.submitMode),
+		}
+		if err := a.automator.Paste(ctx, autoReq); err != nil {
+			return err
+		}
+		run.pasted = true
+	}
+
+	if opts.paste && strings.TrimSpace(run.submitMode) == string(automation.SubmitConfirm) {
+		if runtime.GOOS != "darwin" {
+			return fmt.Errorf("--submit=confirm is only supported on macOS right now")
+		}
+		if a.submitConfirmer == nil {
+			return errors.New("submit confirmation is unavailable")
+		}
+		confirmed, err := a.submitConfirmer.ConfirmSubmit(run.targetName)
+		if err != nil {
+			return err
+		}
+		if confirmed {
+			if a.automator == nil {
+				return errors.New("submit mode is unavailable: automator is not configured")
+			}
+			if err := a.automator.Submit(ctx, automation.Request{
+				Target:      run.targetName,
+				TerminalApp: "Terminal",
+				SubmitMode:  automation.SubmitConfirm,
+			}); err != nil {
+				return err
+			}
+			run.submitted = true
+		}
+	}
+
+	return nil
+}
+
+func (a *App) latestHistoryEntry() (history.Entry, error) {
+	if a.historyStore == nil {
+		return history.Entry{}, errors.New("history store is not configured")
+	}
+
+	entry, err := a.historyStore.Latest()
+	if err != nil {
+		if errors.Is(err, history.ErrNotFound) {
+			return history.Entry{}, errors.New("no history yet; run `prtr go` first")
+		}
+		return history.Entry{}, err
+	}
+
+	return entry, nil
+}
+
+func (a *App) writeCompactStatus(opts runOptions, run resolvedRun) {
+	mode := blankDefault(opts.surfaceMode, "ask")
+	inputSource := blankDefault(opts.surfaceInput, "prompt")
+	delivery := blankDefault(opts.surfaceDelivery, "copy")
+
+	parts := []string{mode, run.targetName, inputSource, delivery, run.sourceLang + "->" + run.targetLang}
+	_, _ = fmt.Fprintf(a.stderr, "-> %s\n", strings.Join(parts, " | "))
 }
 
 func (a *App) resolveTranslator(apiKey string) translate.Translator {
@@ -688,6 +1426,140 @@ func (a *App) builtInShortcutNames() map[string]bool {
 	}
 }
 
+func parseGoCommand(args []string, builtInShortcuts map[string]bool) (goCommandOptions, error) {
+	command := goCommandOptions{mode: "ask"}
+	if len(args) > 0 && builtInShortcuts[args[0]] {
+		command.mode = args[0]
+		args = args[1:]
+	}
+
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		switch {
+		case arg == "--edit":
+			command.edit = true
+		case arg == "--interactive" || arg == "-i":
+			command.edit = true
+		case arg == "--dry-run":
+			command.dryRun = true
+		case arg == "--no-copy":
+			command.noCopy = true
+		case arg == "--no-context":
+			command.noContext = true
+		case arg == "--to" || arg == "--app" || arg == "--target" || arg == "-t":
+			i++
+			if i >= len(args) {
+				return goCommandOptions{}, usageError{message: fmt.Sprintf("%s requires a value", arg), helpText: goHelpText()}
+			}
+			command.app = strings.TrimSpace(args[i])
+		case strings.HasPrefix(arg, "--to="):
+			command.app = strings.TrimSpace(strings.TrimPrefix(arg, "--to="))
+		case strings.HasPrefix(arg, "--app="):
+			command.app = strings.TrimSpace(strings.TrimPrefix(arg, "--app="))
+		case strings.HasPrefix(arg, "--target="):
+			command.app = strings.TrimSpace(strings.TrimPrefix(arg, "--target="))
+		case arg == "--":
+			command.prompt = append(command.prompt, args[i+1:]...)
+			return command, nil
+		case strings.HasPrefix(arg, "-"):
+			return goCommandOptions{}, usageError{message: fmt.Sprintf("unknown go flag %q", arg), helpText: goHelpText()}
+		default:
+			command.prompt = append(command.prompt, arg)
+		}
+	}
+	if command.noCopy && !command.dryRun {
+		return goCommandOptions{}, usageError{message: "--no-copy currently requires --dry-run with `prtr go`", helpText: goHelpText()}
+	}
+
+	return command, nil
+}
+
+func parseReplayCommand(args []string, requireApp bool) (replayCommandOptions, error) {
+	command := replayCommandOptions{}
+
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		switch {
+		case arg == "--edit":
+			command.edit = true
+		case arg == "--interactive" || arg == "-i":
+			command.edit = true
+		case arg == "--dry-run":
+			command.dryRun = true
+		case arg == "--no-copy":
+			command.noCopy = true
+		case arg == "--no-context":
+			command.noContext = true
+		case arg == "--to" || arg == "--app" || arg == "--target" || arg == "-t":
+			i++
+			if i >= len(args) {
+				return replayCommandOptions{}, usageError{message: fmt.Sprintf("%s requires a value", arg), helpText: swapHelpText()}
+			}
+			command.app = strings.TrimSpace(args[i])
+		case strings.HasPrefix(arg, "--to="):
+			command.app = strings.TrimSpace(strings.TrimPrefix(arg, "--to="))
+		case strings.HasPrefix(arg, "--app="):
+			command.app = strings.TrimSpace(strings.TrimPrefix(arg, "--app="))
+		case strings.HasPrefix(arg, "--target="):
+			command.app = strings.TrimSpace(strings.TrimPrefix(arg, "--target="))
+		case arg == "--":
+			command.prompt = append(command.prompt, args[i+1:]...)
+			i = len(args)
+		case strings.HasPrefix(arg, "-"):
+			return replayCommandOptions{}, usageError{message: fmt.Sprintf("unknown replay flag %q", arg), helpText: swapHelpText()}
+		default:
+			if requireApp && strings.TrimSpace(command.app) == "" {
+				command.app = strings.TrimSpace(arg)
+				continue
+			}
+			command.prompt = append(command.prompt, arg)
+		}
+	}
+
+	if requireApp && strings.TrimSpace(command.app) == "" {
+		return replayCommandOptions{}, usageError{message: "swap requires a target app such as claude, codex, or gemini", helpText: swapHelpText()}
+	}
+	if command.noCopy && !command.dryRun {
+		return replayCommandOptions{}, usageError{message: "--no-copy currently requires --dry-run", helpText: swapHelpText()}
+	}
+
+	return command, nil
+}
+
+func resolveSurfaceInput(promptParts []string, stdin io.Reader, stdinPiped bool, attachStdin bool) (string, string, error) {
+	prompt := strings.TrimSpace(strings.Join(promptParts, " "))
+	if !stdinPiped {
+		if prompt == "" {
+			return "", "", input.ErrNoInput
+		}
+		return prompt, "prompt", nil
+	}
+
+	data, err := io.ReadAll(stdin)
+	if err != nil {
+		return "", "", err
+	}
+	stdinText := strings.TrimSpace(string(data))
+
+	switch {
+	case prompt == "" && stdinText == "":
+		return "", "", input.ErrNoInput
+	case prompt == "":
+		return stdinText, "stdin", nil
+	case stdinText == "" || !attachStdin:
+		return prompt, "prompt", nil
+	default:
+		return prompt + "\n\nEvidence:\n" + stdinText, "prompt+stdin", nil
+	}
+}
+
+func surfaceDeliveryLabel(dryRun bool) string {
+	if dryRun {
+		return "preview"
+	}
+	return "launch+paste"
+}
+
 func parseRunOptions(args []string) (runOptions, []string, error) {
 	fs := flag.NewFlagSet("prtr", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
@@ -695,9 +1567,12 @@ func parseRunOptions(args []string) (runOptions, []string, error) {
 	var opts runOptions
 	fs.StringVar(&opts.target, "target", "", "target profile name")
 	fs.StringVar(&opts.target, "t", "", "target profile name")
+	fs.StringVar(&opts.sourceLang, "source-lang", "", "source language code or auto")
+	fs.StringVar(&opts.targetLang, "to", "", "target language code")
 	fs.StringVar(&opts.role, "role", "", "role profile alias")
 	fs.StringVar(&opts.role, "r", "", "role profile alias")
 	fs.StringVar(&opts.templatePreset, "template", "", "template preset name")
+	fs.StringVar(&opts.translationMode, "translation-mode", "", "translation mode: auto, force, or skip")
 	fs.BoolVar(&opts.noCopy, "no-copy", false, "skip clipboard copy")
 	fs.BoolVar(&opts.showOriginal, "show-original", false, "print the original input to stderr")
 	fs.BoolVar(&opts.interactive, "interactive", false, "open an interactive editor before writing the final prompt")
@@ -705,9 +1580,28 @@ func parseRunOptions(args []string) (runOptions, []string, error) {
 	fs.BoolVar(&opts.explain, "explain", false, "print resolved config details to stderr")
 	fs.BoolVar(&opts.diff, "diff", false, "print original, translated, and final prompt to stderr")
 	fs.BoolVar(&opts.jsonOutput, "json", false, "emit JSON output")
+	fs.BoolVar(&opts.launch, "launch", false, "launch the target CLI after copying the prompt")
+	fs.BoolVar(&opts.paste, "paste", false, "launch the target CLI and paste the copied prompt on macOS")
+	fs.StringVar(&opts.submitMode, "submit", "", "submit mode: manual, confirm, or auto")
+	fs.BoolVar(&opts.rerunEdit, "edit", false, "edit the stored final prompt before rerun")
 
 	if err := fs.Parse(args); err != nil {
 		return runOptions{}, nil, usageError{message: err.Error()}
+	}
+	if opts.paste {
+		opts.launch = true
+	}
+	if strings.TrimSpace(opts.submitMode) != "" && !opts.paste {
+		return runOptions{}, nil, usageError{message: "--submit requires --paste"}
+	}
+	if opts.launch && opts.noCopy {
+		return runOptions{}, nil, usageError{message: "--launch requires clipboard copy; remove --no-copy"}
+	}
+	if opts.paste && opts.noCopy {
+		return runOptions{}, nil, usageError{message: "--paste requires clipboard copy; remove --no-copy"}
+	}
+	if opts.submitMode != "" && opts.noCopy {
+		return runOptions{}, nil, usageError{message: "--submit requires clipboard copy; remove --no-copy"}
 	}
 
 	return opts, fs.Args(), nil
@@ -750,12 +1644,20 @@ func resolveRunRole(cliRole string, shortcut config.ShortcutConfig, cfg config.C
 	return "", "not set"
 }
 
-func resolveRunTemplate(cliPreset string, shortcut config.ShortcutConfig, cfg config.Config, target config.TargetConfig) (string, string) {
+func resolveRunTemplate(cliPreset string, shortcut config.ShortcutConfig, roleTemplatePreset string, cfg config.Config, target config.TargetConfig, preferTargetTemplate bool) (string, string) {
 	if preset := strings.TrimSpace(cliPreset); preset != "" {
 		return preset, "cli flag"
 	}
 	if preset := strings.TrimSpace(shortcut.TemplatePreset); preset != "" {
 		return preset, "shortcut"
+	}
+	if preset := strings.TrimSpace(roleTemplatePreset); preset != "" {
+		return preset, "role target override"
+	}
+	if preferTargetTemplate {
+		if preset := strings.TrimSpace(target.DefaultTemplatePreset); preset != "" {
+			return preset, "target default"
+		}
 	}
 	if preset := strings.TrimSpace(cfg.DefaultTemplatePreset); preset != "" {
 		source := cfg.DefaultPresetSource
@@ -764,10 +1666,38 @@ func resolveRunTemplate(cliPreset string, shortcut config.ShortcutConfig, cfg co
 		}
 		return preset, source
 	}
-	if preset := strings.TrimSpace(target.DefaultTemplatePreset); preset != "" {
-		return preset, "target default"
+	if !preferTargetTemplate {
+		if preset := strings.TrimSpace(target.DefaultTemplatePreset); preset != "" {
+			return preset, "target default"
+		}
 	}
 	return "", "target template"
+}
+
+func resolveRunLanguages(opts runOptions, shortcut config.ShortcutConfig, target config.TargetConfig, cfg config.Config) (string, string) {
+	sourceLang := strings.TrimSpace(opts.sourceLang)
+	if sourceLang == "" {
+		sourceLang = strings.TrimSpace(cfg.TranslationSourceLang)
+	}
+	if sourceLang == "" {
+		sourceLang = "auto"
+	}
+
+	targetLang := strings.TrimSpace(opts.targetLang)
+	if targetLang == "" {
+		targetLang = strings.TrimSpace(shortcut.TranslationTargetLang)
+	}
+	if targetLang == "" {
+		targetLang = strings.TrimSpace(target.TranslationTargetLang)
+	}
+	if targetLang == "" {
+		targetLang = strings.TrimSpace(cfg.TranslationTargetLang)
+	}
+	if targetLang == "" {
+		targetLang = "en"
+	}
+
+	return strings.ToLower(sourceLang), strings.ToLower(targetLang)
 }
 
 func resolveTemplateLayout(templateName string, target config.TargetConfig, cfg config.Config) (string, error) {
@@ -849,6 +1779,39 @@ func validateShortcuts(cfg config.Config) error {
 	return nil
 }
 
+func validateLaunchers(cfg config.Config) error {
+	for name, launcherCfg := range cfg.Launchers {
+		if strings.TrimSpace(launcherCfg.Command) == "" {
+			return fmt.Errorf("launcher %q has an empty command", name)
+		}
+		if launcherCfg.PasteDelayMS < 0 {
+			return fmt.Errorf("launcher %q has negative paste_delay_ms", name)
+		}
+		switch blankDefault(launcherCfg.SubmitMode, string(automation.SubmitManual)) {
+		case string(automation.SubmitManual), string(automation.SubmitConfirm), string(automation.SubmitAuto):
+		default:
+			return fmt.Errorf("launcher %q has invalid submit_mode %q", name, launcherCfg.SubmitMode)
+		}
+	}
+	return nil
+}
+
+func resolveSubmitMode(cliMode, configMode string) (string, error) {
+	mode := strings.ToLower(strings.TrimSpace(cliMode))
+	if mode == "" {
+		mode = strings.ToLower(strings.TrimSpace(configMode))
+	}
+	if mode == "" {
+		mode = string(automation.SubmitManual)
+	}
+	switch mode {
+	case string(automation.SubmitManual), string(automation.SubmitConfirm), string(automation.SubmitAuto):
+		return mode, nil
+	default:
+		return "", fmt.Errorf("invalid submit mode %q (expected manual, confirm, or auto)", mode)
+	}
+}
+
 func interactiveStatus(run resolvedRun) string {
 	parts := []string{"Target: " + run.targetName}
 	if run.roleName != "" {
@@ -895,6 +1858,41 @@ func promptChoice(reader *bufio.Reader, output io.Writer, label string, choices 
 	return defaultValue, nil
 }
 
+type languageOption struct {
+	Label       string
+	Value       string
+	Description string
+}
+
+func promptLanguage(reader *bufio.Reader, output io.Writer, label string, choices []languageOption, defaultValue string, allowAuto bool) (string, error) {
+	parts := make([]string, 0, len(choices)+1)
+	for _, choice := range choices {
+		if choice.Description != "" {
+			parts = append(parts, fmt.Sprintf("%s=%s", choice.Label, choice.Description))
+		} else {
+			parts = append(parts, choice.Label)
+		}
+	}
+	parts = append(parts, "custom")
+	value, err := promptInput(reader, output, fmt.Sprintf("%s (%s) [default: %s]", label, strings.Join(parts, ", "), defaultValue))
+	if err != nil {
+		return "", err
+	}
+	if value == "" {
+		return defaultValue, nil
+	}
+	value = strings.ToLower(strings.TrimSpace(value))
+	if allowAuto && value == "auto" {
+		return "auto", nil
+	}
+	for _, choice := range choices {
+		if value == choice.Label || value == choice.Value {
+			return choice.Value, nil
+		}
+	}
+	return value, nil
+}
+
 func truncateOneLine(text string, limit int) string {
 	text = strings.ReplaceAll(text, "\n", " ")
 	text = strings.TrimSpace(text)
@@ -902,6 +1900,51 @@ func truncateOneLine(text string, limit int) string {
 		return text
 	}
 	return text[:limit-3] + "..."
+}
+
+func blankDefault(value, fallback string) string {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	return value
+}
+
+func historyFlags(entry history.Entry) string {
+	flags := make([]string, 0, 2)
+	if entry.Pinned {
+		flags = append(flags, "pinned")
+	}
+	if entry.Favorite {
+		flags = append(flags, "favorite")
+	}
+	if len(flags) == 0 {
+		return "-"
+	}
+	return strings.Join(flags, ",")
+}
+
+func pinVerb(pinned bool) string {
+	if pinned {
+		return "pinned"
+	}
+	return "unpinned"
+}
+
+func favoriteVerb(favorite bool) string {
+	if favorite {
+		return "favorited"
+	}
+	return "unfavorited"
+}
+
+func wantsHelp(args []string) bool {
+	for _, arg := range args {
+		switch arg {
+		case "-h", "--help":
+			return true
+		}
+	}
+	return false
 }
 
 func stringPtr(value string) *string {
@@ -916,38 +1959,204 @@ func minInt(a, b int) int {
 	return b
 }
 
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
 func (e usageError) Error() string {
-	return fmt.Sprintf("%s\n\n%s", e.message, usageText())
+	helpText := e.helpText
+	if strings.TrimSpace(helpText) == "" {
+		helpText = rootHelpText()
+	}
+	return fmt.Sprintf("%s\n\n%s", e.message, helpText)
 }
 
 func usageText() string {
+	return rootHelpText()
+}
+
+func rootHelpText() string {
 	return strings.Join([]string{
+		"Translate intent into the next AI action.",
+		"",
+		"prtr is a cross-platform CLI that translates your request to English,",
+		"adds helpful context, and routes it to Claude, Codex, or Gemini.",
+		"",
+		"Start with:",
+		`  prtr go "이 에러 원인 분석해줘"`,
+		"",
+		"Then keep moving with:",
+		"  prtr swap gemini",
+		"  prtr again",
+		"  prtr inspect",
+		"",
 		"Usage:",
-		"  prtr [flags] [text...]",
+		"  prtr go [mode] [message...]",
+		"  prtr swap <app>",
+		"  prtr again",
+		"  prtr inspect [message...]",
+		"  prtr history [search <query>]",
 		"  prtr setup",
 		"  prtr doctor",
+		"  prtr version",
+		"",
+		"Compatibility aliases:",
+		"  prtr ask",
+		"  prtr review",
+		"  prtr fix",
+		"  prtr design",
+		"",
+		"Advanced commands:",
 		"  prtr templates <list|show>",
 		"  prtr profiles <list|show|use>",
-		"  prtr history",
 		"  prtr rerun <id> [flags]",
-		"  prtr ask|review|fix|design [flags] [text...]",
+		"  prtr pin <id>",
+		"  prtr favorite <id>",
+		"  prtr lang",
 		"  prtr init",
-		"  prtr version",
+	}, "\n")
+}
+
+func goHelpText() string {
+	return strings.Join([]string{
+		"Send a translated, context-aware prompt to Claude, Codex, or Gemini.",
+		"",
+		"`prtr go` is the fastest way to use prtr.",
+		"",
+		"Write your request in your language.",
+		"prtr translates it to English, adds useful context, opens your AI app,",
+		"and pastes the final prompt so it is ready to send.",
+		"",
+		"Usage:",
+		"  prtr go [mode] [message...]",
+		"",
+		"Modes:",
+		"  ask       General questions and everyday prompting (default)",
+		"  review    Review code, docs, PRs, or plans",
+		"  fix       Diagnose errors, logs, and broken tests",
+		"  design    Plan implementations, architecture, or UX flows",
+		"",
+		"How input works:",
+		"  - If you pass a message, that message is your request.",
+		"  - If you pipe text and also pass a message, the piped text becomes evidence.",
+		"  - If you only pipe text, the piped text becomes the request.",
+		"  - Repo-aware context is reserved for future versions.",
+		"",
+		"What `go` does:",
+		"  1. Reads your request",
+		"  2. Collects useful context from stdin when present",
+		"  3. Translates the request to English",
+		"  4. Applies the selected mode",
+		"  5. Opens Claude, Codex, or Gemini",
+		"  6. Pastes the final prompt",
+		"  7. Saves the run so you can swap or run again",
+		"",
+		"Examples:",
+		`  prtr go "이 에러 원인 분석해줘"`,
+		`  prtr go review "이 PR에서 위험한 부분만 짚어줘"`,
+		`  npm test 2>&1 | prtr go fix "왜 깨지는지 정확한 원인만 찾아줘"`,
+		`  prtr go design "이 기능 구조 설계해줘" --to gemini --edit`,
+		`  prtr go "이 문서 설명해줘" --dry-run`,
+		`  cat crash.log | prtr go fix`,
+		"",
+		"Flags:",
+		"      --to <app>        Choose the app: claude | codex | gemini",
+		"      --edit            Review and edit before sending",
+		"      --dry-run         Show the final prompt without opening any app",
+		"      --no-context      Do not attach piped evidence automatically",
+		"      --no-copy         Do not copy the final prompt to the clipboard",
+		"  -h, --help            Help for go",
+		"",
+		"Next steps:",
+		"  prtr swap <app>       Send the last prompt to another app",
+		"  prtr again            Run the latest flow again",
+		"  prtr inspect          Inspect the compiled prompt and config",
+	}, "\n")
+}
+
+func againHelpText() string {
+	return strings.Join([]string{
+		"Run the latest prompt flow again.",
+		"",
+		"`prtr again` reuses the latest request, mode, app, and translation settings.",
+		"",
+		"Usage:",
+		"  prtr again [message...]",
+		"",
+		"If you pass a new message, it replaces the last request.",
+		"If you pipe text and also pass a message, the piped text becomes evidence.",
+		"",
+		"Examples:",
+		"  prtr again",
+		"  prtr again --edit",
+		`  prtr again "이전 질문을 더 날카롭게 다시 물어봐줘"`,
+		"",
+		"Flags:",
+		"      --edit            Review and edit before sending",
+		"      --dry-run         Show the final prompt without opening any app",
+		"      --no-context      Do not attach piped evidence automatically",
+		"      --no-copy         Do not copy the final prompt to the clipboard",
+		"  -h, --help            Help for again",
+	}, "\n")
+}
+
+func swapHelpText() string {
+	return strings.Join([]string{
+		"Send the latest prompt to another app.",
+		"",
+		"`prtr swap` reuses the latest request and mode, then recompiles it for",
+		"Claude, Codex, or Gemini without rebuilding the flow manually.",
+		"",
+		"Usage:",
+		"  prtr swap <app> [message...]",
+		"",
+		"Examples:",
+		"  prtr swap claude",
+		"  prtr swap codex",
+		"  prtr swap gemini",
+		"  prtr swap gemini --edit",
+		"  prtr swap claude --dry-run",
+		"",
+		"Flags:",
+		"      --edit            Review and edit before sending",
+		"      --dry-run         Show the final prompt without opening any app",
+		"      --no-context      Do not attach piped evidence automatically",
+		"      --no-copy         Do not copy the final prompt to the clipboard",
+		"  -h, --help            Help for swap",
+	}, "\n")
+}
+
+func inspectHelpText() string {
+	return strings.Join([]string{
+		"Inspect the compiled prompt and resolved config without sending it anywhere.",
+		"",
+		"`prtr inspect` is the expert path for diff, explain, JSON output, and",
+		"advanced prompt-shaping flags.",
+		"",
+		"Usage:",
+		"  prtr inspect [flags] [message...]",
+		"",
+		"Examples:",
+		`  prtr inspect "이 PR 리뷰해줘"`,
+		`  prtr inspect --json "이 에러 분석해줘"`,
+		`  prtr inspect -t codex --template codex-implement -r be "이 함수 개선해줘"`,
 		"",
 		"Flags:",
 		"  -t, --target <name>    target profile name",
+		"      --source-lang <code> advanced source language override",
+		"      --to <code>        target language override",
 		"  -r, --role <alias>     role profile alias",
 		"      --template <name>  template preset name",
+		"      --translation-mode auto|force|skip",
 		"  -i, --interactive      edit the final prompt in a TUI before output",
-		"      --no-copy          print the translated prompt without copying it",
 		"      --show-original    print the original input to stderr",
 		"      --explain          print resolved configuration details to stderr",
 		"      --diff             print original, translated, and final prompt to stderr",
 		"      --json             emit structured JSON output",
-		"",
-		"Examples:",
-		`  prtr -t codex --template codex-implement "한국어 질문"`,
-		`  prtr review -i "한국어 질문"`,
-		`  prtr templates list`,
+		"      --no-copy          print the translated prompt without copying it",
+		"  -h, --help             Help for inspect",
 	}, "\n")
 }

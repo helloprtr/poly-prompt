@@ -27,6 +27,8 @@ func TestLoadMergesUserAndProjectConfig(t *testing.T) {
 		t.Fatalf("MkdirAll() error = %v", err)
 	}
 	userContent := `deepl_api_key = "user-key"
+translation_source_lang = "ko"
+translation_target_lang = "en"
 default_target = "gemini"
 default_role = "be"
 
@@ -35,6 +37,10 @@ template = "Team:\n{{prompt}}"
 
 [roles.writer]
 content = "Expert Technical Writer"
+
+[roles.writer.targets.codex]
+prompt = "Codex writer"
+template_preset = "codex-implement"
 `
 	if err := os.WriteFile(userPath, []byte(userContent), 0o644); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
@@ -43,16 +49,24 @@ content = "Expert Technical Writer"
 	projectPath := filepath.Join(tempDir, "repo", ".prtr.toml")
 	projectContent := `default_target = "codex"
 default_template_preset = "team"
+translation_target_lang = "ja"
 
 [profiles.backend_review]
 target = "claude"
 role = "be"
 template_preset = "claude-review"
+translation_target_lang = "ja"
 
 [shortcuts.fix]
 target = "codex"
 role = "fe"
 template_preset = "codex-implement"
+
+[launchers.codex]
+command = "codex"
+args = ["chat"]
+paste_delay_ms = 900
+submit_mode = "confirm"
 `
 	if err := os.WriteFile(projectPath, []byte(projectContent), 0o644); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
@@ -69,6 +83,12 @@ template_preset = "codex-implement"
 	if cfg.DefaultTarget != "codex" {
 		t.Fatalf("DefaultTarget = %q, want %q", cfg.DefaultTarget, "codex")
 	}
+	if cfg.TranslationSourceLang != "ko" {
+		t.Fatalf("TranslationSourceLang = %q, want %q", cfg.TranslationSourceLang, "ko")
+	}
+	if cfg.TranslationTargetLang != "ja" {
+		t.Fatalf("TranslationTargetLang = %q, want %q", cfg.TranslationTargetLang, "ja")
+	}
 	if cfg.DefaultRole != "be" {
 		t.Fatalf("DefaultRole = %q, want %q", cfg.DefaultRole, "be")
 	}
@@ -84,14 +104,29 @@ template_preset = "codex-implement"
 	if cfg.Roles["writer"].Prompt != "Expert Technical Writer" {
 		t.Fatalf("writer role = %q", cfg.Roles["writer"].Prompt)
 	}
+	if cfg.Roles["writer"].Targets["codex"].TemplatePreset != "codex-implement" {
+		t.Fatalf("writer codex template = %q", cfg.Roles["writer"].Targets["codex"].TemplatePreset)
+	}
 	if cfg.TemplatePresets["team"].Template != "Team:\n{{prompt}}" {
 		t.Fatalf("team preset = %q", cfg.TemplatePresets["team"].Template)
 	}
 	if cfg.Profiles["backend_review"].TemplatePreset != "claude-review" {
 		t.Fatalf("profile template preset = %q", cfg.Profiles["backend_review"].TemplatePreset)
 	}
+	if cfg.Profiles["backend_review"].TranslationTargetLang != "ja" {
+		t.Fatalf("profile translation target = %q", cfg.Profiles["backend_review"].TranslationTargetLang)
+	}
 	if cfg.Shortcuts["fix"].Role != "fe" {
 		t.Fatalf("shortcut role = %q", cfg.Shortcuts["fix"].Role)
+	}
+	if cfg.Launchers["codex"].Command != "codex" || len(cfg.Launchers["codex"].Args) != 1 {
+		t.Fatalf("launcher = %#v", cfg.Launchers["codex"])
+	}
+	if cfg.Launchers["codex"].PasteDelayMS != 900 {
+		t.Fatalf("launcher paste delay = %d", cfg.Launchers["codex"].PasteDelayMS)
+	}
+	if cfg.Launchers["codex"].SubmitMode != "confirm" {
+		t.Fatalf("launcher submit mode = %q", cfg.Launchers["codex"].SubmitMode)
 	}
 }
 
@@ -100,6 +135,8 @@ func TestResolveFunctions(t *testing.T) {
 
 	cfg := Config{
 		APIKey:                "config-key",
+		TranslationSourceLang: "auto",
+		TranslationTargetLang: "en",
 		DefaultTarget:         "gemini",
 		DefaultRole:           "be",
 		DefaultTemplatePreset: "gemini-stepwise",
@@ -127,6 +164,8 @@ func TestSaveDefaultsWritesConfig(t *testing.T) {
 
 	path, err := SaveDefaults(DefaultsUpdate{
 		APIKey:                stringPtr("saved-key"),
+		TranslationSourceLang: stringPtr("ko"),
+		TranslationTargetLang: stringPtr("ja"),
 		DefaultTarget:         stringPtr("claude"),
 		DefaultRole:           stringPtr("ui"),
 		DefaultTemplatePreset: stringPtr("claude-structured"),
@@ -144,6 +183,12 @@ func TestSaveDefaultsWritesConfig(t *testing.T) {
 		t.Fatalf("config = %q", content)
 	}
 	if !strings.Contains(content, "default_role") || !strings.Contains(content, "ui") {
+		t.Fatalf("config = %q", content)
+	}
+	if !strings.Contains(content, "translation_source_lang") || !strings.Contains(content, "ko") {
+		t.Fatalf("config = %q", content)
+	}
+	if !strings.Contains(content, "translation_target_lang") || !strings.Contains(content, "ja") {
 		t.Fatalf("config = %q", content)
 	}
 }
@@ -197,6 +242,37 @@ func TestLoadRejectsEmptyRolePrompt(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), `config role "bad" has empty prompt`) {
 		t.Fatalf("Load() error = %v", err)
+	}
+}
+
+func TestLoadMergesLauncherDefaultsWhenFieldsAreOmitted(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tempDir)
+
+	path := filepath.Join(tempDir, "prtr", "config.toml")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+
+	content := `[launchers.claude]
+command = "claude-dev"
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.Launchers["claude"].Command != "claude-dev" {
+		t.Fatalf("command = %q", cfg.Launchers["claude"].Command)
+	}
+	if cfg.Launchers["claude"].PasteDelayMS != 700 {
+		t.Fatalf("paste delay = %d", cfg.Launchers["claude"].PasteDelayMS)
+	}
+	if cfg.Launchers["claude"].SubmitMode != "manual" {
+		t.Fatalf("submit mode = %q", cfg.Launchers["claude"].SubmitMode)
 	}
 }
 

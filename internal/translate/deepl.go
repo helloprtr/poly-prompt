@@ -16,7 +16,13 @@ const DefaultBaseURL = "https://api-free.deepl.com"
 var ErrMissingAPIKey = errors.New("DEEPL_API_KEY is not set")
 
 type Translator interface {
-	Translate(ctx context.Context, text string) (string, error)
+	Translate(ctx context.Context, req Request) (string, error)
+}
+
+type Request struct {
+	Text       string
+	SourceLang string
+	TargetLang string
 }
 
 type HTTPDoer interface {
@@ -37,6 +43,7 @@ type DeepLClient struct {
 
 type requestBody struct {
 	Text       []string `json:"text"`
+	SourceLang string   `json:"source_lang,omitempty"`
 	TargetLang string   `json:"target_lang"`
 }
 
@@ -64,32 +71,36 @@ func NewDeepLClient(opts ClientOptions) *DeepLClient {
 	}
 }
 
-func (c *DeepLClient) Translate(ctx context.Context, text string) (string, error) {
+func (c *DeepLClient) Translate(ctx context.Context, req Request) (string, error) {
 	if c.apiKey == "" {
 		return "", ErrMissingAPIKey
 	}
 
-	if strings.TrimSpace(text) == "" {
+	if strings.TrimSpace(req.Text) == "" {
 		return "", errors.New("input text is empty")
 	}
 
+	targetLang := normalizeTargetLang(req.TargetLang)
+	sourceLang := normalizeSourceLang(req.SourceLang)
+
 	payload, err := json.Marshal(requestBody{
-		Text:       []string{text},
-		TargetLang: "EN-US",
+		Text:       []string{req.Text},
+		SourceLang: sourceLang,
+		TargetLang: targetLang,
 	})
 	if err != nil {
 		return "", fmt.Errorf("encode request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/v2/translate", bytes.NewReader(payload))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/v2/translate", bytes.NewReader(payload))
 	if err != nil {
 		return "", fmt.Errorf("build request: %w", err)
 	}
 
-	req.Header.Set("Authorization", "DeepL-Auth-Key "+c.apiKey)
-	req.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "DeepL-Auth-Key "+c.apiKey)
+	httpReq.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		return "", fmt.Errorf("translate request failed: %w", err)
 	}
@@ -110,4 +121,50 @@ func (c *DeepLClient) Translate(ctx context.Context, text string) (string, error
 	}
 
 	return decoded.Translations[0].Text, nil
+}
+
+func normalizeTargetLang(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	switch value {
+	case "", "en", "en-us":
+		return "EN-US"
+	case "en-gb":
+		return "EN-GB"
+	case "ja":
+		return "JA"
+	case "zh":
+		return "ZH"
+	case "de":
+		return "DE"
+	case "fr":
+		return "FR"
+	case "es":
+		return "ES"
+	default:
+		return strings.ToUpper(value)
+	}
+}
+
+func normalizeSourceLang(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	switch value {
+	case "", "auto":
+		return ""
+	case "en", "en-us", "en-gb":
+		return "EN"
+	case "ja":
+		return "JA"
+	case "zh":
+		return "ZH"
+	case "de":
+		return "DE"
+	case "fr":
+		return "FR"
+	case "es":
+		return "ES"
+	case "ko":
+		return "KO"
+	default:
+		return strings.ToUpper(value)
+	}
 }
