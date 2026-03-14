@@ -75,3 +75,27 @@ func TestApplyPolicyForceAlwaysTranslates(t *testing.T) {
 		t.Fatalf("TargetLang = %q", translator.got.TargetLang)
 	}
 }
+
+func TestApplyPolicyProtectsLearnedTerms(t *testing.T) {
+	t.Parallel()
+
+	translator := &stubTranslator{out: "Keep PRTRPRESERVE_0_TOKEN and PRTRPRESERVE_1_TOKEN intact"}
+	outcome, err := ApplyPolicy(context.Background(), translator, Request{
+		Text:           "prtr의 BuildPrompt와 PRTR_TARGET를 설명해줘",
+		SourceLang:     "ko",
+		TargetLang:     "en",
+		ProtectedTerms: []string{"BuildPrompt", "PRTR_TARGET"},
+	}, ModeAuto)
+	if err != nil {
+		t.Fatalf("ApplyPolicy() error = %v", err)
+	}
+	if outcome.Decision != DecisionPartialPreserve {
+		t.Fatalf("Decision = %q", outcome.Decision)
+	}
+	if !strings.Contains(translator.got.Text, "PRTRPRESERVE_0_TOKEN") && !strings.Contains(translator.got.Text, "PRTRPRESERVE_1_TOKEN") {
+		t.Fatalf("translator input = %q", translator.got.Text)
+	}
+	if !strings.Contains(outcome.Text, "BuildPrompt") || !strings.Contains(outcome.Text, "PRTR_TARGET") {
+		t.Fatalf("Text = %q", outcome.Text)
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -15,6 +16,7 @@ import (
 	"github.com/helloprtr/poly-prompt/internal/history"
 	"github.com/helloprtr/poly-prompt/internal/launcher"
 	"github.com/helloprtr/poly-prompt/internal/repoctx"
+	"github.com/helloprtr/poly-prompt/internal/termbook"
 	"github.com/helloprtr/poly-prompt/internal/translate"
 )
 
@@ -228,6 +230,12 @@ func newTestApp(t *testing.T, cfg config.Config, translator *stubTranslator, cli
 		LookupEnv:    func(string) (string, bool) { return "", false },
 		HistoryStore: historyStore,
 		RepoContext:  &stubRepoContext{},
+		RepoRootFinder: func() (string, error) {
+			return "", termbook.ErrNotGitRepo
+		},
+		TermbookLoader: func(string) (termbook.Book, error) {
+			return termbook.Book{}, os.ErrNotExist
+		},
 	})
 }
 
@@ -306,6 +314,23 @@ func TestExecuteTakeHelp(t *testing.T) {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "patch     Turn the answer into an implementation prompt") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
+func TestExecuteLearnHelp(t *testing.T) {
+	t.Parallel()
+
+	app := newTestApp(t, testConfig(), &stubTranslator{}, &stubClipboard{}, &stubEditor{}, history.New(filepath.Join(t.TempDir(), "history.json")))
+	stdout, _ := buffersFromApp(app)
+
+	if err := app.Execute(context.Background(), []string{"learn", "--help"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "prtr learn [paths...]") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "--dry-run") {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
 }
@@ -448,6 +473,47 @@ func TestExecuteGoAttachesRepoContext(t *testing.T) {
 	}
 }
 
+func TestExecuteGoLoadsLearnedTerms(t *testing.T) {
+	t.Parallel()
+
+	translator := &stubTranslator{output: "Explain BuildPrompt and PRTR_TARGET"}
+	app := New(Dependencies{
+		Version:         "test",
+		Stdout:          &bytes.Buffer{},
+		Stderr:          &bytes.Buffer{},
+		Translator:      translator,
+		Clipboard:       &stubClipboard{},
+		Editor:          &stubEditor{},
+		Launcher:        &stubLauncher{},
+		Automator:       &stubAutomator{},
+		SubmitConfirmer: &stubConfirmer{},
+		ConfigLoader: func() (config.Config, error) {
+			return testConfig(), nil
+		},
+		ConfigInit:   func() (string, error) { return "/tmp/prtr/config.toml", nil },
+		LookupEnv:    func(string) (string, bool) { return "", false },
+		HistoryStore: history.New(filepath.Join(t.TempDir(), "history.json")),
+		RepoContext:  &stubRepoContext{},
+		RepoRootFinder: func() (string, error) {
+			return "/tmp/repo", nil
+		},
+		TermbookLoader: func(string) (termbook.Book, error) {
+			return termbook.Book{
+				ProtectedTerms: []string{"BuildPrompt", "PRTR_TARGET"},
+			}, nil
+		},
+	})
+	stdout, _ := buffersFromApp(app)
+
+	if err := app.Execute(context.Background(), []string{"go", "ask", "BuildPrompt와 PRTR_TARGET를 설명해줘", "--dry-run"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if !strings.Contains(stdout.String(), "Protected project terms: BuildPrompt, PRTR_TARGET") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
 func TestExecuteGoNoContextSkipsRepoContext(t *testing.T) {
 	t.Parallel()
 
@@ -484,6 +550,108 @@ func TestExecuteGoNoContextSkipsRepoContext(t *testing.T) {
 	}
 	if strings.Contains(translator.gotInput.Text, "Evidence:\nstack trace") {
 		t.Fatalf("translate input = %q", translator.gotInput.Text)
+	}
+	if len(translator.gotInput.ProtectedTerms) != 0 {
+		t.Fatalf("ProtectedTerms = %v", translator.gotInput.ProtectedTerms)
+	}
+}
+
+func TestExecuteLearnDryRun(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".git"), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("Use BuildPrompt and PRTR_TARGET.\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	app := New(Dependencies{
+		Version:         "test",
+		Stdout:          &bytes.Buffer{},
+		Stderr:          &bytes.Buffer{},
+		Translator:      &stubTranslator{},
+		Clipboard:       &stubClipboard{},
+		Editor:          &stubEditor{},
+		Launcher:        &stubLauncher{},
+		Automator:       &stubAutomator{},
+		SubmitConfirmer: &stubConfirmer{},
+		ConfigLoader: func() (config.Config, error) {
+			return testConfig(), nil
+		},
+		ConfigInit:   func() (string, error) { return "/tmp/prtr/config.toml", nil },
+		LookupEnv:    func(string) (string, bool) { return "", false },
+		HistoryStore: history.New(filepath.Join(t.TempDir(), "history.json")),
+		RepoContext:  &stubRepoContext{},
+		RepoRootFinder: func() (string, error) {
+			return root, nil
+		},
+	})
+	stdout, _ := buffersFromApp(app)
+
+	if err := app.Execute(context.Background(), []string{"learn", "--dry-run"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if !strings.Contains(stdout.String(), "protected_terms = [") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "BuildPrompt") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if _, err := os.Stat(filepath.Join(root, ".prtr", "termbook.toml")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("termbook should not be written, stat err = %v", err)
+	}
+}
+
+func TestExecuteLearnWritesTermbook(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".git"), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("Use BuildPrompt and PRTR_TARGET.\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	app := New(Dependencies{
+		Version:         "test",
+		Stdout:          &bytes.Buffer{},
+		Stderr:          &bytes.Buffer{},
+		Translator:      &stubTranslator{},
+		Clipboard:       &stubClipboard{},
+		Editor:          &stubEditor{},
+		Launcher:        &stubLauncher{},
+		Automator:       &stubAutomator{},
+		SubmitConfirmer: &stubConfirmer{},
+		ConfigLoader: func() (config.Config, error) {
+			return testConfig(), nil
+		},
+		ConfigInit:   func() (string, error) { return "/tmp/prtr/config.toml", nil },
+		LookupEnv:    func(string) (string, bool) { return "", false },
+		HistoryStore: history.New(filepath.Join(t.TempDir(), "history.json")),
+		RepoContext:  &stubRepoContext{},
+		RepoRootFinder: func() (string, error) {
+			return root, nil
+		},
+	})
+	stdout, _ := buffersFromApp(app)
+
+	if err := app.Execute(context.Background(), []string{"learn"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if !strings.Contains(stdout.String(), "saved") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	book, err := termbook.Load(root)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if !strings.Contains(strings.Join(book.ProtectedTerms, ","), "BuildPrompt") {
+		t.Fatalf("ProtectedTerms = %v", book.ProtectedTerms)
 	}
 }
 

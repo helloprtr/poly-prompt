@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"regexp"
+	"sort"
 	"strings"
 	"unicode"
 )
@@ -68,7 +69,7 @@ func ApplyPolicy(ctx context.Context, translator Translator, req Request, mode M
 		return outcome, nil
 	}
 
-	protectedText, restore, preserved := protectSegments(req.Text)
+	protectedText, restore, preserved := protectSegments(req.Text, req.ProtectedTerms)
 	if translator == nil {
 		return Outcome{}, errors.New("translator is not configured")
 	}
@@ -130,10 +131,20 @@ func shouldSkipTranslation(text, sourceLang, targetLang string) bool {
 	return float64(asciiLetters)/float64(letters) >= 0.85
 }
 
-func protectSegments(text string) (string, map[string]string, bool) {
+func protectSegments(text string, protectedTerms []string) (string, map[string]string, bool) {
 	restore := map[string]string{}
 	protected := text
 	index := 0
+
+	for _, term := range sortedProtectedTerms(protectedTerms) {
+		if term == "" || !strings.Contains(protected, term) {
+			continue
+		}
+		token := preserveToken(index)
+		restore[token] = term
+		index++
+		protected = strings.ReplaceAll(protected, term, token)
+	}
 
 	for _, pattern := range preservePatterns {
 		protected = pattern.ReplaceAllStringFunc(protected, func(match string) string {
@@ -145,6 +156,26 @@ func protectSegments(text string) (string, map[string]string, bool) {
 	}
 
 	return protected, restore, len(restore) > 0
+}
+
+func sortedProtectedTerms(terms []string) []string {
+	filtered := make([]string, 0, len(terms))
+	seen := map[string]bool{}
+	for _, term := range terms {
+		term = strings.TrimSpace(term)
+		if term == "" || seen[term] {
+			continue
+		}
+		seen[term] = true
+		filtered = append(filtered, term)
+	}
+	sort.Slice(filtered, func(i, j int) bool {
+		if len(filtered[i]) == len(filtered[j]) {
+			return filtered[i] < filtered[j]
+		}
+		return len(filtered[i]) > len(filtered[j])
+	})
+	return filtered
 }
 
 func preserveToken(index int) string {

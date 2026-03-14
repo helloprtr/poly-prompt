@@ -27,6 +27,7 @@ Then keep going:
 ```bash
 prtr swap gemini
 prtr take patch
+prtr learn
 prtr again --edit
 prtr inspect --json "방금 흐름이 어떻게 조합됐는지 보여줘"
 ```
@@ -205,6 +206,19 @@ prtr take summary --edit
 ```
 
 `take` reads from your clipboard, builds a new English prompt for the selected action, then routes it through the same target-aware delivery flow.
+
+### `prtr learn`
+
+Teach `prtr` the project terms that should survive translation.
+
+```bash
+prtr learn
+prtr learn README.md docs
+prtr learn --dry-run
+prtr learn --reset
+```
+
+`learn` builds a repo-local `.prtr/termbook.toml` from README, docs, and code identifiers, then `go` uses those protected terms to avoid translating project names away.
 
 ## The only flags most people need
 

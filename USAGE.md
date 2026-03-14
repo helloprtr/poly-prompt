@@ -155,7 +155,29 @@ Supported actions:
 
 `take` always reads from the clipboard, generates a fresh English request for the chosen action, then sends or previews it with the same app-aware flow as `go`.
 
-## 5. Inspect instead of send
+## 5. Teach repo terms with `learn`
+
+Build a repo-local termbook of names that should not be translated away:
+
+```bash
+prtr learn
+prtr learn README.md docs
+prtr learn --dry-run
+prtr learn --reset
+```
+
+What `learn` stores:
+
+- source files used to build the termbook
+- protected project terms such as `BuildPrompt`, `PRTR_TARGET`, `snake_case`, or `--dry-run`
+
+Where it stores it:
+
+- `.prtr/termbook.toml` at the repo root
+
+Then `prtr go` automatically loads that termbook and protects those names during translation unless you use `--no-context`.
+
+## 6. Inspect instead of send
 
 Use `inspect` when you want to understand how the prompt was compiled without opening any app.
 
@@ -179,7 +201,7 @@ prtr inspect --json "JSON으로 결과를 받고 싶어"
 - no launch
 - no paste
 
-## 6. Launch and paste support
+## 7. Launch and paste support
 
 Supported delivery targets:
 
@@ -225,7 +247,7 @@ Current limitations:
 - no GUI AI app automation
 - no full auto submit
 
-## 7. Advanced prompt controls
+## 8. Advanced prompt controls
 
 The older advanced surface is still supported.
 

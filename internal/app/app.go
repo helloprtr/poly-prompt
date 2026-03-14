@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
 	"runtime"
 	"strings"
 	"time"
@@ -21,6 +22,7 @@ import (
 	"github.com/helloprtr/poly-prompt/internal/launcher"
 	"github.com/helloprtr/poly-prompt/internal/repoctx"
 	prompttemplate "github.com/helloprtr/poly-prompt/internal/template"
+	"github.com/helloprtr/poly-prompt/internal/termbook"
 	"github.com/helloprtr/poly-prompt/internal/translate"
 )
 
@@ -28,6 +30,8 @@ type ConfigLoader func() (config.Config, error)
 type ConfigInit func() (string, error)
 type LookupEnv func(string) (string, bool)
 type TranslatorFactory func(string) translate.Translator
+type RepoRootFinder func() (string, error)
+type TermbookLoader func(string) (termbook.Book, error)
 
 type Dependencies struct {
 	Version           string
@@ -45,6 +49,8 @@ type Dependencies struct {
 	LookupEnv         LookupEnv
 	HistoryStore      *history.Store
 	RepoContext       repoctx.Collector
+	RepoRootFinder    RepoRootFinder
+	TermbookLoader    TermbookLoader
 }
 
 type App struct {
@@ -63,6 +69,8 @@ type App struct {
 	lookupEnv         LookupEnv
 	historyStore      *history.Store
 	repoContext       repoctx.Collector
+	repoRootFinder    RepoRootFinder
+	termbookLoader    TermbookLoader
 }
 
 type usageError struct {
@@ -92,6 +100,7 @@ type runOptions struct {
 	surfaceInput         string
 	surfaceDelivery      string
 	promptSuffix         string
+	protectedTerms       []string
 	preferTargetTemplate bool
 }
 
@@ -119,6 +128,12 @@ type takeCommandOptions struct {
 	app    string
 	edit   bool
 	dryRun bool
+}
+
+type learnCommandOptions struct {
+	dryRun bool
+	reset  bool
+	paths  []string
 }
 
 type resolvedRun struct {
@@ -177,6 +192,8 @@ func New(deps Dependencies) *App {
 		lookupEnv:         deps.LookupEnv,
 		historyStore:      store,
 		repoContext:       deps.RepoContext,
+		repoRootFinder:    deps.RepoRootFinder,
+		termbookLoader:    deps.TermbookLoader,
 	}
 }
 
@@ -234,6 +251,11 @@ func (a *App) Execute(ctx context.Context, args []string, stdin io.Reader, stdin
 				return a.runHelp([]string{"take"})
 			}
 			return a.runTake(ctx, args[1:])
+		case "learn":
+			if wantsHelp(args[1:]) {
+				return a.runHelp([]string{"learn"})
+			}
+			return a.runLearn(args[1:])
 		case "inspect":
 			if wantsHelp(args[1:]) {
 				return a.runHelp([]string{"inspect"})
@@ -289,6 +311,8 @@ func (a *App) runHelp(args []string) error {
 			text = swapHelpText()
 		case "take":
 			text = takeHelpText()
+		case "learn":
+			text = learnHelpText()
 		case "inspect":
 			text = inspectHelpText()
 		}
@@ -790,7 +814,8 @@ func (a *App) runGo(ctx context.Context, args []string, stdin io.Reader, stdinPi
 		}
 		return fmt.Errorf("read input: %w", err)
 	}
-	promptSuffix, inputSource := a.resolveRepoContext(ctx, inputSource, command.noContext)
+	repoSuffix, inputSource := a.resolveRepoContext(ctx, inputSource, command.noContext)
+	protectedTerms, protectedSuffix := a.resolveLearnedTerms(command.noContext)
 
 	target := strings.TrimSpace(command.app)
 	if target == "" {
@@ -809,7 +834,8 @@ func (a *App) runGo(ctx context.Context, args []string, stdin io.Reader, stdinPi
 		surfaceMode:          command.mode,
 		surfaceInput:         inputSource,
 		surfaceDelivery:      surfaceDeliveryLabel(command.dryRun),
-		promptSuffix:         promptSuffix,
+		promptSuffix:         joinPromptSections(repoSuffix, protectedSuffix),
+		protectedTerms:       protectedTerms,
 		preferTargetTemplate: true,
 	}
 
@@ -840,6 +866,41 @@ func (a *App) resolveRepoContext(ctx context.Context, inputSource string, disabl
 	}
 
 	return contextBlock, label
+}
+
+func (a *App) resolveLearnedTerms(disabled bool) ([]string, string) {
+	if disabled {
+		return nil, ""
+	}
+
+	repoRoot, err := a.resolveRepoRoot()
+	if err != nil {
+		return nil, ""
+	}
+
+	book, err := a.loadTermbook(repoRoot)
+	if err != nil {
+		return nil, ""
+	}
+	if len(book.ProtectedTerms) == 0 {
+		return nil, ""
+	}
+
+	return book.ProtectedTerms, formatProtectedTerms(book.ProtectedTerms)
+}
+
+func (a *App) resolveRepoRoot() (string, error) {
+	if a.repoRootFinder != nil {
+		return a.repoRootFinder()
+	}
+	return termbook.FindRepoRoot("")
+}
+
+func (a *App) loadTermbook(repoRoot string) (termbook.Book, error) {
+	if a.termbookLoader != nil {
+		return a.termbookLoader(repoRoot)
+	}
+	return termbook.Load(repoRoot)
 }
 
 func (a *App) runAgain(ctx context.Context, args []string, stdin io.Reader, stdinPiped bool) error {
@@ -967,6 +1028,57 @@ func (a *App) runTake(ctx context.Context, args []string) error {
 	}
 
 	return a.executePrompt(ctx, opts, takePrompt(command.action, clipboardText), "take:"+command.action)
+}
+
+func (a *App) runLearn(args []string) error {
+	command, err := parseLearnCommand(args)
+	if err != nil {
+		return err
+	}
+
+	repoRoot, err := a.resolveRepoRoot()
+	if err != nil {
+		return err
+	}
+
+	extraction, err := termbook.Extract(repoRoot, command.paths)
+	if err != nil {
+		return err
+	}
+
+	book := termbook.Book{
+		GeneratedAt:    time.Now().UTC(),
+		Sources:        extraction.Sources,
+		ProtectedTerms: extraction.Terms,
+	}
+
+	if !command.reset {
+		existing, err := a.loadTermbook(repoRoot)
+		switch {
+		case err == nil:
+			book = termbook.Merge(existing, book)
+		case errors.Is(err, os.ErrNotExist), errors.Is(err, termbook.ErrNotGitRepo):
+		default:
+			return err
+		}
+	}
+
+	if command.dryRun {
+		data, err := termbook.Encode(book)
+		if err != nil {
+			return err
+		}
+		_, _ = fmt.Fprintln(a.stdout, string(data))
+		return nil
+	}
+
+	path, err := termbook.Save(repoRoot, book)
+	if err != nil {
+		return err
+	}
+
+	_, _ = fmt.Fprintf(a.stdout, "saved %d protected terms to %s\n", len(book.ProtectedTerms), path)
+	return nil
 }
 
 func (a *App) runInspect(ctx context.Context, args []string, stdin io.Reader, stdinPiped bool) error {
@@ -1280,9 +1392,10 @@ func (a *App) prepareRun(ctx context.Context, opts runOptions, text, shortcutNam
 		deliveryMode = "open-copy-paste"
 	}
 	outcome, err := translate.ApplyPolicy(ctx, translator, translate.Request{
-		Text:       text,
-		SourceLang: sourceLang,
-		TargetLang: targetLang,
+		Text:           text,
+		SourceLang:     sourceLang,
+		TargetLang:     targetLang,
+		ProtectedTerms: opts.protectedTerms,
 	}, translate.Mode(blankDefault(opts.translationMode, string(translate.ModeAuto))))
 	if err != nil {
 		return resolvedRun{}, err
@@ -1660,6 +1773,29 @@ func parseTakeCommand(args []string) (takeCommandOptions, error) {
 	return command, nil
 }
 
+func parseLearnCommand(args []string) (learnCommandOptions, error) {
+	command := learnCommandOptions{}
+
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		switch {
+		case arg == "--dry-run":
+			command.dryRun = true
+		case arg == "--reset":
+			command.reset = true
+		case arg == "--":
+			command.paths = append(command.paths, args[i+1:]...)
+			i = len(args)
+		case strings.HasPrefix(arg, "-"):
+			return learnCommandOptions{}, usageError{message: fmt.Sprintf("unknown learn flag %q", arg), helpText: learnHelpText()}
+		default:
+			command.paths = append(command.paths, arg)
+		}
+	}
+
+	return command, nil
+}
+
 func resolveSurfaceInput(promptParts []string, stdin io.Reader, stdinPiped bool, attachStdin bool) (string, string, error) {
 	prompt := strings.TrimSpace(strings.Join(promptParts, " "))
 	if !stdinPiped {
@@ -1716,6 +1852,14 @@ func formatRepoContext(summary repoctx.Summary) string {
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+func formatProtectedTerms(terms []string) string {
+	if len(terms) == 0 {
+		return ""
+	}
+	limit := minInt(20, len(terms))
+	return "Protected project terms: " + strings.Join(terms[:limit], ", ")
 }
 
 func joinPromptSections(parts ...string) string {
@@ -2162,6 +2306,7 @@ func rootHelpText() string {
 		"Then keep moving with:",
 		"  prtr swap gemini",
 		"  prtr take patch",
+		"  prtr learn",
 		"  prtr again",
 		"  prtr inspect",
 		"",
@@ -2169,6 +2314,7 @@ func rootHelpText() string {
 		"  prtr go [mode] [message...]",
 		"  prtr swap <app>",
 		"  prtr take <action>",
+		"  prtr learn [paths...]",
 		"  prtr again",
 		"  prtr inspect [message...]",
 		"  prtr history [search <query>]",
@@ -2247,6 +2393,7 @@ func goHelpText() string {
 		"Next steps:",
 		"  prtr swap <app>       Send the last prompt to another app",
 		"  prtr take <action>    Turn clipboard text into the next action",
+		"  prtr learn            Teach prtr your repo terms and style",
 		"  prtr again            Run the latest flow again",
 		"  prtr inspect          Inspect the compiled prompt and config",
 	}, "\n")
@@ -2331,6 +2478,31 @@ func takeHelpText() string {
 		"      --edit            Review and edit before sending",
 		"      --dry-run         Show the final prompt without opening any app",
 		"  -h, --help            Help for take",
+	}, "\n")
+}
+
+func learnHelpText() string {
+	return strings.Join([]string{
+		"Teach prtr your repo terms and style.",
+		"",
+		"`prtr learn` scans your project and builds a local termbook with",
+		"protected project terms that should not be translated away.",
+		"",
+		"Usage:",
+		"  prtr learn [paths...]",
+		"",
+		"If no paths are provided, prtr learns from README, docs, cmd, and internal.",
+		"",
+		"Examples:",
+		"  prtr learn",
+		"  prtr learn README.md docs",
+		"  prtr learn --dry-run",
+		"  prtr learn --reset",
+		"",
+		"Flags:",
+		"      --dry-run         Show the generated termbook without saving",
+		"      --reset           Rebuild the termbook instead of merging it",
+		"  -h, --help            Help for learn",
 	}, "\n")
 }
 

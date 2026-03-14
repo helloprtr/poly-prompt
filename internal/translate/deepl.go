@@ -20,9 +20,10 @@ type Translator interface {
 }
 
 type Request struct {
-	Text       string
-	SourceLang string
-	TargetLang string
+	Text           string
+	SourceLang     string
+	TargetLang     string
+	ProtectedTerms []string
 }
 
 type HTTPDoer interface {
