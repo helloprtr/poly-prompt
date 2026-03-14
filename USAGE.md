@@ -97,7 +97,8 @@ How input works:
 - if you pass a message, that message is the request
 - if you pipe text and also pass a message, the piped text becomes evidence
 - if you only pipe text, the piped text becomes the request
-- `--no-context` disables automatic piped-evidence attachment
+- if you are inside a Git repo, `go` also adds lightweight repo context
+- `--no-context` disables automatic repo context and piped-evidence attachment
 
 Examples:
 
@@ -105,6 +106,12 @@ Examples:
 npm test 2>&1 | prtr go fix "왜 깨지는지 정확한 원인만 찾아줘"
 cat crash.log | prtr go fix
 ```
+
+Repo context currently includes:
+
+- repo name
+- current branch
+- changed files summary
 
 ## 3. Repeat and compare
 

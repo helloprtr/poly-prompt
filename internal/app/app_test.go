@@ -14,6 +14,7 @@ import (
 	"github.com/helloprtr/poly-prompt/internal/editor"
 	"github.com/helloprtr/poly-prompt/internal/history"
 	"github.com/helloprtr/poly-prompt/internal/launcher"
+	"github.com/helloprtr/poly-prompt/internal/repoctx"
 	"github.com/helloprtr/poly-prompt/internal/translate"
 )
 
@@ -142,6 +143,18 @@ type stubConfirmer struct {
 	target string
 }
 
+type stubRepoContext struct {
+	summary repoctx.Summary
+	err     error
+}
+
+func (s *stubRepoContext) Collect(_ context.Context) (repoctx.Summary, error) {
+	if s.err != nil {
+		return repoctx.Summary{}, s.err
+	}
+	return s.summary, nil
+}
+
 func (s *stubConfirmer) ConfirmSubmit(target string) (bool, error) {
 	s.calls++
 	s.target = target
@@ -214,6 +227,7 @@ func newTestApp(t *testing.T, cfg config.Config, translator *stubTranslator, cli
 		ConfigInit:   func() (string, error) { return "/tmp/prtr/config.toml", nil },
 		LookupEnv:    func(string) (string, bool) { return "", false },
 		HistoryStore: historyStore,
+		RepoContext:  &stubRepoContext{},
 	})
 }
 
@@ -384,6 +398,91 @@ func TestExecuteGoAttachesPipedInputAsEvidence(t *testing.T) {
 		t.Fatalf("translate input = %q", translator.gotInput.Text)
 	}
 	if !strings.Contains(translator.gotInput.Text, "Evidence:\nstack trace") {
+		t.Fatalf("translate input = %q", translator.gotInput.Text)
+	}
+}
+
+func TestExecuteGoAttachesRepoContext(t *testing.T) {
+	t.Parallel()
+
+	translator := &stubTranslator{output: "Translated prompt"}
+	app := New(Dependencies{
+		Version:         "test",
+		Stdout:          &bytes.Buffer{},
+		Stderr:          &bytes.Buffer{},
+		Translator:      translator,
+		Clipboard:       &stubClipboard{},
+		Editor:          &stubEditor{},
+		Launcher:        &stubLauncher{},
+		Automator:       &stubAutomator{},
+		SubmitConfirmer: &stubConfirmer{},
+		ConfigLoader: func() (config.Config, error) {
+			return testConfig(), nil
+		},
+		ConfigInit:   func() (string, error) { return "/tmp/prtr/config.toml", nil },
+		LookupEnv:    func(string) (string, bool) { return "", false },
+		HistoryStore: history.New(filepath.Join(t.TempDir(), "history.json")),
+		RepoContext: &stubRepoContext{summary: repoctx.Summary{
+			RepoName: "poly-prompt",
+			Branch:   "main",
+			Changes:  []string{"M internal/app/app.go", "?? notes.txt"},
+		}},
+	})
+	stdout, stderr := buffersFromApp(app)
+
+	if err := app.Execute(context.Background(), []string{"go", "fix", "왜 실패하는지 찾아줘", "--dry-run"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if translator.gotInput.Text != "왜 실패하는지 찾아줘" {
+		t.Fatalf("translate input = %q", translator.gotInput.Text)
+	}
+	if !strings.Contains(stdout.String(), "Repo context:\nrepo: poly-prompt\nbranch: main") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "- M internal/app/app.go") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "-> fix | codex | prompt+repo | preview | auto->en") {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+}
+
+func TestExecuteGoNoContextSkipsRepoContext(t *testing.T) {
+	t.Parallel()
+
+	translator := &stubTranslator{output: "Translated prompt"}
+	app := New(Dependencies{
+		Version:         "test",
+		Stdout:          &bytes.Buffer{},
+		Stderr:          &bytes.Buffer{},
+		Translator:      translator,
+		Clipboard:       &stubClipboard{},
+		Editor:          &stubEditor{},
+		Launcher:        &stubLauncher{},
+		Automator:       &stubAutomator{},
+		SubmitConfirmer: &stubConfirmer{},
+		ConfigLoader: func() (config.Config, error) {
+			return testConfig(), nil
+		},
+		ConfigInit:   func() (string, error) { return "/tmp/prtr/config.toml", nil },
+		LookupEnv:    func(string) (string, bool) { return "", false },
+		HistoryStore: history.New(filepath.Join(t.TempDir(), "history.json")),
+		RepoContext: &stubRepoContext{summary: repoctx.Summary{
+			RepoName: "poly-prompt",
+			Branch:   "main",
+			Changes:  []string{"M internal/app/app.go"},
+		}},
+	})
+
+	if err := app.Execute(context.Background(), []string{"go", "fix", "왜 실패하는지 찾아줘", "--dry-run", "--no-context"}, strings.NewReader("stack trace"), true); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if strings.Contains(translator.gotInput.Text, "Repo context:") {
+		t.Fatalf("translate input = %q", translator.gotInput.Text)
+	}
+	if strings.Contains(translator.gotInput.Text, "Evidence:\nstack trace") {
 		t.Fatalf("translate input = %q", translator.gotInput.Text)
 	}
 }

@@ -4,7 +4,7 @@
 
 `prtr` is a cross-platform CLI that turns your request into a ready-to-send prompt for Claude, Codex, or Gemini.
 
-Write in Korean, Japanese, German, or any language you want. `prtr` translates your request to English, adds useful context from your logs, opens your AI app, and pastes the final prompt.
+Write in Korean, Japanese, German, or any language you want. `prtr` translates your request to English, adds useful context from your logs or repo, opens your AI app, and pastes the final prompt.
 
 ![prtr banner](images/prtr-banner.png)
 
@@ -17,6 +17,7 @@ In one command, `prtr` will:
 - treat your Korean text as the request
 - treat the piped test output as evidence
 - translate the request to English
+- add lightweight repo context when available
 - open your AI app
 - paste the final prompt
 - save the run so you can keep moving
@@ -165,7 +166,7 @@ pytest -q 2>&1 | prtr go review "실패 원인과 리스크만 정리해줘"
 
 If you pipe without prompt text, the piped content becomes the prompt itself.
 
-Right now, lightweight repo-aware context is not attached automatically yet. `stdin` evidence is the current automatic context path.
+If you run `go` inside a Git repo, `prtr` also adds lightweight repo context such as the repo name, current branch, and changed files. Use `--no-context` if you want to skip both repo context and piped evidence.
 
 ## The loop
 

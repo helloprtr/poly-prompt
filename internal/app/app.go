@@ -19,6 +19,7 @@ import (
 	"github.com/helloprtr/poly-prompt/internal/history"
 	"github.com/helloprtr/poly-prompt/internal/input"
 	"github.com/helloprtr/poly-prompt/internal/launcher"
+	"github.com/helloprtr/poly-prompt/internal/repoctx"
 	prompttemplate "github.com/helloprtr/poly-prompt/internal/template"
 	"github.com/helloprtr/poly-prompt/internal/translate"
 )
@@ -43,6 +44,7 @@ type Dependencies struct {
 	ConfigInit        ConfigInit
 	LookupEnv         LookupEnv
 	HistoryStore      *history.Store
+	RepoContext       repoctx.Collector
 }
 
 type App struct {
@@ -60,6 +62,7 @@ type App struct {
 	configInit        ConfigInit
 	lookupEnv         LookupEnv
 	historyStore      *history.Store
+	repoContext       repoctx.Collector
 }
 
 type usageError struct {
@@ -88,6 +91,7 @@ type runOptions struct {
 	surfaceMode          string
 	surfaceInput         string
 	surfaceDelivery      string
+	promptSuffix         string
 	preferTargetTemplate bool
 }
 
@@ -172,6 +176,7 @@ func New(deps Dependencies) *App {
 		configInit:        deps.ConfigInit,
 		lookupEnv:         deps.LookupEnv,
 		historyStore:      store,
+		repoContext:       deps.RepoContext,
 	}
 }
 
@@ -785,6 +790,7 @@ func (a *App) runGo(ctx context.Context, args []string, stdin io.Reader, stdinPi
 		}
 		return fmt.Errorf("read input: %w", err)
 	}
+	promptSuffix, inputSource := a.resolveRepoContext(ctx, inputSource, command.noContext)
 
 	target := strings.TrimSpace(command.app)
 	if target == "" {
@@ -803,10 +809,37 @@ func (a *App) runGo(ctx context.Context, args []string, stdin io.Reader, stdinPi
 		surfaceMode:          command.mode,
 		surfaceInput:         inputSource,
 		surfaceDelivery:      surfaceDeliveryLabel(command.dryRun),
+		promptSuffix:         promptSuffix,
 		preferTargetTemplate: true,
 	}
 
 	return a.executePrompt(ctx, opts, text, command.mode)
+}
+
+func (a *App) resolveRepoContext(ctx context.Context, inputSource string, disabled bool) (string, string) {
+	if disabled || a.repoContext == nil {
+		return "", inputSource
+	}
+
+	summary, err := a.repoContext.Collect(ctx)
+	if err != nil {
+		return "", inputSource
+	}
+
+	contextBlock := formatRepoContext(summary)
+	if contextBlock == "" {
+		return "", inputSource
+	}
+
+	label := inputSource
+	if label == "" {
+		label = "prompt"
+	}
+	if !strings.Contains(label, "repo") {
+		label += "+repo"
+	}
+
+	return contextBlock, label
 }
 
 func (a *App) runAgain(ctx context.Context, args []string, stdin io.Reader, stdinPiped bool) error {
@@ -1256,7 +1289,7 @@ func (a *App) prepareRun(ctx context.Context, opts runOptions, text, shortcutNam
 	}
 
 	finalPrompt, err := prompttemplate.RenderData(layout, prompttemplate.Data{
-		Prompt:       outcome.Text,
+		Prompt:       joinPromptSections(outcome.Text, opts.promptSuffix),
 		Role:         rolePrompt,
 		Target:       target,
 		Context:      shortcut.Context,
@@ -1659,6 +1692,43 @@ func surfaceDeliveryLabel(dryRun bool) string {
 		return "preview"
 	}
 	return "launch+paste"
+}
+
+func formatRepoContext(summary repoctx.Summary) string {
+	lines := []string{"Repo context:"}
+
+	if strings.TrimSpace(summary.RepoName) != "" {
+		lines = append(lines, "repo: "+strings.TrimSpace(summary.RepoName))
+	}
+	if strings.TrimSpace(summary.Branch) != "" {
+		lines = append(lines, "branch: "+strings.TrimSpace(summary.Branch))
+	}
+	if len(summary.Changes) == 0 {
+		lines = append(lines, "changes:", "- working tree clean")
+	} else {
+		lines = append(lines, "changes:")
+		for _, change := range summary.Changes {
+			lines = append(lines, "- "+change)
+		}
+		if summary.Truncated > 0 {
+			lines = append(lines, fmt.Sprintf("- +%d more", summary.Truncated))
+		}
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+func joinPromptSections(parts ...string) string {
+	filtered := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		filtered = append(filtered, part)
+	}
+
+	return strings.Join(filtered, "\n\n")
 }
 
 func parseRunOptions(args []string) (runOptions, []string, error) {
@@ -2146,11 +2216,12 @@ func goHelpText() string {
 		"  - If you pass a message, that message is your request.",
 		"  - If you pipe text and also pass a message, the piped text becomes evidence.",
 		"  - If you only pipe text, the piped text becomes the request.",
-		"  - Repo-aware context is reserved for future versions.",
+		"  - If you are inside a Git repo, prtr may attach lightweight repo context",
+		"    unless --no-context is used.",
 		"",
 		"What `go` does:",
 		"  1. Reads your request",
-		"  2. Collects useful context from stdin when present",
+		"  2. Collects useful context from stdin and the current repo",
 		"  3. Translates the request to English",
 		"  4. Applies the selected mode",
 		"  5. Opens Claude, Codex, or Gemini",
@@ -2169,7 +2240,7 @@ func goHelpText() string {
 		"      --to <app>        Choose the app: claude | codex | gemini",
 		"      --edit            Review and edit before sending",
 		"      --dry-run         Show the final prompt without opening any app",
-		"      --no-context      Do not attach piped evidence automatically",
+		"      --no-context      Do not attach repo or piped context automatically",
 		"      --no-copy         Do not copy the final prompt to the clipboard",
 		"  -h, --help            Help for go",
 		"",
@@ -2201,7 +2272,7 @@ func againHelpText() string {
 		"Flags:",
 		"      --edit            Review and edit before sending",
 		"      --dry-run         Show the final prompt without opening any app",
-		"      --no-context      Do not attach piped evidence automatically",
+		"      --no-context      Do not attach repo or piped context automatically",
 		"      --no-copy         Do not copy the final prompt to the clipboard",
 		"  -h, --help            Help for again",
 	}, "\n")
@@ -2227,7 +2298,7 @@ func swapHelpText() string {
 		"Flags:",
 		"      --edit            Review and edit before sending",
 		"      --dry-run         Show the final prompt without opening any app",
-		"      --no-context      Do not attach piped evidence automatically",
+		"      --no-context      Do not attach repo or piped context automatically",
 		"      --no-copy         Do not copy the final prompt to the clipboard",
 		"  -h, --help            Help for swap",
 	}, "\n")

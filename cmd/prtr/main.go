@@ -16,6 +16,7 @@ import (
 	"github.com/helloprtr/poly-prompt/internal/history"
 	"github.com/helloprtr/poly-prompt/internal/input"
 	"github.com/helloprtr/poly-prompt/internal/launcher"
+	"github.com/helloprtr/poly-prompt/internal/repoctx"
 	"github.com/helloprtr/poly-prompt/internal/translate"
 )
 
@@ -43,6 +44,7 @@ func main() {
 		},
 		ConfigLoader: config.Load,
 		ConfigInit:   config.Init,
+		RepoContext:  repoctx.New(),
 		TranslatorFactory: func(apiKey string) translate.Translator {
 			return translate.NewDeepLClient(translate.ClientOptions{
 				APIKey:  apiKey,
