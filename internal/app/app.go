@@ -198,82 +198,36 @@ func New(deps Dependencies) *App {
 }
 
 func (a *App) Execute(ctx context.Context, args []string, stdin io.Reader, stdinPiped bool) error {
-	if len(args) > 0 {
-		switch args[0] {
-		case "-h", "--help":
-			return a.runHelp(nil)
-		case "help":
-			return a.runHelp(args[1:])
-		}
+	if a.shouldRunRootDirect(args) {
+		return a.runMain(ctx, args, stdin, stdinPiped, "")
+	}
+	cmd := a.Command(ctx, stdin, stdinPiped)
+	cmd.SetArgs(args)
+	return cmd.Execute()
+}
+
+func (a *App) shouldRunRootDirect(args []string) bool {
+	if len(args) == 0 {
+		return true
 	}
 
-	if len(args) > 0 {
-		switch args[0] {
-		case "init":
-			return a.runInit()
-		case "version":
-			return a.runVersion()
-		case "setup":
-			return a.runSetup(stdin)
-		case "lang":
-			return a.runLang(stdin)
-		case "doctor":
-			return a.runDoctor(ctx)
-		case "templates":
-			return a.runTemplates(args[1:])
-		case "profiles":
-			return a.runProfiles(args[1:])
-		case "history":
-			return a.runHistory(args[1:])
-		case "rerun":
-			return a.runRerun(ctx, args[1:])
-		case "pin":
-			return a.runPin(args[1:])
-		case "favorite":
-			return a.runFavorite(args[1:])
-		case "go":
-			if wantsHelp(args[1:]) {
-				return a.runHelp([]string{"go"})
-			}
-			return a.runGo(ctx, args[1:], stdin, stdinPiped)
-		case "again":
-			if wantsHelp(args[1:]) {
-				return a.runHelp([]string{"again"})
-			}
-			return a.runAgain(ctx, args[1:], stdin, stdinPiped)
-		case "swap":
-			if wantsHelp(args[1:]) {
-				return a.runHelp([]string{"swap"})
-			}
-			return a.runSwap(ctx, args[1:], stdin, stdinPiped)
-		case "take":
-			if wantsHelp(args[1:]) {
-				return a.runHelp([]string{"take"})
-			}
-			return a.runTake(ctx, args[1:])
-		case "learn":
-			if wantsHelp(args[1:]) {
-				return a.runHelp([]string{"learn"})
-			}
-			return a.runLearn(args[1:])
-		case "inspect":
-			if wantsHelp(args[1:]) {
-				return a.runHelp([]string{"inspect"})
-			}
-			return a.runInspect(ctx, args[1:], stdin, stdinPiped)
-		}
+	first := strings.TrimSpace(args[0])
+	if first == "" {
+		return true
+	}
+	if first == "-h" || first == "--help" || first == "help" {
+		return false
+	}
+	if strings.HasPrefix(first, "-") {
+		return true
 	}
 
-	if len(args) > 0 {
-		if _, ok := a.builtInShortcutNames()[args[0]]; ok {
-			if wantsHelp(args[1:]) {
-				return a.runHelp([]string{"go"})
-			}
-			return a.runShortcut(ctx, args[0], args[1:], stdin, stdinPiped)
-		}
+	switch first {
+	case "init", "version", "setup", "lang", "doctor", "templates", "profiles", "history", "rerun", "pin", "favorite", "go", "again", "swap", "take", "learn", "inspect":
+		return false
 	}
 
-	return a.runMain(ctx, args, stdin, stdinPiped, "")
+	return !a.builtInShortcutNames()[first]
 }
 
 func (a *App) runInit() error {
@@ -296,29 +250,6 @@ func (a *App) runVersion() error {
 	}
 
 	_, _ = fmt.Fprintln(a.stdout, version)
-	return nil
-}
-
-func (a *App) runHelp(args []string) error {
-	text := rootHelpText()
-	if len(args) > 0 {
-		switch args[0] {
-		case "go":
-			text = goHelpText()
-		case "again":
-			text = againHelpText()
-		case "swap":
-			text = swapHelpText()
-		case "take":
-			text = takeHelpText()
-		case "learn":
-			text = learnHelpText()
-		case "inspect":
-			text = inspectHelpText()
-		}
-	}
-
-	_, _ = fmt.Fprintln(a.stdout, text)
 	return nil
 }
 
