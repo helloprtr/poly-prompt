@@ -248,3 +248,10 @@ Optional paste automation checks:
 prtr --paste "이 변경의 핵심 리스크를 요약해줘"
 prtr swap gemini --dry-run
 ```
+
+Optional learn loop check from inside a Git repo:
+
+```bash
+prtr learn --dry-run
+prtr go "BuildPrompt와 PRTR_TARGET를 설명해줘" --dry-run
+```

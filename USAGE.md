@@ -8,9 +8,18 @@ This guide focuses on the current public surface:
 - `prtr again`
 - `prtr swap`
 - `prtr take`
+- `prtr learn`
 - `prtr inspect`
 
 Advanced template, role, profile, and history commands are still available, but they are secondary to the send loop.
+
+The current working loop is:
+
+- `go` for the first send
+- `swap` for model comparison
+- `take` for next-action prompting
+- `learn` for repo-specific memory
+- `inspect` for expert visibility
 
 ## 1. First run
 

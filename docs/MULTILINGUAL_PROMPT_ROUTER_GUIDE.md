@@ -3,6 +3,14 @@
 `prtr` is easiest to understand if you think of it as a routing pipeline rather than a plain translator.
 It takes a user request, decides how that request should be translated, wraps it in a target-aware prompt shape, optionally opens the target CLI, and stores the whole run in local history so you can reuse it later.
 
+The current public loop is:
+
+- `prtr go` for the first send
+- `prtr swap` to resend the last request to another app
+- `prtr take` to turn copied output into the next prompt
+- `prtr learn` to build repo-local protected term memory
+- `prtr inspect` for the expert path
+
 This guide is focused on the currently implemented multilingual prompt router flow.
 For install steps, see [INSTALLATION.md](../INSTALLATION.md).
 For the full command reference, see [USAGE.md](../USAGE.md).
@@ -12,22 +20,22 @@ For the full command reference, see [USAGE.md](../USAGE.md).
 For a command such as:
 
 ```bash
-prtr -t codex -r be "도커 컨테이너 실행하는 법을 초보자용 단계로 정리해줘"
+prtr go fix "도커 컨테이너 실행하는 법을 초보자용 단계로 정리해줘" --to codex
 ```
 
 `prtr` performs this sequence:
 
 1. Reads the prompt from CLI args or `stdin`.
-2. Resolves the target, role, and template preset.
+2. Resolves the app, mode, and template preset.
 3. Resolves the source and target language route.
 4. Decides whether translation should run with `auto`, `force`, or `skip`.
-5. Preserves code-like tokens such as code blocks, paths, URLs, env vars, and stack traces.
+5. Preserves code-like tokens plus learned project terms when available.
 6. Translates the user request with DeepL when required.
 7. Renders the translated request into the selected template preset.
 8. Prints the final prompt to `stdout`.
 9. Copies the final prompt to the clipboard unless `--no-copy` is set.
 10. Optionally launches or pastes into a supported target CLI.
-11. Stores the run in local history for rerun, pin, favorite, and search.
+11. Stores the run in local history for `again`, `swap`, and search.
 
 ## 2. First-Time Setup
 
@@ -65,13 +73,13 @@ Use `doctor` before recording demos or troubleshooting launch and paste behavior
 Start with a safe terminal-only run:
 
 ```bash
-prtr --no-copy "이 변경의 핵심 리스크를 요약해줘"
+prtr go "이 변경의 핵심 리스크를 요약해줘" --dry-run
 ```
 
 If you want to inspect how the router resolved the run:
 
 ```bash
-prtr --no-copy --explain "이 변경의 핵심 리스크를 요약해줘"
+prtr inspect --explain "이 변경의 핵심 리스크를 요약해줘"
 ```
 
 Typical explain output includes:
@@ -86,7 +94,7 @@ Typical explain output includes:
 If you want machine-readable output:
 
 ```bash
-prtr --no-copy --json "이 변경의 핵심 리스크를 요약해줘"
+prtr inspect --json "이 변경의 핵심 리스크를 요약해줘"
 ```
 
 The JSON payload includes:
@@ -108,7 +116,7 @@ The JSON payload includes:
 ### Route a non-English request into an English coding prompt
 
 ```bash
-prtr --no-copy -t codex -r be "이 함수의 성능 병목을 찾고 안전하게 리팩터링해줘"
+prtr go fix "이 함수의 성능 병목을 찾고 안전하게 리팩터링해줘" --to codex --dry-run
 ```
 
 Use this when you want:
@@ -120,7 +128,7 @@ Use this when you want:
 ### Force translation even if the input looks mostly English
 
 ```bash
-prtr --no-copy --translation-mode force --to en "Fix login bug. 사용자 영향도 같이 설명해줘."
+prtr inspect --translation-mode force --to en "Fix login bug. 사용자 영향도 같이 설명해줘."
 ```
 
 Use this when a mixed-language prompt should still become a fully translated target prompt.
@@ -128,7 +136,7 @@ Use this when a mixed-language prompt should still become a fully translated tar
 ### Skip translation and only use prompt shaping
 
 ```bash
-prtr --no-copy --translation-mode skip -t claude "Keep this prompt exactly as written"
+prtr inspect --translation-mode skip -t claude "Keep this prompt exactly as written"
 ```
 
 Use this when you already wrote the request in the final language and only want template and role routing.
@@ -136,7 +144,7 @@ Use this when you already wrote the request in the final language and only want 
 ### Read from stdin
 
 ```bash
-printf '이 쿼리 성능을 분석하고 인덱스 전략을 제안해줘' | prtr --no-copy -t claude
+printf '이 쿼리 성능을 분석하고 인덱스 전략을 제안해줘' | prtr go --to claude --dry-run
 ```
 
 Use this in shell pipelines or editor integrations.

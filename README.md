@@ -53,6 +53,14 @@ The beginner surface is intentionally small:
 
 The config and advanced internals still use the existing names `target`, `template_preset`, `role`, and `profile`. The product surface is now organized around `app`, `mode`, and repeat loops.
 
+The repeat loop is the real product surface:
+
+- `go`: send the first prompt fast
+- `swap`: compare another app without rebuilding context
+- `take`: turn an answer into the next action
+- `learn`: keep project terms stable across future runs
+- `inspect`: open the expert path when you want the raw details
+
 ## Quick Start
 
 ### Install
@@ -222,12 +230,17 @@ prtr learn --reset
 
 ## The only flags most people need
 
-The first-screen surface for `go`, `again`, `swap`, and `take` is intentionally small:
+The first-screen send surface for `go`, `again`, `swap`, and `take` is intentionally small:
 
 - `--to <app>`: choose `claude`, `codex`, or `gemini`
 - `--edit`: review and edit the final prompt before delivery
 - `--dry-run`: preview only; do not launch or paste
 - `--no-context`: ignore piped `stdin` evidence when prompt text is already present
+
+`learn` has its own minimal surface:
+
+- `--dry-run`: preview the generated termbook
+- `--reset`: rebuild the termbook instead of merging it
 
 ## Inspect mode
 
