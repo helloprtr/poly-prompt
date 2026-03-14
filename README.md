@@ -25,6 +25,7 @@ Then keep going:
 
 ```bash
 prtr swap gemini
+prtr take patch
 prtr again --edit
 prtr inspect --json "방금 흐름이 어떻게 조합됐는지 보여줘"
 ```
@@ -191,9 +192,22 @@ prtr swap codex
 
 When you swap apps, `prtr` keeps the core prompt but re-resolves the prompt shape for the destination app instead of blindly reusing the old app's template.
 
+### `prtr take`
+
+Turn copied AI output into the next prompt without manually rewriting it.
+
+```bash
+prtr take patch
+prtr take test --to codex
+prtr take commit --dry-run
+prtr take summary --edit
+```
+
+`take` reads from your clipboard, builds a new English prompt for the selected action, then routes it through the same target-aware delivery flow.
+
 ## The only flags most people need
 
-The first-screen surface for `go`, `again`, and `swap` is intentionally small:
+The first-screen surface for `go`, `again`, `swap`, and `take` is intentionally small:
 
 - `--to <app>`: choose `claude`, `codex`, or `gemini`
 - `--edit`: review and edit the final prompt before delivery

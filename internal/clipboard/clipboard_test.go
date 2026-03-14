@@ -19,9 +19,9 @@ func TestDetectClipboardDarwinUsesPBcopy(t *testing.T) {
 	})
 
 	auto := clipboard
-	backend, err := detectClipboard(auto.goos, auto.lookPath)
+	backend, err := detectClipboardWriter(auto.goos, auto.lookPath)
 	if err != nil {
-		t.Fatalf("detectClipboard() error = %v", err)
+		t.Fatalf("detectClipboardWriter() error = %v", err)
 	}
 
 	command, ok := backend.(*commandClipboard)
@@ -47,9 +47,9 @@ func TestDetectClipboardLinuxFallbackOrder(t *testing.T) {
 		}
 	})
 
-	backend, err := detectClipboard(clipboard.goos, clipboard.lookPath)
+	backend, err := detectClipboardWriter(clipboard.goos, clipboard.lookPath)
 	if err != nil {
-		t.Fatalf("detectClipboard() error = %v", err)
+		t.Fatalf("detectClipboardWriter() error = %v", err)
 	}
 
 	command, ok := backend.(*commandClipboard)
@@ -71,16 +71,47 @@ func TestDetectClipboardReturnsInstallGuidance(t *testing.T) {
 		return "", exec.ErrNotFound
 	})
 
-	_, err := detectClipboard(clipboard.goos, clipboard.lookPath)
+	_, err := detectClipboardWriter(clipboard.goos, clipboard.lookPath)
 	if err == nil {
-		t.Fatal("detectClipboard() expected an error, got nil")
+		t.Fatal("detectClipboardWriter() expected an error, got nil")
 	}
 	if !strings.Contains(err.Error(), "install wl-clipboard, xclip, or xsel") {
-		t.Fatalf("detectClipboard() error = %v", err)
+		t.Fatalf("detectClipboardWriter() error = %v", err)
 	}
 }
 
-func TestCopyReturnsDetectionError(t *testing.T) {
+func TestDetectClipboardReaderLinuxFallbackOrder(t *testing.T) {
+	t.Parallel()
+
+	clipboard := NewForTesting("linux", func(name string) (string, error) {
+		switch name {
+		case "wl-paste":
+			return "", exec.ErrNotFound
+		case "xclip":
+			return "/usr/bin/xclip", nil
+		default:
+			return "", exec.ErrNotFound
+		}
+	})
+
+	backend, err := detectClipboardReader(clipboard.goos, clipboard.lookPath)
+	if err != nil {
+		t.Fatalf("detectClipboardReader() error = %v", err)
+	}
+
+	command, ok := backend.(*commandClipboard)
+	if !ok {
+		t.Fatalf("backend type = %T, want *commandClipboard", backend)
+	}
+	if command.command != "/usr/bin/xclip" {
+		t.Fatalf("command = %q, want %q", command.command, "/usr/bin/xclip")
+	}
+	if got := strings.Join(command.args, " "); got != "-selection clipboard -o" {
+		t.Fatalf("args = %q, want %q", got, "-selection clipboard -o")
+	}
+}
+
+func TestCopyAndReadReturnDetectionError(t *testing.T) {
 	t.Parallel()
 
 	clipboard := NewForTesting("plan9", func(string) (string, error) {
@@ -93,5 +124,13 @@ func TestCopyReturnsDetectionError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "clipboard is not supported on plan9") {
 		t.Fatalf("Copy() error = %v", err)
+	}
+
+	_, err = clipboard.Read(context.Background())
+	if err == nil {
+		t.Fatal("Read() expected an error, got nil")
+	}
+	if !strings.Contains(err.Error(), "clipboard is not supported on plan9") {
+		t.Fatalf("Read() error = %v", err)
 	}
 }

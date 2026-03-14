@@ -34,7 +34,7 @@ type Dependencies struct {
 	Stderr            io.Writer
 	Translator        translate.Translator
 	TranslatorFactory TranslatorFactory
-	Clipboard         clipboard.Writer
+	Clipboard         clipboard.Accessor
 	Editor            editor.Editor
 	Launcher          launcher.Launcher
 	Automator         automation.Automator
@@ -51,7 +51,7 @@ type App struct {
 	stderr            io.Writer
 	translator        translate.Translator
 	translatorFactory TranslatorFactory
-	clipboard         clipboard.Writer
+	clipboard         clipboard.Accessor
 	editor            editor.Editor
 	launcher          launcher.Launcher
 	automator         automation.Automator
@@ -108,6 +108,13 @@ type replayCommandOptions struct {
 	noContext bool
 	noCopy    bool
 	prompt    []string
+}
+
+type takeCommandOptions struct {
+	action string
+	app    string
+	edit   bool
+	dryRun bool
 }
 
 type resolvedRun struct {
@@ -217,6 +224,11 @@ func (a *App) Execute(ctx context.Context, args []string, stdin io.Reader, stdin
 				return a.runHelp([]string{"swap"})
 			}
 			return a.runSwap(ctx, args[1:], stdin, stdinPiped)
+		case "take":
+			if wantsHelp(args[1:]) {
+				return a.runHelp([]string{"take"})
+			}
+			return a.runTake(ctx, args[1:])
 		case "inspect":
 			if wantsHelp(args[1:]) {
 				return a.runHelp([]string{"inspect"})
@@ -270,6 +282,8 @@ func (a *App) runHelp(args []string) error {
 			text = againHelpText()
 		case "swap":
 			text = swapHelpText()
+		case "take":
+			text = takeHelpText()
 		case "inspect":
 			text = inspectHelpText()
 		}
@@ -881,6 +895,47 @@ func (a *App) runSwap(ctx context.Context, args []string, stdin io.Reader, stdin
 	return a.executePrompt(ctx, opts, text, entry.Shortcut)
 }
 
+func (a *App) runTake(ctx context.Context, args []string) error {
+	command, err := parseTakeCommand(args)
+	if err != nil {
+		return err
+	}
+
+	clipboardText, err := a.clipboard.Read(ctx)
+	if err != nil {
+		return err
+	}
+	clipboardText = strings.TrimSpace(clipboardText)
+	if clipboardText == "" {
+		return errors.New("clipboard is empty; copy an answer and try again")
+	}
+
+	target := strings.TrimSpace(command.app)
+	if target == "" {
+		if entry, err := a.latestHistoryEntry(); err == nil {
+			target = entry.Target
+		}
+	}
+
+	opts := runOptions{
+		target:               target,
+		sourceLang:           "en",
+		targetLang:           "en",
+		translationMode:      string(translate.ModeSkip),
+		interactive:          command.edit,
+		noCopy:               command.dryRun,
+		launch:               !command.dryRun,
+		paste:                !command.dryRun,
+		compactStatus:        true,
+		surfaceMode:          "take:" + command.action,
+		surfaceInput:         "clipboard",
+		surfaceDelivery:      surfaceDeliveryLabel(command.dryRun),
+		preferTargetTemplate: true,
+	}
+
+	return a.executePrompt(ctx, opts, takePrompt(command.action, clipboardText), "take:"+command.action)
+}
+
 func (a *App) runInspect(ctx context.Context, args []string, stdin io.Reader, stdinPiped bool) error {
 	opts, positional, err := parseRunOptions(args)
 	if err != nil {
@@ -1127,13 +1182,16 @@ func (a *App) prepareRun(ctx context.Context, opts runOptions, text, shortcutNam
 	shortcut := config.ShortcutConfig{}
 	if shortcutName != "" {
 		shortcuts := a.builtInShortcutNames()
-		if !shortcuts[shortcutName] {
+		if strings.HasPrefix(shortcutName, "take:") {
+			shortcut = config.ShortcutConfig{}
+		} else if !shortcuts[shortcutName] {
 			return resolvedRun{}, fmt.Errorf("unknown shortcut %q", shortcutName)
-		}
-		shortcut = cfg.Shortcuts[shortcutName]
-		if requestedTarget := strings.TrimSpace(opts.target); requestedTarget != "" && requestedTarget != strings.TrimSpace(shortcut.Target) {
-			shortcut.Target = ""
-			shortcut.TemplatePreset = ""
+		} else {
+			shortcut = cfg.Shortcuts[shortcutName]
+			if requestedTarget := strings.TrimSpace(opts.target); requestedTarget != "" && requestedTarget != strings.TrimSpace(shortcut.Target) {
+				shortcut.Target = ""
+				shortcut.TemplatePreset = ""
+			}
 		}
 	}
 
@@ -1521,6 +1579,49 @@ func parseReplayCommand(args []string, requireApp bool) (replayCommandOptions, e
 	}
 	if command.noCopy && !command.dryRun {
 		return replayCommandOptions{}, usageError{message: "--no-copy currently requires --dry-run", helpText: swapHelpText()}
+	}
+
+	return command, nil
+}
+
+func parseTakeCommand(args []string) (takeCommandOptions, error) {
+	command := takeCommandOptions{}
+
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		switch {
+		case arg == "--edit":
+			command.edit = true
+		case arg == "--interactive" || arg == "-i":
+			command.edit = true
+		case arg == "--dry-run":
+			command.dryRun = true
+		case arg == "--to" || arg == "--app" || arg == "--target" || arg == "-t":
+			i++
+			if i >= len(args) {
+				return takeCommandOptions{}, usageError{message: fmt.Sprintf("%s requires a value", arg), helpText: takeHelpText()}
+			}
+			command.app = strings.TrimSpace(args[i])
+		case strings.HasPrefix(arg, "--to="):
+			command.app = strings.TrimSpace(strings.TrimPrefix(arg, "--to="))
+		case strings.HasPrefix(arg, "--app="):
+			command.app = strings.TrimSpace(strings.TrimPrefix(arg, "--app="))
+		case strings.HasPrefix(arg, "--target="):
+			command.app = strings.TrimSpace(strings.TrimPrefix(arg, "--target="))
+		case strings.HasPrefix(arg, "-"):
+			return takeCommandOptions{}, usageError{message: fmt.Sprintf("unknown take flag %q", arg), helpText: takeHelpText()}
+		case strings.TrimSpace(command.action) == "":
+			command.action = normalizeTakeAction(arg)
+		default:
+			return takeCommandOptions{}, usageError{message: fmt.Sprintf("take only accepts one action; got unexpected argument %q", arg), helpText: takeHelpText()}
+		}
+	}
+
+	if command.action == "" {
+		return takeCommandOptions{}, usageError{message: "take requires an action such as patch, test, commit, or summary", helpText: takeHelpText()}
+	}
+	if !isSupportedTakeAction(command.action) {
+		return takeCommandOptions{}, usageError{message: fmt.Sprintf("unknown take action %q (available: patch, test, commit, summary)", command.action), helpText: takeHelpText()}
 	}
 
 	return command, nil
@@ -1990,12 +2091,14 @@ func rootHelpText() string {
 		"",
 		"Then keep moving with:",
 		"  prtr swap gemini",
+		"  prtr take patch",
 		"  prtr again",
 		"  prtr inspect",
 		"",
 		"Usage:",
 		"  prtr go [mode] [message...]",
 		"  prtr swap <app>",
+		"  prtr take <action>",
 		"  prtr again",
 		"  prtr inspect [message...]",
 		"  prtr history [search <query>]",
@@ -2072,6 +2175,7 @@ func goHelpText() string {
 		"",
 		"Next steps:",
 		"  prtr swap <app>       Send the last prompt to another app",
+		"  prtr take <action>    Turn clipboard text into the next action",
 		"  prtr again            Run the latest flow again",
 		"  prtr inspect          Inspect the compiled prompt and config",
 	}, "\n")
@@ -2129,6 +2233,36 @@ func swapHelpText() string {
 	}, "\n")
 }
 
+func takeHelpText() string {
+	return strings.Join([]string{
+		"Turn the latest answer or clipboard text into the next action.",
+		"",
+		"`prtr take` reads from your clipboard, turns that text into a new",
+		"ready-to-send prompt, then sends it to Claude, Codex, or Gemini.",
+		"",
+		"Usage:",
+		"  prtr take <action>",
+		"",
+		"Actions:",
+		"  patch     Turn the answer into an implementation prompt",
+		"  test      Turn the answer into a testing prompt",
+		"  commit    Turn the answer into a commit message prompt",
+		"  summary   Turn the answer into a short reusable summary prompt",
+		"",
+		"Examples:",
+		"  prtr take patch",
+		"  prtr take test --to codex",
+		"  prtr take commit --dry-run",
+		"  prtr take summary --edit",
+		"",
+		"Flags:",
+		"      --to <app>        Choose the app: claude | codex | gemini",
+		"      --edit            Review and edit before sending",
+		"      --dry-run         Show the final prompt without opening any app",
+		"  -h, --help            Help for take",
+	}, "\n")
+}
+
 func inspectHelpText() string {
 	return strings.Join([]string{
 		"Inspect the compiled prompt and resolved config without sending it anywhere.",
@@ -2158,5 +2292,41 @@ func inspectHelpText() string {
 		"      --json             emit structured JSON output",
 		"      --no-copy          print the translated prompt without copying it",
 		"  -h, --help             Help for inspect",
+	}, "\n")
+}
+
+func isSupportedTakeAction(action string) bool {
+	switch normalizeTakeAction(action) {
+	case "patch", "test", "commit", "summary":
+		return true
+	default:
+		return false
+	}
+}
+
+func normalizeTakeAction(action string) string {
+	return strings.ToLower(strings.TrimSpace(action))
+}
+
+func takePrompt(action, clipboardText string) string {
+	var goal string
+	switch normalizeTakeAction(action) {
+	case "patch":
+		goal = "Turn the material below into an implementation prompt. Focus on concrete code changes, files to touch, constraints, and validation steps. Avoid unnecessary explanation."
+	case "test":
+		goal = "Turn the material below into a testing prompt. Ask for targeted unit, integration, or regression tests and the most important verification steps."
+	case "commit":
+		goal = "Turn the material below into a prompt that produces a single concise commit message. Ask for one strong commit message only."
+	case "summary":
+		goal = "Turn the material below into a prompt that produces a short reusable summary. Keep it compact and easy to share."
+	default:
+		goal = "Turn the material below into the next useful prompt."
+	}
+
+	return strings.Join([]string{
+		goal,
+		"",
+		"Source material:",
+		clipboardText,
 	}, "\n")
 }

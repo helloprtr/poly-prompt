@@ -7,6 +7,7 @@ This guide focuses on the current public surface:
 - `prtr go`
 - `prtr again`
 - `prtr swap`
+- `prtr take`
 - `prtr inspect`
 
 Advanced template, role, profile, and history commands are still available, but they are secondary to the send loop.
@@ -127,7 +128,27 @@ prtr swap claude --dry-run
 
 `swap` keeps the latest request and mode, then recompiles the prompt for the destination app instead of reusing the old app's template blindly.
 
-## 4. Inspect instead of send
+## 4. Turn an answer into the next action
+
+Use `take` when you already copied a useful answer and want to move straight into the next prompt.
+
+```bash
+prtr take patch
+prtr take test --to codex
+prtr take commit --dry-run
+prtr take summary --edit
+```
+
+Supported actions:
+
+- `patch`
+- `test`
+- `commit`
+- `summary`
+
+`take` always reads from the clipboard, generates a fresh English request for the chosen action, then sends or previews it with the same app-aware flow as `go`.
+
+## 5. Inspect instead of send
 
 Use `inspect` when you want to understand how the prompt was compiled without opening any app.
 
@@ -151,7 +172,7 @@ prtr inspect --json "JSON으로 결과를 받고 싶어"
 - no launch
 - no paste
 
-## 5. Launch and paste support
+## 6. Launch and paste support
 
 Supported delivery targets:
 
@@ -197,7 +218,7 @@ Current limitations:
 - no GUI AI app automation
 - no full auto submit
 
-## 6. Advanced prompt controls
+## 7. Advanced prompt controls
 
 The older advanced surface is still supported.
 

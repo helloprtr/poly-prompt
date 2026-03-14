@@ -35,6 +35,8 @@ type stubClipboard struct {
 	calls   int
 	copied  string
 	err     error
+	read    string
+	readErr error
 	diagErr error
 }
 
@@ -42,6 +44,13 @@ func (s *stubClipboard) Copy(_ context.Context, text string) error {
 	s.calls++
 	s.copied = text
 	return s.err
+}
+
+func (s *stubClipboard) Read(_ context.Context) (string, error) {
+	if s.readErr != nil {
+		return "", s.readErr
+	}
+	return s.read, nil
 }
 
 func (s *stubClipboard) Diagnose() error {
@@ -270,6 +279,23 @@ func TestExecuteGoHelp(t *testing.T) {
 	}
 }
 
+func TestExecuteTakeHelp(t *testing.T) {
+	t.Parallel()
+
+	app := newTestApp(t, testConfig(), &stubTranslator{}, &stubClipboard{}, &stubEditor{}, history.New(filepath.Join(t.TempDir(), "history.json")))
+	stdout, _ := buffersFromApp(app)
+
+	if err := app.Execute(context.Background(), []string{"take", "--help"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "prtr take <action>") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "patch     Turn the answer into an implementation prompt") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
 func TestExecuteShortcutUsesShortcutDefaults(t *testing.T) {
 	t.Parallel()
 
@@ -432,6 +458,86 @@ func TestExecuteSwapOverridesApp(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "-> review | gemini | history | preview | auto->en") {
 		t.Fatalf("stderr = %q", stderr.String())
+	}
+}
+
+func TestExecuteTakeUsesLatestTargetAndSkipsTranslation(t *testing.T) {
+	t.Parallel()
+
+	store := history.New(filepath.Join(t.TempDir(), "history.json"))
+	if err := store.Append(history.Entry{
+		ID:        "last",
+		CreatedAt: time.Unix(200, 0).UTC(),
+		Target:    "codex",
+		Shortcut:  "fix",
+		Original:  "older prompt",
+	}); err != nil {
+		t.Fatalf("Append() error = %v", err)
+	}
+
+	translator := &stubTranslator{output: "should not be used"}
+	clipboard := &stubClipboard{read: "Use ripgrep in /internal/app first."}
+	app := newTestApp(t, testConfig(), translator, clipboard, &stubEditor{}, store)
+	stdout, stderr := buffersFromApp(app)
+
+	if err := app.Execute(context.Background(), []string{"take", "patch", "--dry-run"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if translator.gotInput.Text != "" {
+		t.Fatalf("translator should not be called, got input %q", translator.gotInput.Text)
+	}
+	if !strings.Contains(stdout.String(), "// Target: codex") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "Turn the material below into an implementation prompt.") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "Source material:\nUse ripgrep in /internal/app first.") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "-> take:patch | codex | clipboard | preview | en->en") {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+}
+
+func TestExecuteTakeAllowsAppOverrideAndEdit(t *testing.T) {
+	t.Parallel()
+
+	clipboard := &stubClipboard{read: "Need a tighter summary."}
+	editorStub := &stubEditor{output: "Edited take prompt"}
+	app := newTestApp(t, testConfig(), &stubTranslator{}, clipboard, editorStub, history.New(filepath.Join(t.TempDir(), "history.json")))
+	stdout, stderr := buffersFromApp(app)
+
+	if err := app.Execute(context.Background(), []string{"take", "summary", "--to", "gemini", "--edit", "--dry-run"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if editorStub.calls != 1 {
+		t.Fatalf("editor calls = %d, want 1", editorStub.calls)
+	}
+	if !strings.Contains(editorStub.gotInput.Initial, "Need a tighter summary.") {
+		t.Fatalf("editor initial = %q", editorStub.gotInput.Initial)
+	}
+	if stdout.String() != "Edited take prompt\n" {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "-> take:summary | gemini | clipboard | preview | en->en") {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+}
+
+func TestExecuteTakeRejectsEmptyClipboard(t *testing.T) {
+	t.Parallel()
+
+	app := newTestApp(t, testConfig(), &stubTranslator{}, &stubClipboard{read: "   "}, &stubEditor{}, history.New(filepath.Join(t.TempDir(), "history.json")))
+
+	err := app.Execute(context.Background(), []string{"take", "commit", "--dry-run"}, strings.NewReader(""), false)
+	if err == nil {
+		t.Fatal("Execute() expected an error, got nil")
+	}
+	if !strings.Contains(err.Error(), "clipboard is empty; copy an answer and try again") {
+		t.Fatalf("error = %v", err)
 	}
 }
 
