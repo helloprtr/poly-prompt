@@ -191,7 +191,20 @@ go build ./cmd/prtr
 
 ## Quick post-install smoke test
 
-Run guided setup:
+Run the beginner-first entry:
+
+```bash
+prtr start
+```
+
+`start` guides the first-run flow:
+
+- prompts for minimal onboarding settings when needed
+- runs `prtr doctor`
+- asks for a first request if you do not pass one
+- sends that first request through the same path as `prtr go`
+
+If you want the full advanced defaults flow later:
 
 ```bash
 prtr setup
@@ -218,7 +231,7 @@ $env:DEEPL_API_KEY="your-deepl-key"
 Then run:
 
 ```bash
-prtr "이 코드 리뷰해줘"
+prtr start "이 코드 리뷰해줘"
 prtr go "이 에러 원인 분석해줘"
 prtr go review "이 PR에서 위험한 부분만 짚어줘" --dry-run
 ```
