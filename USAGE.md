@@ -88,6 +88,25 @@ prtr doctor --fix
 
 `--fix` applies safe automatic fixes when possible, such as creating or resetting the user config, then prints fallback suggestions for anything it cannot repair automatically.
 
+## 1.5 Shared repo guidance: `prtr sync`
+
+Use `.prtr/guide.md`, `.prtr/termbook.toml`, and `.prtr/memory.toml` as canonical repo guidance, then sync them into vendor-facing files:
+
+```bash
+prtr sync init
+prtr sync status
+prtr sync --dry-run
+prtr sync --write claude,codex
+```
+
+`sync` renders:
+
+- `CLAUDE.md`
+- `GEMINI.md`
+- `AGENTS.md`
+
+`go` now also uses routing metadata and repo memory when available, so mode defaults, protected terms, and stable project guidance can influence the final prompt without rewriting the request manually.
+
 ## 2. The fastest path after start: `prtr go`
 
 Send a request in your own language:

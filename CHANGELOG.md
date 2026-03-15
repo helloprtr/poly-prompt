@@ -2,6 +2,18 @@
 
 All notable product-facing changes to `prtr` are documented in this file.
 
+## v0.4.3 - 2026-03-15
+
+### Highlights
+
+- Added `prtr sync init`, `prtr sync status`, and `prtr sync`.
+- Introduced repo memory loading from `.prtr/memory.toml`.
+- Added deterministic mode-aware routing metadata and richer history fields.
+
+### Why This Release Matters
+
+`v0.4.3` gives `prtr` a shared repo-native guidance layer. Instead of relying only on ad hoc prompts, you can now maintain canonical guidance under `.prtr/` and sync it into vendor-facing files for Claude, Gemini, and Codex.
+
 ## v0.4.2 - 2026-03-15
 
 ### Highlights
