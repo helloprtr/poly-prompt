@@ -44,7 +44,7 @@ const demos = [
     description: "Onboard the baseline, verify delivery capabilities, and confirm the first-run environment before trusting the loop.",
     note: "This is the activation layer: `start` gets the first send moving and `doctor` confirms the handoff path is ready.",
     image: `${basePath}media/prtr-setup-doctor.gif`,
-    alt: "Animated demonstration of prtr setup and doctor commands",
+    alt: "Animated demonstration of prtr start, setup, and doctor onboarding",
   },
   {
     title: "Routing and history",
@@ -298,7 +298,7 @@ prtr inspect --json "show the route"</code></pre>
         <p class="eyebrow">Start here</p>
         <h2>Set it up once, then keep the loop moving</h2>
         <p>
-          Start with setup and doctor, send your first request with `go`, and keep the same thread of work
+          Start with `prtr start`, use `setup` only when you want the full advanced defaults flow, then keep the same thread of work
           alive through `swap`, `take`, `again`, `learn`, and `inspect`.
         </p>
       </div>
@@ -312,8 +312,7 @@ prtr inspect --json "show the route"</code></pre>
         <div class="panel-body">
           <pre><code>brew tap helloprtr/homebrew-tap
 brew install prtr
-prtr setup
-prtr doctor
+prtr start
 prtr go "이 함수 왜 느린지 설명해줘"</code></pre>
         </div>
       </div>
