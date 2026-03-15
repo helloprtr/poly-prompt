@@ -1,0 +1,371 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+const basePath = import.meta.env.BASE_URL.endsWith("/")
+  ? import.meta.env.BASE_URL
+  : `${import.meta.env.BASE_URL}/`;
+
+const guides = [
+  {
+    eyebrow: "Start here",
+    title: "Installation guide",
+    text: "Platform-specific install and update steps for macOS, Linux, and Windows.",
+    href: "https://github.com/helloprtr/poly-prompt/blob/main/INSTALLATION.md",
+    linkLabel: "Read INSTALLATION.md",
+    keywords: ["install", "setup", "brew", "windows", "linux", "macos"],
+  },
+  {
+    eyebrow: "Daily use",
+    title: "Usage guide",
+    text: "Day-to-day commands, examples, and the main loop surface around go, swap, take, again, learn, and inspect.",
+    href: "https://github.com/helloprtr/poly-prompt/blob/main/USAGE.md",
+    linkLabel: "Read USAGE.md",
+    keywords: ["usage", "commands", "go", "swap", "take", "again", "learn", "inspect"],
+  },
+  {
+    eyebrow: "Product framing",
+    title: "README",
+    text: "The main product story, current boundaries, and the fastest path from setup to the first useful send.",
+    href: "https://github.com/helloprtr/poly-prompt#readme",
+    linkLabel: "Open README",
+    keywords: ["readme", "overview", "status", "available", "planned", "quick start", "next action"],
+  },
+  {
+    eyebrow: "Strategy",
+    title: "PRD v1",
+    text: "Product definition, goals, requirements, and release gates for the next-action command layer roadmap.",
+    href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/PRD_V1.md",
+    linkLabel: "Read PRD_V1.md",
+    keywords: ["prd", "strategy", "requirements", "doctor", "sync", "exec", "server", "fanout"],
+  },
+  {
+    eyebrow: "Strategy",
+    title: "90-day backlog",
+    text: "Sprint-by-sprint priorities from activation through continuity and automation readiness.",
+    href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/BACKLOG_90_DAYS.md",
+    linkLabel: "Read BACKLOG_90_DAYS.md",
+    keywords: ["backlog", "sprints", "roadmap", "start", "doctor", "sync", "fanout", "collect"],
+  },
+];
+
+const references = [
+  {
+    title: "Router guide",
+    text: "Background reference for the older multilingual prompt router framing, troubleshooting, and routing internals.",
+    href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/MULTILINGUAL_PROMPT_ROUTER_GUIDE.md",
+    keywords: ["router", "translation", "doctor", "target", "role", "template", "history", "paste", "troubleshooting"],
+  },
+  {
+    title: "Demo script",
+    text: "Narrative and commands used to explain the earlier multilingual routing flow in demos and GIF captures.",
+    href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/MULTILINGUAL_PROMPT_ROUTER_DEMO_SCRIPT.md",
+    keywords: ["demo", "script", "gif", "presentation", "routing"],
+  },
+  {
+    title: "Changelog",
+    text: "Release-by-release product story from identity to repeatable workflow.",
+    href: "https://github.com/helloprtr/poly-prompt/blob/main/CHANGELOG.md",
+    keywords: ["changelog", "release", "timeline", "versions"],
+  },
+  {
+    title: "Releases",
+    text: "Installable binaries and tagged release history on GitHub.",
+    href: "https://github.com/helloprtr/poly-prompt/releases",
+    keywords: ["releases", "download", "binaries", "versions"],
+  },
+  {
+    title: "Source",
+    text: "Browse the repository directly when you want implementation detail or current project status.",
+    href: "https://github.com/helloprtr/poly-prompt",
+    keywords: ["source", "repo", "github", "code"],
+  },
+];
+
+const coreLoop = [
+  "go sends the first request fast.",
+  "swap compares another app without rebuilding context.",
+  "take turns copied output into the next action.",
+  "again replays the recent flow.",
+  "learn stabilizes project vocabulary.",
+  "inspect reveals how the route was composed.",
+];
+
+const finderItems = [
+  ...guides.map((guide) => ({
+    section: "Guide",
+    title: guide.title,
+    text: guide.text,
+    href: guide.href,
+    linkLabel: guide.linkLabel,
+    keywords: guide.keywords.join(" "),
+  })),
+  ...references.map((reference) => ({
+    section: "Reference",
+    title: reference.title,
+    text: reference.text,
+    href: reference.href,
+    linkLabel: `Open ${reference.title.toLowerCase()}`,
+    keywords: reference.keywords.join(" "),
+  })),
+];
+
+const quickQueries = [
+  "install",
+  "go",
+  "next action",
+  "doctor",
+  "sync",
+  "exec",
+  "fanout",
+  "router",
+  "releases",
+];
+
+const navSections = [
+  { id: "finder", label: "Finder" },
+  { id: "guides", label: "Guides" },
+  { id: "media", label: "Media" },
+  { id: "references", label: "References" },
+];
+---
+
+<BaseLayout
+  title="Docs Hub"
+  description="Documentation hub for prtr installation, usage, strategy docs, background router references, and release history."
+>
+  <main class="page-shell">
+    <header class="topbar">
+      <a class="brand" href={`${basePath}`} aria-label="prtr home">
+        <span class="brand-mark">prtr</span>
+        <span class="brand-copy">docs hub</span>
+      </a>
+      <nav class="topnav" aria-label="Primary">
+        <a href={`${basePath}`}>Home</a>
+        <a href="#guides">Guides</a>
+        <a href="#references">References</a>
+        <a href="https://github.com/helloprtr/poly-prompt">GitHub</a>
+      </nav>
+    </header>
+
+    <section class="hero hero-docs">
+      <div class="hero-copy">
+        <p class="eyebrow">Docs for the next-action command layer.</p>
+        <h1>Everything around the loop, in one place.</h1>
+        <p class="hero-text">
+          Use this page as the documentation front door when you need install steps, daily command guides,
+          strategy docs, and background routing references in one place.
+        </p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="https://github.com/helloprtr/poly-prompt/blob/main/INSTALLATION.md">Install guide</a>
+          <a class="button button-secondary" href="https://github.com/helloprtr/poly-prompt/blob/main/USAGE.md">Usage guide</a>
+          <a class="button button-tertiary" href="https://github.com/helloprtr/poly-prompt/blob/main/docs/PRD_V1.md">PRD</a>
+          <a class="button button-ghost" href={`${basePath}`}>Back to home</a>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-dot"></span>
+          <span class="panel-dot"></span>
+          <span class="panel-dot"></span>
+          <span class="panel-title">docs-map.md</span>
+        </div>
+        <div class="panel-body">
+          <p class="panel-caption">From setup to first send to the next action.</p>
+          <ul class="doc-bullets">
+            {coreLoop.map((item) => (
+              <li>{item}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-tight">
+      <div class="dock-shell">
+        <nav class="dock-links" aria-label="Docs categories">
+          {navSections.map((section) => (
+            <a class="dock-link" href={`#${section.id}`}>{section.label}</a>
+          ))}
+        </nav>
+        <div class="dock-tags" aria-label="Search tags">
+          {quickQueries.map((query) => (
+            <button class="finder-chip dock-chip" type="button" data-query={query}>
+              {query}
+            </button>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="finder">
+      <div class="section-heading">
+        <p class="eyebrow">Quick finder</p>
+        <h2>Search the docs hub by task, command, or workflow word</h2>
+        <p>
+          Type what you are trying to do, or use a quick query. The cards below filter instantly so the
+          docs hub feels closer to a command palette than a static link list.
+        </p>
+      </div>
+
+      <div class="finder-shell">
+        <label class="finder-label" for="docs-search">Search docs</label>
+        <input
+          id="docs-search"
+          class="finder-input"
+          type="search"
+          placeholder="Try install, next action, doctor, sync, exec, fanout..."
+        />
+        <p class="finder-note">Shared links preserve the current search in the `?q=` URL query.</p>
+        <div class="finder-chips" aria-label="Quick queries">
+          {quickQueries.map((query) => (
+            <button class="finder-chip" type="button" data-query={query}>
+              {query}
+            </button>
+          ))}
+        </div>
+
+        <div class="docs-grid finder-grid" id="finder-results">
+          {finderItems.map((item) => (
+            <article
+              class="doc-card finder-card"
+              data-search={`${item.section} ${item.title} ${item.text} ${item.keywords}`.toLowerCase()}
+            >
+              <p class="eyebrow">{item.section}</p>
+              <h3>{item.title}</h3>
+              <p>{item.text}</p>
+              <a class="doc-link" href={item.href}>{item.linkLabel}</a>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="guides">
+      <div class="section-heading">
+        <p class="eyebrow">Guides</p>
+        <h2>Start, learn, and plan without digging</h2>
+        <p>
+          These are the documents most people need first when moving from evaluation into regular use.
+        </p>
+      </div>
+
+      <div class="docs-grid">
+        {guides.map((guide) => (
+          <article class="doc-card">
+            <p class="eyebrow">{guide.eyebrow}</p>
+            <h3>{guide.title}</h3>
+            <p>{guide.text}</p>
+            <a class="doc-link" href={guide.href}>{guide.linkLabel}</a>
+          </article>
+        ))}
+      </div>
+    </section>
+
+    <section class="section two-column" id="media">
+      <div class="section-heading">
+        <p class="eyebrow">Media and proof</p>
+        <h2>The same GIF evidence, now linked from the docs side too</h2>
+        <p>
+          The landing page sells the workflow. The docs hub helps users verify that the workflow is grounded
+          in visible setup, history, and delivery behavior, while strategy docs explain what comes next.
+        </p>
+      </div>
+
+      <div class="routing-list">
+        <article class="routing-card">
+          <h3>Setup plus doctor</h3>
+          <p>First-run config and diagnostic confidence before the tool enters daily use.</p>
+        </article>
+        <article class="routing-card">
+          <h3>History plus continuity</h3>
+          <p>Recent-run reuse keeps the next action close instead of forcing invisible one-shot prompting every time.</p>
+        </article>
+        <article class="routing-card">
+          <h3>Delivery plus paste</h3>
+          <p>The current `open-copy` handoff stays visible, while `exec` and `server` remain clearly marked as roadmap work.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="references">
+      <div class="section-heading">
+        <p class="eyebrow">Background and references</p>
+        <h2>Legacy router docs and repository links worth keeping close</h2>
+        <p>
+          These links keep the older router framing available without making it the front door of the product.
+        </p>
+      </div>
+
+      <div class="docs-grid docs-grid-compact">
+        {references.map((reference) => (
+          <article class="doc-card">
+            <h3>{reference.title}</h3>
+            <p>{reference.text}</p>
+            <a class="doc-link" href={reference.href}>Open {reference.title.toLowerCase()}</a>
+          </article>
+        ))}
+      </div>
+    </section>
+  </main>
+
+  <script is:inline>
+    const input = document.querySelector("#docs-search");
+    const cards = Array.from(document.querySelectorAll(".finder-card"));
+    const chips = Array.from(document.querySelectorAll(".finder-chip"));
+    const queryParam = "q";
+
+    const syncUrl = (query) => {
+      const url = new URL(window.location.href);
+
+      if (query) {
+        url.searchParams.set(queryParam, query);
+      } else {
+        url.searchParams.delete(queryParam);
+      }
+
+      window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+    };
+
+    const applyQuery = (rawValue, options = {}) => {
+      const { sync = true } = options;
+      const query = rawValue.trim().toLowerCase();
+
+      cards.forEach((card) => {
+        const haystack = card.dataset.search || "";
+        const visible = !query || haystack.includes(query);
+        card.toggleAttribute("hidden", !visible);
+      });
+
+      chips.forEach((chip) => {
+        const active = chip.dataset.query === query;
+        chip.dataset.active = active ? "true" : "false";
+      });
+
+      if (sync) {
+        syncUrl(query);
+      }
+    };
+
+    input?.addEventListener("input", (event) => {
+      applyQuery(event.currentTarget.value);
+    });
+
+    chips.forEach((chip) => {
+      chip.addEventListener("click", () => {
+        if (!input) return;
+        input.value = chip.dataset.query || "";
+        applyQuery(input.value);
+        input.focus();
+      });
+    });
+
+    const initialQuery = new URL(window.location.href).searchParams.get(queryParam) || "";
+
+    if (input) {
+      input.value = initialQuery;
+    }
+
+    applyQuery(initialQuery, { sync: false });
+  </script>
+</BaseLayout>

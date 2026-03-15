@@ -118,6 +118,22 @@ prtr platform --json
 
 This prints the current surface label plus clipboard, launcher, paste, and submit readiness using the same matrix logic as `prtr doctor`.
 
+## 1.7 Headless and server surfaces
+
+Use `exec` when you want the same prompt pipeline without open-copy delivery:
+
+```bash
+prtr exec fix "Find the real reason this is failing."
+prtr exec review "Summarize the risky parts only." --to claude --json
+```
+
+Use `server` when you want a long-running HTTP surface for orchestration:
+
+```bash
+prtr server
+prtr server --addr 127.0.0.1:8787
+```
+
 ## 2. The fastest path after start: `prtr go`
 
 Send a request in your own language:

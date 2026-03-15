@@ -1,0 +1,322 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+const basePath = import.meta.env.BASE_URL.endsWith("/")
+  ? import.meta.env.BASE_URL
+  : `${import.meta.env.BASE_URL}/`;
+
+const loopSteps = [
+  {
+    command: "go",
+    summary: "Send the first request fast.",
+    detail: "Start from intent, choose the right mode, send it fast, and keep the recent run close so the next step costs less.",
+  },
+  {
+    command: "swap",
+    summary: "Compare another app without losing the thread.",
+    detail: "Reuse the same request and mode across Claude, Codex, or Gemini without rebuilding the context by hand.",
+  },
+  {
+    command: "take",
+    summary: "Turn the first answer into the next action.",
+    detail: "Use copied output as the seed for a patch, test, summary, issue, or plan prompt instead of stalling after analysis.",
+  },
+  {
+    command: "again",
+    summary: "Replay the recent flow with control.",
+    detail: "Bring back the latest run with the same app and mode, then optionally edit before delivery when you want a careful repeat loop.",
+  },
+  {
+    command: "learn",
+    summary: "Keep project vocabulary stable.",
+    detail: "Build a repo-local termbook so names, flags, and domain language survive translation and future follow-up runs.",
+  },
+  {
+    command: "inspect",
+    summary: "Open the expert path.",
+    detail: "Inspect the raw composition layer when you want to see how mode, translation, templates, and delivery were resolved.",
+  },
+];
+
+const demos = [
+  {
+    title: "Start and doctor",
+    description: "Onboard the baseline, verify delivery capabilities, and confirm the first-run environment before trusting the loop.",
+    note: "This is the activation layer: `start` gets the first send moving and `doctor` confirms the handoff path is ready.",
+    image: `${basePath}media/prtr-setup-doctor.gif`,
+    alt: "Animated demonstration of prtr setup and doctor commands",
+  },
+  {
+    title: "Routing and history",
+    description: "Send multilingual prompts, keep routing decisions visible, and reuse recent work without losing the original intent.",
+    note: "This is the continuity layer: app-aware routing and recent history make the next move cheaper than the first one.",
+    image: `${basePath}media/prtr-routing-history.gif`,
+    alt: "Animated demonstration of multilingual routing and history commands",
+  },
+  {
+    title: "Delivery and paste",
+    description: "Launch the target app, copy the final prompt, and hand it off with as little friction as possible.",
+    note: "This is the current delivery layer: `open-copy` stays visible for beginners, `exec` handles headless runs, and `server` remains alpha.",
+    image: `${basePath}media/prtr-delivery-paste.gif`,
+    alt: "Animated demonstration of prtr delivery and paste flow",
+  },
+];
+
+const timeline = [
+  {
+    version: "v0.1.x",
+    title: "Identity",
+    body: "prtr became the public name and the product got a clearer shape worth building around.",
+  },
+  {
+    version: "v0.2.x",
+    title: "Delivery foundation",
+    body: "Interactive editing, prompt shaping, and cross-platform delivery support made the first handoff practical.",
+  },
+  {
+    version: "v0.3.x",
+    title: "Repeatable loop",
+    body: "Setup, history, take, repo context, and learn moved prtr from one-shot prompting toward a reusable working loop.",
+  },
+  {
+    version: "v0.4.0",
+    title: "Mode-first surface",
+    body: "The command tree made the public surface easier to explain as a command layer instead of a bag of prompt utilities.",
+  },
+  {
+    version: "vNext",
+    title: "Next-action layer",
+    body: "The roadmap now centers on `fanout`, `collect`, and deeper orchestration on top of the shipped `start`, `sync`, `doctor --fix`, and `exec` surface.",
+  },
+];
+
+const routingPoints = [
+  {
+    label: "Mode before app",
+    text: "The first question is what kind of help you want. App choice matters, but the product starts from `ask`, `review`, `fix`, or `design`.",
+  },
+  {
+    label: "Next action over prompt polish",
+    text: "The point is not just getting one nice answer. The loop is built so the next move is obvious and cheap after the first response lands.",
+  },
+  {
+    label: "Honest delivery boundaries",
+    text: "Today `open-copy` is the shipped default fallback, `exec` is available, and `server` is alpha. The site stays explicit about what is real now.",
+  },
+];
+---
+
+<BaseLayout
+  title="Next-Action Command Layer"
+  description="prtr is a mode-first command layer for Claude, Gemini, and Codex that helps people turn intent into the next useful AI action."
+>
+  <main class="page-shell">
+    <header class="topbar">
+      <a class="brand" href="https://github.com/helloprtr/poly-prompt" aria-label="prtr on GitHub">
+        <span class="brand-mark">prtr</span>
+        <span class="brand-copy">poly-prompt</span>
+      </a>
+      <nav class="topnav" aria-label="Primary">
+        <a href="#loop">Core loop</a>
+        <a href="#demos">GIF demos</a>
+        <a href={`${basePath}docs/`}>Docs</a>
+        <a href="#timeline">Timeline</a>
+      </nav>
+    </header>
+
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">A beginner-first command layer for real AI work.</p>
+        <h1>Write in your language. Ship the next action.</h1>
+        <p class="hero-text">
+          prtr helps people turn intent into the next useful action across Claude, Gemini, and Codex. Start
+          with `prtr start`, move through a mode-first loop, and keep the follow-up moving with `swap`,
+          `take`, `again`, `learn`, and `inspect`.
+        </p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="https://github.com/helloprtr/poly-prompt#quick-start">Start with prtr start</a>
+          <a class="button button-secondary" href={`${basePath}docs/`}>Open docs hub</a>
+          <a class="button button-tertiary" href="https://github.com/helloprtr/poly-prompt/blob/main/docs/PRD_V1.md">Read the PRD</a>
+          <a class="button button-ghost" href="https://github.com/helloprtr/poly-prompt/releases">See releases</a>
+        </div>
+        <ul class="signal-strip" aria-label="Product signals">
+          <li>Mode-first command vocabulary</li>
+          <li>Start and exec available now</li>
+          <li>Loop continuity built in</li>
+        </ul>
+      </div>
+
+      <div class="hero-console">
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-dot"></span>
+            <span class="panel-dot"></span>
+            <span class="panel-dot"></span>
+            <span class="panel-title">repeatable-work-loop.sh</span>
+          </div>
+          <div class="panel-body">
+            <p class="panel-caption">From intent to app choice to next action.</p>
+            <pre><code>npm test 2&gt;&amp;1 | prtr go fix "왜 깨지는지 정확한 원인만 찾아줘"
+prtr swap gemini
+prtr take patch
+prtr again --edit
+prtr learn
+prtr inspect --json "show the route"</code></pre>
+          </div>
+        </div>
+
+        <div class="mini-grid" aria-hidden="true">
+          <div class="mini-card">
+            <strong>Mode</strong>
+            <span>ask + review + fix + design</span>
+          </div>
+          <div class="mini-card">
+            <strong>Loop</strong>
+            <span>swap + take + again</span>
+          </div>
+          <div class="mini-card">
+            <strong>Delivery</strong>
+            <span>open-copy + exec now</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="loop">
+      <div class="section-heading">
+        <p class="eyebrow">Core loop</p>
+        <h2>Six commands that make the next step cheaper</h2>
+        <p>
+          The first request matters, but the second and third steps are where the real cost usually appears.
+          prtr keeps intent, context, and vocabulary moving forward without sending you back to prompt glue.
+        </p>
+      </div>
+
+      <div class="loop-grid">
+        {loopSteps.map((step) => (
+          <article class="loop-card">
+            <p class="command-tag">prtr {step.command}</p>
+            <h3>{step.summary}</h3>
+            <p>{step.detail}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+
+    <section class="section" id="demos">
+      <div class="section-heading">
+        <p class="eyebrow">See it work</p>
+        <h2>Three GIFs that show the product proof</h2>
+        <p>
+          These flows stay close to the actual product boundaries: configure once, send fast, and keep the
+          next action moving through the current visible delivery path.
+        </p>
+      </div>
+
+      <div class="demo-stack">
+        {demos.map((demo) => (
+          <article class="demo-card">
+            <figure class="demo-figure">
+              <img src={demo.image} alt={demo.alt} loading="lazy" />
+            </figure>
+            <div class="demo-copy">
+              <p class="eyebrow">{demo.title}</p>
+              <h3>{demo.description}</h3>
+              <p>{demo.note}</p>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+
+    <section class="section two-column">
+      <div class="section-heading">
+        <p class="eyebrow">Product principles</p>
+        <h2>More than prompt routing, less than an agent runtime</h2>
+        <p>
+          prtr is intentionally narrow. It should reduce friction, preserve continuity, and stay honest
+          about what is and is not automated in the current release.
+        </p>
+      </div>
+
+      <div class="routing-list">
+        {routingPoints.map((point) => (
+          <article class="routing-card">
+            <h3>{point.label}</h3>
+            <p>{point.text}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+
+    <section class="section" id="timeline">
+      <div class="section-heading">
+        <p class="eyebrow">Version story</p>
+        <h2>The product kept moving toward a next-action layer</h2>
+        <p>
+          The product did not grow as a bag of unrelated commands. Each release moved prtr away from one-off
+          prompting and closer to a stable command layer for repeatable work.
+        </p>
+      </div>
+
+      <div class="timeline">
+        {timeline.map((item) => (
+          <article class="timeline-item">
+            <p class="timeline-version">{item.version}</p>
+            <h3>{item.title}</h3>
+            <p>{item.body}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+
+    <section class="section docs-bridge">
+      <div class="section-heading">
+        <p class="eyebrow">Docs hub</p>
+        <h2>Keep the landing page fast, move deeper in one click</h2>
+        <p>
+          The project site separates launch messaging from operator docs. Use the docs hub for install,
+          usage, PRD, backlog, and the older router references without digging through the repo.
+        </p>
+      </div>
+
+      <div class="bridge-card">
+        <div>
+          <p class="eyebrow">Included in /docs</p>
+          <h3>Quick start, usage, strategy docs, router guide, and release references</h3>
+          <p>
+            The homepage stays focused on product proof while the docs page acts as the operator-facing entry
+            point for both current workflow docs and background references.
+          </p>
+        </div>
+        <a class="button button-primary" href={`${basePath}docs/`}>Go to docs</a>
+      </div>
+    </section>
+
+    <section class="section cta-panel">
+      <div class="cta-copy">
+        <p class="eyebrow">Start here</p>
+        <h2>Set it up once, then keep the loop moving</h2>
+        <p>
+          Start with setup and doctor, send your first request with `go`, and keep the same thread of work
+          alive through `swap`, `take`, `again`, `learn`, and `inspect`.
+        </p>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-dot"></span>
+          <span class="panel-dot"></span>
+          <span class="panel-dot"></span>
+          <span class="panel-title">quick-start.sh</span>
+        </div>
+        <div class="panel-body">
+          <pre><code>brew tap helloprtr/homebrew-tap
+brew install prtr
+prtr setup
+prtr doctor
+prtr go "이 함수 왜 느린지 설명해줘"</code></pre>
+        </div>
+      </div>
+    </section>
+  </main>
+</BaseLayout>

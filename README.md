@@ -1,86 +1,116 @@
 # poly-prompt
 
-**Think in your language. Send the right prompt to the right AI app in one command.**
+[![Project Site](https://img.shields.io/badge/project%20site-live-ff7a1a?style=flat-square)](https://helloprtr.github.io/poly-prompt/)
+[![Docs Hub](https://img.shields.io/badge/docs-pages-58f2c5?style=flat-square)](https://helloprtr.github.io/poly-prompt/docs/)
 
-`prtr` is a cross-platform CLI that turns your request into a ready-to-send prompt for Claude, Codex, or Gemini.
+**Write in your language. Ship the next action.**
 
-Write in Korean, Japanese, German, or any language you want. `prtr` translates your request to English, adds useful context from your logs or repo, opens your AI app, and pastes the final prompt.
+`prtr` is the beginner-first AI command layer that turns user intent into the next action for Claude, Codex, or Gemini.
+
+Project site: [helloprtr.github.io/poly-prompt](https://helloprtr.github.io/poly-prompt/)
 
 ![prtr banner](images/prtr-banner.png)
 
+## Why prtr
+
+Most beginners do not get stuck because they cannot write a perfect prompt.
+
+They get stuck because:
+
+- they do not know which app to use
+- they do not know whether to start with `review`, `fix`, `design`, or a plain `ask`
+- they get one answer, then fail to turn it into the next action
+- launch, paste, trust, and settings failures are hard to recover from
+
+`prtr` is built to remove that friction.
+
+It is not a prompt-polishing toy.
+It is the command layer between what you mean and what you should do next.
+
+## Status
+
+### Available
+
+- `start`
+- `go`
+- `swap`
+- `take`
+- `again`
+- `learn`
+- `inspect`
+- `sync`
+- `doctor --fix`
+- `platform`
+- `exec`
+- repo-local termbook generation and memory support
+- `open-copy` delivery
+
+### Planned
+
+- `fanout`
+- `collect`
+
+### Alpha
+
+- `server`
+
+### Current boundaries
+
+- history is local-only
+- full auto submit is not supported
+- `--submit confirm` is still macOS-only
+
+## 30-Second Example
+
 ```bash
-npm test 2>&1 | prtr go fix "왜 깨지는지 정확한 원인만 찾아줘"
-```
-
-In one command, `prtr` will:
-
-- treat your Korean text as the request
-- treat the piped test output as evidence
-- translate the request to English
-- add lightweight repo context when available
-- open your AI app
-- paste the final prompt
-- save the run so you can keep moving
-
-Then keep going:
-
-```bash
-prtr swap gemini
+prtr go review "Point out only the risky parts of this PR."
+prtr swap codex
 prtr take patch
-prtr learn
 prtr again --edit
-prtr inspect --json "방금 흐름이 어떻게 조합됐는지 보여줘"
 ```
 
-From intent to answer to next action.
+You can also pipe evidence directly:
 
-## Why people keep using it
+```bash
+npm test 2>&1 | prtr go fix "Find the real reason this is failing."
+```
 
-- No copy-paste prompt babysitting
-- No rewriting Korean thoughts into awkward English
-- No rebuilding the same context for every app
-- No tab juggling between logs, repo, and AI tools
+## Core Concepts
 
-`prtr` is the command layer between what you mean and what your AI app needs.
+**app**
+Choose where to send the request.
+`claude`, `gemini`, `codex`
 
-## The surface
+**mode**
+Choose what kind of help you want before you think about prompt wording.
+`ask`, `review`, `fix`, `design`
 
-The beginner surface is intentionally small:
+**delivery**
+Choose how the action gets executed.
+`open-copy`, `exec`, `server`
 
-- `app`: where to send it: `claude`, `codex`, `gemini`
-- `mode`: what kind of help you want: `ask`, `review`, `fix`, `design`
-- `recipe`: the reusable defaults behind the scenes
-
-The config and advanced internals still use the existing names `target`, `template_preset`, `role`, and `profile`. The product surface is now organized around `app`, `mode`, and repeat loops.
-
-The repeat loop is the real product surface:
-
-- `go`: send the first prompt fast
-- `swap`: compare another app without rebuilding context
-- `take`: turn an answer into the next action
-- `learn`: keep project terms stable across future runs
-- `inspect`: open the expert path when you want the raw details
+**loop**
+Do not stop at the first answer.
+`go -> swap -> take -> again -> learn`
 
 ## Quick Start
 
+Install details live in [INSTALLATION.md](INSTALLATION.md).
+Daily command examples live in [USAGE.md](USAGE.md).
+Product direction lives in [docs/PRD_V1.md](docs/PRD_V1.md) and [docs/BACKLOG_90_DAYS.md](docs/BACKLOG_90_DAYS.md).
+
 ### Install
 
-Detailed OS-specific install and update steps are in [INSTALLATION.md](INSTALLATION.md).
-Detailed day-to-day command examples are in [USAGE.md](USAGE.md).
-
-#### Homebrew (macOS)
+#### Homebrew
 
 ```bash
 brew tap helloprtr/homebrew-tap
 brew install prtr
 ```
 
-#### GitHub Releases (Linux and Windows)
+#### GitHub Releases
 
-Download the archive that matches your platform from the [releases page](https://github.com/helloprtr/poly-prompt/releases).
-
-- Linux: `prtr_<version>_linux_amd64.tar.gz` or `prtr_<version>_linux_arm64.tar.gz`
-- Windows: `prtr_<version>_windows_amd64.zip` or `prtr_<version>_windows_arm64.zip`
+Download the archive for your platform from the [releases page](https://github.com/helloprtr/poly-prompt/releases).
 
 #### Build from source
 
@@ -93,106 +123,28 @@ go build ./cmd/prtr
 ### First run
 
 ```bash
-prtr version
-prtr setup
-prtr doctor
+prtr start
 ```
 
-`setup` stores your DeepL API key and default language/app settings.
+If you want the older full configuration wizard, `prtr setup` still exists as the advanced compatibility path.
 
-## Start here
+## Recommended Start Flow
 
-### Hero examples
+### 1. Just send it
 
 ```bash
-prtr go "이 함수 왜 느린지 설명해줘"
-prtr go review "이 PR에서 위험한 부분만 짚어줘"
-npm test 2>&1 | prtr go fix "왜 깨지는지 정확한 원인만 찾아줘"
+prtr go "Explain why this function is slow."
 ```
 
-### 1. Translate and copy
+### 2. Pick a mode first
 
 ```bash
-prtr "이 에러 원인 분석해줘"
+prtr go review "Point out only the risky parts of this PR."
+prtr go fix "Find the real reason these tests are failing."
+prtr go design "Design the structure for this feature."
 ```
 
-This uses your defaults, renders the final prompt, prints it to `stdout`, and copies it to the clipboard.
-
-### 2. Send it now
-
-```bash
-prtr go "이 에러 원인 분석해줘"
-```
-
-`go` is the fast path:
-
-1. resolves the prompt text
-2. picks the app from `--to`, your latest run, or your default app
-3. picks the mode from the command or falls back to `ask`
-4. translates with DeepL when needed
-5. copies the final prompt
-6. opens the target CLI
-7. pastes into the active terminal session
-8. saves the run to local history
-
-`go` prints a one-line status summary to `stderr`, for example:
-
-```text
--> fix | codex | prompt+stdin | launch+paste | ko->en
-```
-
-### 3. Change the mode
-
-```bash
-prtr go review "이 PR 위험한 부분만 짚어줘"
-prtr go fix "왜 테스트가 깨지는지 진짜 원인만 찾아줘"
-prtr go design "이 기능 구조 설계해줘"
-```
-
-Available modes:
-
-- `ask`
-- `review`
-- `fix`
-- `design`
-
-### 4. Change the app
-
-```bash
-prtr go "이 구조 문제점 봐줘" --to claude
-prtr go fix "왜 테스트가 깨지는지 봐줘" --to codex
-prtr go review "이 설계 위험도 평가해줘" --to gemini
-```
-
-### 5. Pipe evidence directly
-
-If you provide both prompt text and piped `stdin`, `prtr go` treats `stdin` as evidence and appends it to the prompt.
-
-```bash
-npm test 2>&1 | prtr go fix "왜 깨지는지 진짜 원인만 찾아줘"
-pytest -q 2>&1 | prtr go review "실패 원인과 리스크만 정리해줘"
-```
-
-If you pipe without prompt text, the piped content becomes the prompt itself.
-
-If you run `go` inside a Git repo, `prtr` also adds lightweight repo context such as the repo name, current branch, and changed files. Use `--no-context` if you want to skip both repo context and piped evidence.
-
-## The loop
-
-The sticky part of `prtr` is not just sending once. It is making the next action cheaper.
-
-### `prtr again`
-
-Replay the latest run with the same mode and app.
-
-```bash
-prtr again
-prtr again --edit
-```
-
-### `prtr swap`
-
-Take the latest run and resend it to another app.
+### 3. Compare another app quickly
 
 ```bash
 prtr swap claude
@@ -200,151 +152,103 @@ prtr swap gemini
 prtr swap codex
 ```
 
-When you swap apps, `prtr` keeps the core prompt but re-resolves the prompt shape for the destination app instead of blindly reusing the old app's template.
-
-### `prtr take`
-
-Turn copied AI output into the next prompt without manually rewriting it.
+### 4. Turn the first answer into the next action
 
 ```bash
 prtr take patch
-prtr take test --to codex
-prtr take commit --dry-run
-prtr take summary --edit
+prtr take test
+prtr take commit
+prtr take summary
+prtr take issue
+prtr take plan
 ```
 
-`take` reads from your clipboard, builds a new English prompt for the selected action, then routes it through the same target-aware delivery flow.
-
-### `prtr learn`
-
-Teach `prtr` the project terms that should survive translation.
+### 5. Keep project terms stable
 
 ```bash
 prtr learn
 prtr learn README.md docs
-prtr learn --dry-run
-prtr learn --reset
 ```
 
-`learn` builds a repo-local `.prtr/termbook.toml` from README, docs, and code identifiers, then `go` uses those protected terms to avoid translating project names away.
+## The Working Surface
 
-## The only flags most people need
+The beginner surface is intentionally small:
 
-The first-screen send surface for `go`, `again`, `swap`, and `take` is intentionally small:
+- `app`: `claude`, `gemini`, `codex`
+- `mode`: `ask`, `review`, `fix`, `design`
+- `delivery`: start with `open-copy`
 
-- `--to <app>`: choose `claude`, `codex`, or `gemini`
-- `--edit`: review and edit the final prompt before delivery
-- `--dry-run`: preview only; do not launch or paste
-- `--no-context`: ignore piped `stdin` evidence when prompt text is already present
+The working loop is the real product surface:
 
-`learn` has its own minimal surface:
+- `go`: send the first request fast
+- `swap`: compare another app with the same request
+- `take`: turn an answer into the next action
+- `again`: replay the recent flow
+- `learn`: protect repo vocabulary for future runs
+- `inspect`: open the expert path for raw details
 
-- `--dry-run`: preview the generated termbook
-- `--reset`: rebuild the termbook instead of merging it
+The underlying config still uses names such as `target`, `template_preset`, `role`, and `profile`, but the public product language is now organized around `app`, `mode`, `delivery`, and the repeat loop.
 
-## Inspect mode
+## Delivery Modes
 
-Advanced output still exists, but it moved behind `inspect`.
+### `open-copy` — Available
 
-```bash
-prtr inspect "이 에러 원인 분석해줘"
-prtr inspect --json "이 PR 리뷰해줘"
-prtr inspect -t codex --template codex-implement -r be "이 함수 개선해줘"
-```
+Open the destination app, copy the rendered prompt, and hand it off through the visible terminal flow.
+This is the default because it is the fastest activation path for beginners.
 
-`inspect` is preview-only:
+### `exec` — Available
 
-- no clipboard copy
-- no launch
-- no paste
-- explain and diff output by default unless you request `--json`
+Headless subprocess execution for background and script-friendly runs.
+Use it when you want the same compiled prompt pipeline without visible open-copy handoff.
 
-## Modes, recipes, and advanced config
+### `server` — Alpha
 
-Built-in mode defaults are backed by the existing shortcut system:
+Long-running sessions and orchestration-friendly delivery for SDK, MCP, and app-server style integrations.
 
-- `ask`
-- `review`
-- `fix`
-- `design`
+## Roadmap Surface
 
-You can still inspect reusable profiles and advanced templates:
+The next public surface is centered on:
 
-```bash
-prtr templates list
-prtr templates show codex-implement
+- `prtr fanout`
+- `prtr collect`
+- deeper `server` orchestration
 
-prtr profiles list
-prtr profiles show backend_review
-prtr profiles use backend_review
-```
+These commands are part of the roadmap. They are not implemented in the current public release.
 
-Think of those advanced profiles as recipes. The user-facing language is simpler, but the engine underneath is still the same reliable config system.
+## Design Principles
 
-### Config locations
+**Mode-first**
+Ask what kind of help the user wants before asking which app to use.
 
-- User config: `$XDG_CONFIG_HOME/prtr/config.toml`
-- Fallback user config: `~/.config/prtr/config.toml`
-- Project config: `.prtr.toml` found by walking up from the current working directory
+**Next-action-first**
+Optimize for what happens after the first answer, not just for the first answer itself.
 
-### Starter config
+**Human-first, script-ready**
+The CLI should be easy for a person to use and easy for scripts, CI, or other agents to call later.
 
-```toml
-deepl_api_key = ""
-translation_source_lang = "auto"
-translation_target_lang = "en"
-default_target = "claude"
-default_template_preset = "claude-structured"
+**Honest boundaries**
+Do not pretend unsupported automation already exists.
 
-[targets.claude]
-family = "claude"
-default_template_preset = "claude-structured"
-translation_target_lang = "en"
-default_delivery = "open-copy"
-
-[targets.gemini]
-family = "gemini"
-default_template_preset = "gemini-stepwise"
-translation_target_lang = "en"
-default_delivery = "open-copy"
-
-[targets.codex]
-family = "codex"
-default_template_preset = "codex-implement"
-translation_target_lang = "en"
-default_delivery = "open-copy"
-
-[shortcuts.review]
-target = "claude"
-role = "be"
-template_preset = "claude-review"
-translation_target_lang = "en"
-```
-
-## Platform support
-
-`prtr` supports launch on macOS, Linux, and Windows.
-
-`prtr` supports paste on:
-
-- macOS: `Terminal.app`
-- Linux: graphical sessions with `xdotool` on X11 or `wtype` on Wayland
-- Windows: interactive desktop sessions via PowerShell SendKeys
-
-Clipboard support is detected automatically:
-
-- macOS: `pbcopy`
-- Linux: `wl-copy`, then `xclip`, then `xsel`
-- Windows: `clip.exe`
-
-## Current boundaries
+## Current Product Boundaries
 
 - `prtr go` is optimized for fast send loops, not full prompt inspection
-- `prtr inspect` is the expert path for JSON, explain, diff, and legacy flags
-- `--submit confirm` is still macOS-only
-- full auto submit is not supported yet
+- `prtr inspect` is the expert surface for target, role, template, diff, explain, JSON, and legacy flags
+- Linux and Windows paste support still depend on platform-specific clipboard and terminal tooling
 - DeepL is currently the translation backend
-- history is local-only and capped to the most recent 200 entries
+- history is capped locally instead of synced remotely
+
+## Product Docs
+
+- [INSTALLATION.md](INSTALLATION.md)
+- [USAGE.md](USAGE.md)
+- [docs/PRD_V1.md](docs/PRD_V1.md)
+- [docs/BACKLOG_90_DAYS.md](docs/BACKLOG_90_DAYS.md)
+- [docs/MULTILINGUAL_PROMPT_ROUTER_GUIDE.md](docs/MULTILINGUAL_PROMPT_ROUTER_GUIDE.md)
+- [docs/MULTILINGUAL_PROMPT_ROUTER_DEMO_SCRIPT.md](docs/MULTILINGUAL_PROMPT_ROUTER_DEMO_SCRIPT.md)
+
+## One Sentence
+
+**prtr is the command layer that turns a beginner's intent into the next useful AI action as quickly as possible.**
 
 ## Development
 
