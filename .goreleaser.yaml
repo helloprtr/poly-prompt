@@ -34,10 +34,47 @@ archives:
 checksum:
   name_template: checksums.txt
 
+changelog:
+  use: git
+  sort: asc
+  filters:
+    exclude:
+      - "^Merge .*"
+  groups:
+    - title: Features
+      regexp: "^.*?: (Add|Adopt|Create|Expand|Teach|Turn)\\b"
+      order: 0
+    - title: Improvements
+      regexp: "^.*?: (Improve|Polish|Refine|Simplify|Stabilize|Update)\\b"
+      order: 1
+    - title: Fixes
+      regexp: "^.*?: (Fix|Resolve)\\b"
+      order: 2
+    - title: Docs
+      regexp: "^.*?: (Document|Docs|Write)\\b"
+      order: 3
+    - title: Other Changes
+      order: 999
+
 release:
   github:
     owner: helloprtr
     name: poly-prompt
+  header: |
+    ## prtr {{ .Tag }}
+
+    Think in your language. Send the right prompt to the right AI app.
+
+    ### What's Changed
+  footer: |
+
+    ### Install / Update
+
+    - macOS: `brew tap helloprtr/homebrew-tap && brew install prtr`
+    - Linux / Windows: download the archive for your platform from the GitHub Releases page
+    - Full installation guide: https://github.com/helloprtr/poly-prompt/blob/{{ .Tag }}/INSTALLATION.md
+
+    For longer product-facing release notes, see `CHANGELOG.md` in this repository.
 
 brews:
   - name: prtr
