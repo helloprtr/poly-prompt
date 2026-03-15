@@ -98,6 +98,7 @@ Do not stop at the first answer.
 Install details live in [INSTALLATION.md](INSTALLATION.md).
 Daily command examples live in [USAGE.md](USAGE.md).
 Product direction lives in [docs/PRD_V1.md](docs/PRD_V1.md) and [docs/BACKLOG_90_DAYS.md](docs/BACKLOG_90_DAYS.md).
+Release-ready PR and announcement copy lives in [docs/RELEASE_MESSAGES.md](docs/RELEASE_MESSAGES.md).
 
 ### Install
 
@@ -215,6 +216,16 @@ The next public surface is centered on:
 
 These commands are part of the roadmap. They are not implemented in the current public release.
 
+## Release Snapshots
+
+If you need short PR or announcement copy, use the full versioned set in [docs/RELEASE_MESSAGES.md](docs/RELEASE_MESSAGES.md).
+
+- `v0.4.1`: `prtr start` became the beginner-first entry and `setup` moved to the advanced compatibility path.
+- `v0.4.2`: `doctor --fix` turned diagnostics into a practical recovery surface.
+- `v0.4.3`: `sync`, routing metadata, and repo memory made guidance more portable across apps.
+- `v0.4.5`: `platform` made supported surfaces and handoff constraints visible earlier.
+- `v0.5.0`: `exec` and `server` arrived alongside the next-action positioning across docs and site.
+
 ## Design Principles
 
 **Mode-first**
@@ -243,6 +254,7 @@ Do not pretend unsupported automation already exists.
 - [USAGE.md](USAGE.md)
 - [docs/PRD_V1.md](docs/PRD_V1.md)
 - [docs/BACKLOG_90_DAYS.md](docs/BACKLOG_90_DAYS.md)
+- [docs/RELEASE_MESSAGES.md](docs/RELEASE_MESSAGES.md)
 - [docs/MULTILINGUAL_PROMPT_ROUTER_GUIDE.md](docs/MULTILINGUAL_PROMPT_ROUTER_GUIDE.md)
 - [docs/MULTILINGUAL_PROMPT_ROUTER_DEMO_SCRIPT.md](docs/MULTILINGUAL_PROMPT_ROUTER_DEMO_SCRIPT.md)
 

@@ -64,29 +64,57 @@ const demos = [
 
 const timeline = [
   {
-    version: "v0.1.x",
-    title: "Identity",
-    body: "prtr became the public name and the product got a clearer shape worth building around.",
+    version: "v0.4.1",
+    title: "Beginner-first entry",
+    body: "Short release copy: `prtr start` became the first-run front door and `setup` moved to the advanced compatibility path.",
   },
   {
-    version: "v0.2.x",
-    title: "Delivery foundation",
-    body: "Interactive editing, prompt shaping, and cross-platform delivery support made the first handoff practical.",
+    version: "v0.4.2",
+    title: "Repair surface",
+    body: "Short release copy: `doctor --fix` turned diagnostics into a practical repair flow with a visible platform matrix.",
   },
   {
-    version: "v0.3.x",
-    title: "Repeatable loop",
-    body: "Setup, history, take, repo context, and learn moved prtr from one-shot prompting toward a reusable working loop.",
+    version: "v0.4.3",
+    title: "Shared guidance",
+    body: "Short release copy: `sync`, routing metadata, and repo memory made follow-up work more consistent across Claude, Codex, and Gemini.",
   },
   {
-    version: "v0.4.0",
-    title: "Mode-first surface",
-    body: "The command tree made the public surface easier to explain as a command layer instead of a bag of prompt utilities.",
+    version: "v0.4.5",
+    title: "Platform visibility",
+    body: "Short release copy: `prtr platform` made supported surfaces and current delivery constraints easier to inspect before handoff.",
   },
   {
-    version: "vNext",
-    title: "Next-action layer",
-    body: "The roadmap now centers on `fanout`, `collect`, and deeper orchestration on top of the shipped `start`, `sync`, `doctor --fix`, and `exec` surface.",
+    version: "v0.5.0",
+    title: "Automation plus positioning",
+    body: "Short release copy: `exec` and `server` arrived while the docs and site were repositioned around the next-action command layer.",
+  },
+];
+
+const releaseMessages = [
+  {
+    version: "v0.4.1",
+    pr: "feat: make start the beginner-first entry",
+    announcement: "Introduced `prtr start`, moved `setup` into the advanced compatibility path, and made the first-run flow easier to explain and complete.",
+  },
+  {
+    version: "v0.4.2",
+    pr: "feat: add doctor --fix and repair-ready diagnostics",
+    announcement: "Added `doctor --fix`, platform matrix visibility, and clearer repair guidance for clipboard, launcher, paste, and auth failures.",
+  },
+  {
+    version: "v0.4.3",
+    pr: "feat: add sync, routing metadata, and repo memory",
+    announcement: "Added canonical `.prtr` sync, vendor guide generation, richer routing metadata, and repo-local memory for more consistent follow-up runs.",
+  },
+  {
+    version: "v0.4.5",
+    pr: "feat: add platform surface and shared matrix reporting",
+    announcement: "Added `prtr platform` plus shared platform matrix reporting so supported surfaces and delivery constraints are visible before users get stuck.",
+  },
+  {
+    version: "v0.5.0",
+    pr: "feat: add exec/server and reposition prtr around the next action",
+    announcement: "Added `exec` and `server` alpha surfaces, aligned the docs and site around the next-action command layer, and tightened first-run readiness across `start`, `doctor`, and `sync`.",
   },
 ];
 
@@ -252,10 +280,10 @@ prtr inspect --json "show the route"</code></pre>
     <section class="section" id="timeline">
       <div class="section-heading">
         <p class="eyebrow">Version story</p>
-        <h2>The product kept moving toward a next-action layer</h2>
+        <h2>Release copy now matches the shipped surface</h2>
         <p>
-          The product did not grow as a bag of unrelated commands. Each release moved prtr away from one-off
-          prompting and closer to a stable command layer for repeatable work.
+          These snapshots are the short PR and launch-style messages for the current release train. They keep
+          the public story aligned with what actually shipped.
         </p>
       </div>
 
@@ -265,6 +293,27 @@ prtr inspect --json "show the route"</code></pre>
             <p class="timeline-version">{item.version}</p>
             <h3>{item.title}</h3>
             <p>{item.body}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-heading">
+        <p class="eyebrow">Release-ready copy</p>
+        <h2>Short PR titles and announcement lines for each shipped milestone</h2>
+        <p>
+          GitHub releases, README updates, and launch posts should all tell the same short version story.
+          The full reusable set also lives in `docs/RELEASE_MESSAGES.md`.
+        </p>
+      </div>
+
+      <div class="routing-list">
+        {releaseMessages.map((item) => (
+          <article class="routing-card">
+            <p class="timeline-version">{item.version}</p>
+            <h3>{item.pr}</h3>
+            <p>{item.announcement}</p>
           </article>
         ))}
       </div>
@@ -283,7 +332,7 @@ prtr inspect --json "show the route"</code></pre>
       <div class="bridge-card">
         <div>
           <p class="eyebrow">Included in /docs</p>
-          <h3>Quick start, usage, strategy docs, router guide, and release references</h3>
+          <h3>Quick start, usage, strategy docs, release messages, router guide, and release references</h3>
           <p>
             The homepage stays focused on product proof while the docs page acts as the operator-facing entry
             point for both current workflow docs and background references.
