@@ -288,7 +288,7 @@ func (a *App) runStart(ctx context.Context, args []string, stdin io.Reader, stdi
 	}
 
 	_, _ = fmt.Fprintln(a.stdout, "running prtr doctor before the first send...")
-	if err := a.runDoctor(ctx); err != nil {
+	if err := a.runDoctor(ctx, false); err != nil {
 		return err
 	}
 
@@ -566,119 +566,6 @@ func (a *App) runLang(stdin io.Reader) error {
 	}
 
 	_, _ = fmt.Fprintf(a.stdout, "updated language defaults in %s\n", path)
-	return nil
-}
-
-func (a *App) runDoctor(ctx context.Context) error {
-	cfg, err := a.configLoader()
-	if err != nil {
-		return err
-	}
-
-	failures := 0
-	writeCheck := func(label string, err error, detail string) {
-		if errors.Is(err, launcher.ErrUnsupportedPlatform) || errors.Is(err, automation.ErrUnsupportedPlatform) {
-			_, _ = fmt.Fprintf(a.stdout, "OK   %s: unsupported on this platform\n", label)
-			return
-		}
-		if err != nil {
-			failures++
-			_, _ = fmt.Fprintf(a.stdout, "FAIL %s: %v\n", label, err)
-			return
-		}
-		if strings.TrimSpace(detail) != "" {
-			_, _ = fmt.Fprintf(a.stdout, "OK   %s: %s\n", label, detail)
-			return
-		}
-		_, _ = fmt.Fprintf(a.stdout, "OK   %s\n", label)
-	}
-	writeWarn := func(label, detail string) {
-		_, _ = fmt.Fprintf(a.stdout, "WARN %s: %s\n", label, detail)
-	}
-
-	if cfg.HasUserConfig {
-		writeCheck("user config", nil, cfg.UserPath)
-	} else {
-		writeCheck("user config", errors.New("not found"), "run `prtr init` or `prtr setup`")
-	}
-	if cfg.HasProjectConfig {
-		writeCheck("project config", nil, cfg.ProjectPath)
-	} else {
-		writeCheck("project config", nil, "not found")
-	}
-
-	envAPIKey, _ := a.lookupEnv("DEEPL_API_KEY")
-	apiKey, apiSource := config.ResolveAPIKey(envAPIKey, cfg)
-	if apiKey == "" {
-		writeCheck("deepl api key", translate.ErrMissingAPIKey, "set DEEPL_API_KEY or run `prtr setup`")
-	} else {
-		writeCheck("deepl api key", nil, apiSource)
-	}
-
-	if diagnoser, ok := a.clipboard.(clipboard.Diagnoser); ok {
-		writeCheck("clipboard", diagnoser.Diagnose(), "")
-	} else {
-		writeCheck("clipboard", nil, "diagnostic unavailable")
-	}
-
-	writeCheck("targets", validateTargetDefaults(cfg), "")
-	writeCheck("template presets", validateTemplatePresets(cfg), fmt.Sprintf("%d presets", len(cfg.TemplatePresets)))
-	writeCheck("profiles", validateProfiles(cfg), fmt.Sprintf("%d profiles", len(cfg.Profiles)))
-	writeCheck("shortcuts", validateShortcuts(cfg), fmt.Sprintf("%d shortcuts", len(cfg.Shortcuts)))
-	writeCheck("launchers", validateLaunchers(cfg), fmt.Sprintf("%d launchers", len(cfg.Launchers)))
-
-	if apiKey != "" {
-		translator := a.resolveTranslator(apiKey)
-		if translator == nil {
-			writeCheck("translation", errors.New("translator is not configured"), "")
-		} else {
-			_, err := translator.Translate(ctx, translate.Request{Text: "안녕하세요", SourceLang: cfg.TranslationSourceLang, TargetLang: cfg.TranslationTargetLang})
-			writeCheck("translation", err, "")
-		}
-	}
-
-	for _, targetName := range []string{"claude", "codex", "gemini"} {
-		launcherCfg := cfg.Launchers[targetName]
-		if strings.TrimSpace(launcherCfg.Command) == "" {
-			writeCheck("launcher "+targetName, errors.New("not configured"), "")
-			continue
-		}
-		if a.launcher == nil {
-			writeCheck("launcher "+targetName, errors.New("launcher is not configured"), "")
-			continue
-		}
-		req := launcher.Request{
-			Command: launcherCfg.Command,
-			Args:    launcherCfg.Args,
-		}
-		detail := launcherCfg.Command
-		if description, err := a.launcher.Describe(req); err == nil && strings.TrimSpace(description) != "" {
-			detail = fmt.Sprintf("%s via %s", launcherCfg.Command, description)
-		}
-		writeCheck("launcher "+targetName, a.launcher.Diagnose(req), detail)
-		if launcherCfg.SubmitMode == string(automation.SubmitAuto) {
-			writeWarn("launcher "+targetName+" submit mode", "auto is not supported yet; use manual or confirm")
-		}
-		if a.automator == nil {
-			writeCheck("automation "+targetName, errors.New("automator is not configured"), "")
-			continue
-		}
-		autoReq := automation.Request{
-			Target:      targetName,
-			TerminalApp: "Terminal",
-			PasteDelay:  time.Duration(maxInt(0, launcherCfg.PasteDelayMS)) * time.Millisecond,
-			SubmitMode:  automation.SubmitMode(blankDefault(launcherCfg.SubmitMode, string(automation.SubmitManual))),
-		}
-		autoDetail := fmt.Sprintf("delay=%dms", launcherCfg.PasteDelayMS)
-		if description, err := a.automator.Describe(autoReq); err == nil && strings.TrimSpace(description) != "" {
-			autoDetail = fmt.Sprintf("%s delay=%dms", description, launcherCfg.PasteDelayMS)
-		}
-		writeCheck("automation "+targetName, a.automator.Diagnose(autoReq), autoDetail)
-	}
-
-	if failures > 0 {
-		return fmt.Errorf("doctor found %d issue(s)", failures)
-	}
 	return nil
 }
 

@@ -202,16 +202,19 @@ func (a *App) newSetupCommand(stdin io.Reader) *cobra.Command {
 }
 
 func (a *App) newDoctorCommand(ctx context.Context) *cobra.Command {
-	return &cobra.Command{
+	var fix bool
+	cmd := &cobra.Command{
 		Use:   "doctor",
 		Short: "Run environment and configuration diagnostics.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if wantsHelp(args) {
 				return cmd.Help()
 			}
-			return a.runDoctor(ctx)
+			return a.runDoctor(ctx, fix)
 		},
 	}
+	cmd.Flags().BoolVar(&fix, "fix", false, "Apply safe automatic fixes when possible.")
+	return cmd
 }
 
 func (a *App) newVersionCommand() *cobra.Command {
