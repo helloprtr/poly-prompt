@@ -2,6 +2,14 @@
 
 All notable product-facing changes to `prtr` are documented in this file.
 
+## v0.5.0 - 2026-03-15
+
+### Highlights
+
+- Added `prtr exec` for headless target execution.
+- Added `prtr server` as the alpha orchestration surface.
+- Promoted the README and Astro site to the next-action command layer positioning.
+
 ## v0.4.5 - 2026-03-15
 
 ### Highlights

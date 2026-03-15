@@ -23,29 +23,43 @@ const guides = [
     keywords: ["usage", "commands", "go", "swap", "take", "again", "learn", "inspect"],
   },
   {
-    eyebrow: "Router story",
-    title: "Multilingual prompt router guide",
-    text: "Setup, doctor, routing mechanics, targets, roles, templates, shortcuts, history, delivery modes, and troubleshooting.",
-    href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/MULTILINGUAL_PROMPT_ROUTER_GUIDE.md",
-    linkLabel: "Open router guide",
-    keywords: ["router", "translation", "doctor", "target", "role", "template", "history", "paste", "troubleshooting"],
+    eyebrow: "Product framing",
+    title: "README",
+    text: "The main product story, current boundaries, and the fastest path from setup to the first useful send.",
+    href: "https://github.com/helloprtr/poly-prompt#readme",
+    linkLabel: "Open README",
+    keywords: ["readme", "overview", "status", "available", "planned", "quick start", "next action"],
   },
   {
-    eyebrow: "Demo asset",
-    title: "Demo script",
-    text: "Narrative and commands used to explain the multilingual routing flow in demos and README GIF captures.",
-    href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/MULTILINGUAL_PROMPT_ROUTER_DEMO_SCRIPT.md",
-    linkLabel: "Open demo script",
-    keywords: ["demo", "script", "gif", "presentation", "routing"],
+    eyebrow: "Strategy",
+    title: "PRD v1",
+    text: "Product definition, goals, requirements, and release gates for the next-action command layer roadmap.",
+    href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/PRD_V1.md",
+    linkLabel: "Read PRD_V1.md",
+    keywords: ["prd", "strategy", "requirements", "doctor", "sync", "exec", "server", "fanout"],
+  },
+  {
+    eyebrow: "Strategy",
+    title: "90-day backlog",
+    text: "Sprint-by-sprint priorities from activation through continuity and automation readiness.",
+    href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/BACKLOG_90_DAYS.md",
+    linkLabel: "Read BACKLOG_90_DAYS.md",
+    keywords: ["backlog", "sprints", "roadmap", "start", "doctor", "sync", "fanout", "collect"],
   },
 ];
 
 const references = [
   {
-    title: "README",
-    text: "High-level product framing and quick-start path for new users.",
-    href: "https://github.com/helloprtr/poly-prompt#readme",
-    keywords: ["overview", "readme", "intro", "quick start"],
+    title: "Router guide",
+    text: "Background reference for the older multilingual prompt router framing, troubleshooting, and routing internals.",
+    href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/MULTILINGUAL_PROMPT_ROUTER_GUIDE.md",
+    keywords: ["router", "translation", "doctor", "target", "role", "template", "history", "paste", "troubleshooting"],
+  },
+  {
+    title: "Demo script",
+    text: "Narrative and commands used to explain the earlier multilingual routing flow in demos and GIF captures.",
+    href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/MULTILINGUAL_PROMPT_ROUTER_DEMO_SCRIPT.md",
+    keywords: ["demo", "script", "gif", "presentation", "routing"],
   },
   {
     title: "Changelog",
@@ -70,7 +84,7 @@ const references = [
 const coreLoop = [
   "go sends the first request fast.",
   "swap compares another app without rebuilding context.",
-  "take turns output into the next action.",
+  "take turns copied output into the next action.",
   "again replays the recent flow.",
   "learn stabilizes project vocabulary.",
   "inspect reveals how the route was composed.",
@@ -98,10 +112,12 @@ const finderItems = [
 const quickQueries = [
   "install",
   "go",
+  "next action",
+  "doctor",
+  "sync",
+  "exec",
+  "fanout",
   "router",
-  "history",
-  "paste",
-  "troubleshooting",
   "releases",
 ];
 
@@ -115,7 +131,7 @@ const navSections = [
 
 <BaseLayout
   title="Docs Hub"
-  description="Documentation hub for prtr installation, usage, multilingual routing, demo assets, and release history."
+  description="Documentation hub for prtr installation, usage, strategy docs, background router references, and release history."
 >
   <main class="page-shell">
     <header class="topbar">
@@ -133,15 +149,16 @@ const navSections = [
 
     <section class="hero hero-docs">
       <div class="hero-copy">
-        <p class="eyebrow">The multilingual prompt router for repeatable AI work.</p>
+        <p class="eyebrow">Docs for the next-action command layer.</p>
         <h1>Everything around the loop, in one place.</h1>
         <p class="hero-text">
-          Think in your language. Move the whole loop forward. Use this page as the documentation front door
-          when you need install steps, routing references, and release context in one place.
+          Use this page as the documentation front door when you need install steps, daily command guides,
+          strategy docs, and background routing references in one place.
         </p>
         <div class="hero-actions">
           <a class="button button-primary" href="https://github.com/helloprtr/poly-prompt/blob/main/INSTALLATION.md">Install guide</a>
           <a class="button button-secondary" href="https://github.com/helloprtr/poly-prompt/blob/main/USAGE.md">Usage guide</a>
+          <a class="button button-tertiary" href="https://github.com/helloprtr/poly-prompt/blob/main/docs/PRD_V1.md">PRD</a>
           <a class="button button-ghost" href={`${basePath}`}>Back to home</a>
         </div>
       </div>
@@ -154,7 +171,7 @@ const navSections = [
           <span class="panel-title">docs-map.md</span>
         </div>
         <div class="panel-body">
-          <p class="panel-caption">From multilingual intent to routed prompt to next action.</p>
+          <p class="panel-caption">From setup to first send to the next action.</p>
           <ul class="doc-bullets">
             {coreLoop.map((item) => (
               <li>{item}</li>
@@ -197,7 +214,7 @@ const navSections = [
           id="docs-search"
           class="finder-input"
           type="search"
-          placeholder="Try install, router, go, history, paste, troubleshooting..."
+          placeholder="Try install, next action, doctor, sync, exec, fanout..."
         />
         <p class="finder-note">Shared links preserve the current search in the `?q=` URL query.</p>
         <div class="finder-chips" aria-label="Quick queries">
@@ -227,7 +244,7 @@ const navSections = [
     <section class="section" id="guides">
       <div class="section-heading">
         <p class="eyebrow">Guides</p>
-        <h2>Start, learn, and route without digging</h2>
+        <h2>Start, learn, and plan without digging</h2>
         <p>
           These are the documents most people need first when moving from evaluation into regular use.
         </p>
@@ -251,32 +268,32 @@ const navSections = [
         <h2>The same GIF evidence, now linked from the docs side too</h2>
         <p>
           The landing page sells the workflow. The docs hub helps users verify that the workflow is grounded
-          in visible setup, routing, history, and delivery behavior.
+          in visible setup, history, and delivery behavior, while strategy docs explain what comes next.
         </p>
       </div>
 
       <div class="routing-list">
         <article class="routing-card">
           <h3>Setup plus doctor</h3>
-          <p>First-run config, DeepL readiness, and diagnostic confidence before the tool enters daily use.</p>
+          <p>First-run config and diagnostic confidence before the tool enters daily use.</p>
         </article>
         <article class="routing-card">
-          <h3>Routing plus history</h3>
-          <p>Visible multilingual composition and recent-run reuse instead of invisible one-shot translation.</p>
+          <h3>History plus continuity</h3>
+          <p>Recent-run reuse keeps the next action close instead of forcing invisible one-shot prompting every time.</p>
         </article>
         <article class="routing-card">
           <h3>Delivery plus paste</h3>
-          <p>App launch and prompt handoff as part of the workflow surface rather than an external manual step.</p>
+          <p>The current `open-copy` handoff stays visible, while `exec` and `server` remain clearly marked as roadmap work.</p>
         </article>
       </div>
     </section>
 
     <section class="section" id="references">
       <div class="section-heading">
-        <p class="eyebrow">References</p>
-        <h2>Repository links worth keeping close</h2>
+        <p class="eyebrow">Background and references</p>
+        <h2>Legacy router docs and repository links worth keeping close</h2>
         <p>
-          These links connect the docs hub back to release communication, source, and the root narrative.
+          These links keep the older router framing available without making it the front door of the product.
         </p>
       </div>
 

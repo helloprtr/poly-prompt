@@ -9,54 +9,54 @@ const loopSteps = [
   {
     command: "go",
     summary: "Send the first request fast.",
-    detail: "Turn raw intent into a ready prompt, launch the destination app, and keep the run in local history so the next step costs less.",
+    detail: "Start from intent, choose the right mode, send it fast, and keep the recent run close so the next step costs less.",
   },
   {
     command: "swap",
-    summary: "Resend the same request to another AI app.",
-    detail: "Keep the workflow moving while comparing Claude, Codex, or Gemini without rebuilding the same context by hand.",
+    summary: "Compare another app without losing the thread.",
+    detail: "Reuse the same request and mode across Claude, Codex, or Gemini without rebuilding the context by hand.",
   },
   {
     command: "take",
-    summary: "Convert an answer into the next action.",
-    detail: "Use copied model output as the seed for a patch, test, summary, issue, or plan prompt instead of rewriting it from scratch.",
+    summary: "Turn the first answer into the next action.",
+    detail: "Use copied output as the seed for a patch, test, summary, issue, or plan prompt instead of stalling after analysis.",
   },
   {
     command: "again",
-    summary: "Replay the recent flow.",
-    detail: "Bring the last run back with the same app and mode, then optionally edit before delivery when you want a controlled repeat loop.",
+    summary: "Replay the recent flow with control.",
+    detail: "Bring back the latest run with the same app and mode, then optionally edit before delivery when you want a careful repeat loop.",
   },
   {
     command: "learn",
-    summary: "Protect project terms during translation.",
-    detail: "Build a repo-local memory so names, flags, and domain language stay stable across multilingual prompt generation.",
+    summary: "Keep project vocabulary stable.",
+    detail: "Build a repo-local termbook so names, flags, and domain language survive translation and future follow-up runs.",
   },
   {
     command: "inspect",
-    summary: "Show the assembled routing path.",
-    detail: "Open the raw composition layer when you want to see how translation, template shaping, and delivery decisions were made.",
+    summary: "Open the expert path.",
+    detail: "Inspect the raw composition layer when you want to see how mode, translation, templates, and delivery were resolved.",
   },
 ];
 
 const demos = [
   {
-    title: "Setup and doctor",
-    description: "Configure DeepL, verify delivery capabilities, and confirm that the first-run environment is healthy before you trust the loop.",
-    note: "You are seeing setup store the baseline config and doctor confirm the routing surface is ready.",
+    title: "Start and doctor",
+    description: "Onboard the baseline, verify delivery capabilities, and confirm the first-run environment before trusting the loop.",
+    note: "This is the activation layer: `start` gets the first send moving and `doctor` confirms the handoff path is ready.",
     image: `${basePath}media/prtr-setup-doctor.gif`,
     alt: "Animated demonstration of prtr setup and doctor commands",
   },
   {
     title: "Routing and history",
-    description: "Send multilingual prompts, watch routing decisions stay visible, and reuse recent work without losing the original intent.",
-    note: "You are seeing prompt routing, history recall, and app-aware iteration staying inside one repeatable flow.",
+    description: "Send multilingual prompts, keep routing decisions visible, and reuse recent work without losing the original intent.",
+    note: "This is the continuity layer: app-aware routing and recent history make the next move cheaper than the first one.",
     image: `${basePath}media/prtr-routing-history.gif`,
     alt: "Animated demonstration of multilingual routing and history commands",
   },
   {
     title: "Delivery and paste",
-    description: "Launch the target app, copy the final prompt, and hand it off to the next step with as little friction as possible.",
-    note: "You are seeing the handoff layer where prompt shaping becomes an app-ready action instead of a clipboard chore.",
+    description: "Launch the target app, copy the final prompt, and hand it off with as little friction as possible.",
+    note: "This is the current delivery layer: `open-copy` stays visible for beginners, `exec` handles headless runs, and `server` remains alpha.",
     image: `${basePath}media/prtr-delivery-paste.gif`,
     alt: "Animated demonstration of prtr delivery and paste flow",
   },
@@ -70,40 +70,45 @@ const timeline = [
   },
   {
     version: "v0.2.x",
-    title: "Template foundation",
-    body: "Interactive editing, prompt-role shaping, and cross-platform delivery support made the tool more practical for real usage.",
+    title: "Delivery foundation",
+    body: "Interactive editing, prompt shaping, and cross-platform delivery support made the first handoff practical.",
   },
   {
     version: "v0.3.x",
-    title: "Repeatable workflow",
+    title: "Repeatable loop",
     body: "Setup, history, take, repo context, and learn moved prtr from one-shot prompting toward a reusable working loop.",
   },
   {
     version: "v0.4.0",
-    title: "Command tree",
-    body: "The Cobra-based command surface made the product easier to grow, explain, and maintain as the loop became the real product story.",
+    title: "Mode-first surface",
+    body: "The command tree made the public surface easier to explain as a command layer instead of a bag of prompt utilities.",
+  },
+  {
+    version: "vNext",
+    title: "Next-action layer",
+    body: "The roadmap now centers on `fanout`, `collect`, and deeper orchestration on top of the shipped `start`, `sync`, `doctor --fix`, and `exec` surface.",
   },
 ];
 
 const routingPoints = [
   {
-    label: "Multilingual in, English out",
-    text: "Write in Korean, Japanese, German, or your own mixed shorthand. prtr translates when needed and keeps the AI-facing output clean.",
+    label: "Mode before app",
+    text: "The first question is what kind of help you want. App choice matters, but the product starts from `ask`, `review`, `fix`, or `design`.",
   },
   {
-    label: "Target, role, and template awareness",
-    text: "The prompt is shaped for the destination app instead of being shoved into a one-size-fits-all wrapper.",
+    label: "Next action over prompt polish",
+    text: "The point is not just getting one nice answer. The loop is built so the next move is obvious and cheap after the first response lands.",
   },
   {
-    label: "Learn and inspect stay close",
-    text: "You can stabilize terms for future runs and still inspect the raw composition path whenever the routing needs to be explained.",
+    label: "Honest delivery boundaries",
+    text: "Today `open-copy` is the shipped default fallback, `exec` is available, and `server` is alpha. The site stays explicit about what is real now.",
   },
 ];
 ---
 
 <BaseLayout
-  title="Repeatable AI Work Loop"
-  description="prtr is a multilingual prompt router for Claude, Codex, and Gemini that turns one-off prompting into a repeatable AI work loop."
+  title="Next-Action Command Layer"
+  description="prtr is a mode-first command layer for Claude, Gemini, and Codex that helps people turn intent into the next useful AI action."
 >
   <main class="page-shell">
     <header class="topbar">
@@ -121,22 +126,23 @@ const routingPoints = [
 
     <section class="hero">
       <div class="hero-copy">
-        <p class="eyebrow">The multilingual prompt router for repeatable AI work.</p>
-        <h1>Think in your language. Move the whole loop forward.</h1>
+        <p class="eyebrow">A beginner-first command layer for real AI work.</p>
+        <h1>Write in your language. Ship the next action.</h1>
         <p class="hero-text">
-          prtr is a multilingual prompt router for Claude, Codex, and Gemini. It turns raw intent into an
-          app-aware prompt, then keeps the next step cheaper with history, take, learn, and inspect.
+          prtr helps people turn intent into the next useful action across Claude, Gemini, and Codex. Start
+          with `prtr start`, move through a mode-first loop, and keep the follow-up moving with `swap`,
+          `take`, `again`, `learn`, and `inspect`.
         </p>
         <div class="hero-actions">
-          <a class="button button-primary" href="https://github.com/helloprtr/poly-prompt#quick-start">Install prtr</a>
+          <a class="button button-primary" href="https://github.com/helloprtr/poly-prompt#quick-start">Start with prtr start</a>
           <a class="button button-secondary" href={`${basePath}docs/`}>Open docs hub</a>
-          <a class="button button-tertiary" href="https://github.com/helloprtr/poly-prompt">Read the README</a>
+          <a class="button button-tertiary" href="https://github.com/helloprtr/poly-prompt/blob/main/docs/PRD_V1.md">Read the PRD</a>
           <a class="button button-ghost" href="https://github.com/helloprtr/poly-prompt/releases">See releases</a>
         </div>
         <ul class="signal-strip" aria-label="Product signals">
-          <li>Korean in, English out</li>
-          <li>Launch plus paste delivery</li>
-          <li>History, learn, and inspect built in</li>
+          <li>Mode-first command vocabulary</li>
+          <li>Start and exec available now</li>
+          <li>Loop continuity built in</li>
         </ul>
       </div>
 
@@ -149,7 +155,7 @@ const routingPoints = [
             <span class="panel-title">repeatable-work-loop.sh</span>
           </div>
           <div class="panel-body">
-            <p class="panel-caption">From multilingual intent to routed prompt to next action.</p>
+            <p class="panel-caption">From intent to app choice to next action.</p>
             <pre><code>npm test 2&gt;&amp;1 | prtr go fix "왜 깨지는지 정확한 원인만 찾아줘"
 prtr swap gemini
 prtr take patch
@@ -161,16 +167,16 @@ prtr inspect --json "show the route"</code></pre>
 
         <div class="mini-grid" aria-hidden="true">
           <div class="mini-card">
-            <strong>Route</strong>
-            <span>translate + shape + send</span>
+            <strong>Mode</strong>
+            <span>ask + review + fix + design</span>
           </div>
           <div class="mini-card">
             <strong>Loop</strong>
             <span>swap + take + again</span>
           </div>
           <div class="mini-card">
-            <strong>Memory</strong>
-            <span>learn + inspect</span>
+            <strong>Delivery</strong>
+            <span>open-copy + exec now</span>
           </div>
         </div>
       </div>
@@ -202,8 +208,8 @@ prtr inspect --json "show the route"</code></pre>
         <p class="eyebrow">See it work</p>
         <h2>Three GIFs that show the product proof</h2>
         <p>
-          These flows are intentionally close to the daily path: configure once, route fast, then deliver
-          into the app that matches the task.
+          These flows stay close to the actual product boundaries: configure once, send fast, and keep the
+          next action moving through the current visible delivery path.
         </p>
       </div>
 
@@ -225,11 +231,11 @@ prtr inspect --json "show the route"</code></pre>
 
     <section class="section two-column">
       <div class="section-heading">
-        <p class="eyebrow">Routing explainer</p>
-        <h2>More than translation, less than a black box</h2>
+        <p class="eyebrow">Product principles</p>
+        <h2>More than prompt routing, less than an agent runtime</h2>
         <p>
-          The router is there to reduce friction, not to hide decisions. It helps users start fast while
-          leaving enough visibility to trust what changed between raw intent and delivery.
+          prtr is intentionally narrow. It should reduce friction, preserve continuity, and stay honest
+          about what is and is not automated in the current release.
         </p>
       </div>
 
@@ -246,10 +252,10 @@ prtr inspect --json "show the route"</code></pre>
     <section class="section" id="timeline">
       <div class="section-heading">
         <p class="eyebrow">Version story</p>
-        <h2>The tool kept moving toward a repeatable loop</h2>
+        <h2>The product kept moving toward a next-action layer</h2>
         <p>
-          The product did not grow as a bag of unrelated commands. Each release made prtr a little less
-          like a one-off prompt helper and a little more like a workflow layer.
+          The product did not grow as a bag of unrelated commands. Each release moved prtr away from one-off
+          prompting and closer to a stable command layer for repeatable work.
         </p>
       </div>
 
@@ -269,18 +275,18 @@ prtr inspect --json "show the route"</code></pre>
         <p class="eyebrow">Docs hub</p>
         <h2>Keep the landing page fast, move deeper in one click</h2>
         <p>
-          The project site now separates launch messaging from operator docs. Use the docs hub when you want
-          install steps, command guides, routing notes, or release history without digging through the repo.
+          The project site separates launch messaging from operator docs. Use the docs hub for install,
+          usage, PRD, backlog, and the older router references without digging through the repo.
         </p>
       </div>
 
       <div class="bridge-card">
         <div>
           <p class="eyebrow">Included in /docs</p>
-          <h3>Quick start, usage, router guide, demo script, and release history</h3>
+          <h3>Quick start, usage, strategy docs, router guide, and release references</h3>
           <p>
-            Built as a second page so the homepage stays focused on product proof while the docs page works
-            as the operator-facing entry point.
+            The homepage stays focused on product proof while the docs page acts as the operator-facing entry
+            point for both current workflow docs and background references.
           </p>
         </div>
         <a class="button button-primary" href={`${basePath}docs/`}>Go to docs</a>
@@ -290,10 +296,10 @@ prtr inspect --json "show the route"</code></pre>
     <section class="section cta-panel">
       <div class="cta-copy">
         <p class="eyebrow">Start here</p>
-        <h2>Set it up once, then use the loop for real work</h2>
+        <h2>Set it up once, then keep the loop moving</h2>
         <p>
-          Start with setup and doctor, send your first prompt with go, and keep the same thread of work
-          alive through swap, take, again, learn, and inspect.
+          Start with setup and doctor, send your first request with `go`, and keep the same thread of work
+          alive through `swap`, `take`, `again`, `learn`, and `inspect`.
         </p>
       </div>
       <div class="panel">
