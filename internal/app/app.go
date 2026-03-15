@@ -2360,6 +2360,23 @@ func rootHelpText() string {
 	}, "\n")
 }
 
+func setupHelpText() string {
+	return strings.Join([]string{
+		"Run the advanced guided setup flow.",
+		"",
+		"`prtr setup` is the compatibility path for people who want the full",
+		"interactive defaults flow instead of the smaller first-run path in `start`.",
+		"",
+		"What `setup` asks for:",
+		"  - DeepL API key",
+		"  - default input language",
+		"  - default output language",
+		"  - default app",
+		"  - default role",
+		"  - default template preset",
+	}, "\n")
+}
+
 func startHelpText() string {
 	return strings.Join([]string{
 		"Run the beginner-first first-send flow.",

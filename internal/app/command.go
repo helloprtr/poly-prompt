@@ -189,9 +189,10 @@ func (a *App) newHistoryCommand() *cobra.Command {
 }
 
 func (a *App) newSetupCommand(stdin io.Reader) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "setup",
 		Short: "Run advanced guided setup for prtr defaults.",
+		Long:  setupHelpText(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if wantsHelp(args) {
 				return cmd.Help()
@@ -199,6 +200,8 @@ func (a *App) newSetupCommand(stdin io.Reader) *cobra.Command {
 			return a.runSetup(stdin)
 		},
 	}
+	cmd.SetHelpFunc(func(cmd *cobra.Command, _ []string) { _, _ = fmt.Fprintln(a.stdout, cmd.Long) })
+	return cmd
 }
 
 func (a *App) newDoctorCommand(ctx context.Context) *cobra.Command {
