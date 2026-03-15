@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -144,6 +145,19 @@ type stubConfirmer struct {
 	allow  bool
 	err    error
 	target string
+}
+
+type stubHeadlessRunner struct {
+	calls  int
+	req    HeadlessRequest
+	result HeadlessResult
+	err    error
+}
+
+func (s *stubHeadlessRunner) Run(_ context.Context, req HeadlessRequest) (HeadlessResult, error) {
+	s.calls++
+	s.req = req
+	return s.result, s.err
 }
 
 type stubRepoContext struct {
@@ -1669,6 +1683,79 @@ func TestExecuteSyncWriteCreatesVendorFiles(t *testing.T) {
 		}
 	}
 }
+func TestExecuteExecRunsHeadlessTarget(t *testing.T) {
+	t.Parallel()
+
+	runner := &stubHeadlessRunner{result: HeadlessResult{Stdout: "headless output"}}
+	app := New(Dependencies{
+		Version:         "test",
+		Stdout:          &bytes.Buffer{},
+		Stderr:          &bytes.Buffer{},
+		Translator:      &stubTranslator{output: "translated"},
+		Clipboard:       &stubClipboard{},
+		Editor:          &stubEditor{},
+		Launcher:        &stubLauncher{},
+		Automator:       &stubAutomator{},
+		SubmitConfirmer: &stubConfirmer{},
+		ConfigLoader: func() (config.Config, error) {
+			return testConfig(), nil
+		},
+		ConfigInit:     func() (string, error) { return "", nil },
+		LookupEnv:      func(string) (string, bool) { return "", false },
+		HistoryStore:   history.New(filepath.Join(t.TempDir(), "history.json")),
+		HeadlessRunner: runner,
+	})
+	stdout, _ := buffersFromApp(app)
+
+	if err := app.Execute(context.Background(), []string{"exec", "fix", "왜 깨지는지 찾아줘"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("exec error = %v", err)
+	}
+	if runner.calls != 1 || runner.req.Target != "codex" {
+		t.Fatalf("runner = %#v", runner)
+	}
+	if !strings.Contains(stdout.String(), "headless output") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
+func TestServerMuxExecReturnsResolvedPrompt(t *testing.T) {
+	t.Parallel()
+
+	runner := &stubHeadlessRunner{result: HeadlessResult{Stdout: "server output"}}
+	app := New(Dependencies{
+		Version:         "test",
+		Stdout:          &bytes.Buffer{},
+		Stderr:          &bytes.Buffer{},
+		Translator:      &stubTranslator{output: "translated"},
+		Clipboard:       &stubClipboard{},
+		Editor:          &stubEditor{},
+		Launcher:        &stubLauncher{},
+		Automator:       &stubAutomator{},
+		SubmitConfirmer: &stubConfirmer{},
+		ConfigLoader: func() (config.Config, error) {
+			return testConfig(), nil
+		},
+		ConfigInit:     func() (string, error) { return "", nil },
+		LookupEnv:      func(string) (string, bool) { return "", false },
+		HeadlessRunner: runner,
+	})
+
+	reqBody := strings.NewReader(`{"mode":"fix","message":"왜 깨지는지 찾아줘","target":"codex"}`)
+	req := httptest.NewRequest("POST", "/exec", reqBody)
+	rec := httptest.NewRecorder()
+
+	app.serverMux(context.Background()).ServeHTTP(rec, req)
+	if rec.Code != 200 {
+		t.Fatalf("status = %d body = %q", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"target":"codex"`) {
+		t.Fatalf("body = %q", rec.Body.String())
+	}
+	if runner.calls != 1 {
+		t.Fatalf("runner.calls = %d", runner.calls)
+	}
+}
+
 func TestExecuteReturnsUnknownTemplateError(t *testing.T) {
 	t.Parallel()
 
