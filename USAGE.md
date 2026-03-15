@@ -107,6 +107,17 @@ prtr sync --write claude,codex
 
 `go` now also uses routing metadata and repo memory when available, so mode defaults, protected terms, and stable project guidance can influence the final prompt without rewriting the request manually.
 
+## 1.6 Platform summary: `prtr platform`
+
+If you only want the platform readiness summary, you can call:
+
+```bash
+prtr platform
+prtr platform --json
+```
+
+This prints the current surface label plus clipboard, launcher, paste, and submit readiness using the same matrix logic as `prtr doctor`.
+
 ## 2. The fastest path after start: `prtr go`
 
 Send a request in your own language:

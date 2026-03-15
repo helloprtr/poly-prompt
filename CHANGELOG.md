@@ -2,6 +2,14 @@
 
 All notable product-facing changes to `prtr` are documented in this file.
 
+## v0.4.5 - 2026-03-15
+
+### Highlights
+
+- Added `prtr platform` with optional JSON output.
+- Strengthened platform surface detection across macOS, Linux, and Windows sessions.
+- Reused the same platform matrix logic in both `doctor` and `platform`.
+
 ## v0.4.3 - 2026-03-15
 
 ### Highlights
