@@ -29,6 +29,7 @@ func (a *App) Command(ctx context.Context, stdin io.Reader, stdinPiped bool) *co
 		_, _ = fmt.Fprintln(a.stdout, cmd.Long)
 	})
 
+	root.AddCommand(a.newStartCommand(ctx, stdin, stdinPiped))
 	root.AddCommand(a.newGoCommand(ctx, stdin, stdinPiped))
 	root.AddCommand(a.newAgainCommand(ctx, stdin, stdinPiped))
 	root.AddCommand(a.newSwapCommand(ctx, stdin, stdinPiped))
@@ -52,6 +53,23 @@ func (a *App) Command(ctx context.Context, stdin io.Reader, stdinPiped bool) *co
 	root.AddCommand(a.newShortcutCommand(ctx, "design", stdin, stdinPiped))
 
 	return root
+}
+
+func (a *App) newStartCommand(ctx context.Context, stdin io.Reader, stdinPiped bool) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:                "start [message...]",
+		Short:              "Run the beginner-first first-send flow.",
+		Long:               startHelpText(),
+		DisableFlagParsing: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if wantsHelp(args) {
+				return cmd.Help()
+			}
+			return a.runStart(ctx, args, stdin, stdinPiped)
+		},
+	}
+	cmd.SetHelpFunc(func(cmd *cobra.Command, _ []string) { _, _ = fmt.Fprintln(a.stdout, cmd.Long) })
+	return cmd
 }
 
 func (a *App) newGoCommand(ctx context.Context, stdin io.Reader, stdinPiped bool) *cobra.Command {
@@ -173,7 +191,7 @@ func (a *App) newHistoryCommand() *cobra.Command {
 func (a *App) newSetupCommand(stdin io.Reader) *cobra.Command {
 	return &cobra.Command{
 		Use:   "setup",
-		Short: "Run guided setup for prtr defaults.",
+		Short: "Run advanced guided setup for prtr defaults.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if wantsHelp(args) {
 				return cmd.Help()
