@@ -114,6 +114,12 @@ type goCommandOptions struct {
 	prompt    []string
 }
 
+type startCommandOptions struct {
+	app    string
+	dryRun bool
+	prompt []string
+}
+
 type replayCommandOptions struct {
 	app       string
 	edit      bool
@@ -223,7 +229,7 @@ func (a *App) shouldRunRootDirect(args []string) bool {
 	}
 
 	switch first {
-	case "init", "version", "setup", "lang", "doctor", "templates", "profiles", "history", "rerun", "pin", "favorite", "go", "again", "swap", "take", "learn", "inspect":
+	case "init", "version", "start", "setup", "lang", "doctor", "templates", "profiles", "history", "rerun", "pin", "favorite", "go", "again", "swap", "take", "learn", "inspect":
 		return false
 	}
 
@@ -250,6 +256,166 @@ func (a *App) runVersion() error {
 	}
 
 	_, _ = fmt.Fprintln(a.stdout, version)
+	return nil
+}
+
+func (a *App) runStart(ctx context.Context, args []string, stdin io.Reader, stdinPiped bool) error {
+	command, err := parseStartCommand(args)
+	if err != nil {
+		return err
+	}
+
+	cfg, err := a.configLoader()
+	if err != nil {
+		return err
+	}
+
+	envAPIKey, _ := a.lookupEnv("DEEPL_API_KEY")
+	currentAPIKey, _ := config.ResolveAPIKey(envAPIKey, cfg)
+	reader := bufio.NewReader(stdin)
+
+	if startNeedsOnboarding(cfg, currentAPIKey) {
+		if stdinPiped {
+			return errors.New("prtr start requires an interactive terminal when onboarding is needed; rerun without piped stdin or use `prtr setup` first")
+		}
+		if err := a.runStartOnboarding(reader, cfg, currentAPIKey); err != nil {
+			return err
+		}
+		cfg, err = a.configLoader()
+		if err != nil {
+			return err
+		}
+	}
+
+	_, _ = fmt.Fprintln(a.stdout, "running prtr doctor before the first send...")
+	if err := a.runDoctor(ctx); err != nil {
+		return err
+	}
+
+	goArgs := make([]string, 0, len(command.prompt)+3)
+	if command.app != "" {
+		goArgs = append(goArgs, "--to", command.app)
+	}
+	if command.dryRun {
+		goArgs = append(goArgs, "--dry-run")
+	}
+
+	startReader := stdin
+	startStdinPiped := stdinPiped
+	switch {
+	case len(command.prompt) > 0:
+		goArgs = append(goArgs, command.prompt...)
+		startReader = strings.NewReader("")
+		startStdinPiped = false
+	case !stdinPiped:
+		_, _ = fmt.Fprintln(a.stdout, "")
+		firstPrompt, err := promptInput(reader, a.stdout, "First request [default: 이 함수 왜 느린지 설명해줘]")
+		if err != nil {
+			return err
+		}
+		firstPrompt = strings.TrimSpace(firstPrompt)
+		if firstPrompt == "" {
+			firstPrompt = "이 함수 왜 느린지 설명해줘"
+		}
+		goArgs = append(goArgs, firstPrompt)
+		startReader = strings.NewReader("")
+		startStdinPiped = false
+	}
+
+	if err := a.runGo(ctx, goArgs, startReader, startStdinPiped); err != nil {
+		return err
+	}
+
+	_, _ = fmt.Fprintln(a.stdout, "")
+	_, _ = fmt.Fprintln(a.stdout, "next actions:")
+	_, _ = fmt.Fprintln(a.stdout, "  prtr swap <app>")
+	_, _ = fmt.Fprintln(a.stdout, "  prtr take patch")
+	_, _ = fmt.Fprintln(a.stdout, "  prtr again")
+	_, _ = fmt.Fprintln(a.stdout, "  prtr learn")
+	return nil
+}
+
+func startNeedsOnboarding(cfg config.Config, currentAPIKey string) bool {
+	if strings.TrimSpace(currentAPIKey) == "" {
+		return true
+	}
+	if strings.TrimSpace(cfg.TranslationSourceLang) == "" {
+		return true
+	}
+	if strings.TrimSpace(cfg.TranslationTargetLang) == "" {
+		return true
+	}
+	if strings.TrimSpace(config.ResolveTarget("", cfg, "")) == "" {
+		return true
+	}
+	return false
+}
+
+func (a *App) runStartOnboarding(reader *bufio.Reader, cfg config.Config, currentAPIKey string) error {
+	currentTarget := config.ResolveTarget("", cfg, "")
+	currentSourceLang := cfg.TranslationSourceLang
+	if currentSourceLang == "" {
+		currentSourceLang = "auto"
+	}
+	currentTargetLang := cfg.TranslationTargetLang
+	if currentTargetLang == "" {
+		currentTargetLang = "en"
+	}
+
+	_, _ = fmt.Fprintln(a.stdout, "prtr start")
+	_, _ = fmt.Fprintln(a.stdout, "Let's get your first send ready. Press Enter to keep the current value.")
+
+	apiPrompt := "DeepL API key"
+	if currentAPIKey != "" {
+		apiPrompt += " [configured]"
+	}
+	apiValue, err := promptInput(reader, a.stdout, apiPrompt)
+	if err != nil {
+		return err
+	}
+
+	sourceLangValue, err := promptLanguage(reader, a.stdout, "Default input language", []languageOption{
+		{Label: "auto", Value: "auto", Description: "automatic detection"},
+		{Label: "ko", Value: "ko", Description: "Korean"},
+		{Label: "ja", Value: "ja", Description: "Japanese"},
+		{Label: "zh", Value: "zh", Description: "Chinese"},
+		{Label: "en", Value: "en", Description: "English"},
+	}, currentSourceLang, true)
+	if err != nil {
+		return err
+	}
+
+	targetLangValue, err := promptLanguage(reader, a.stdout, "Default output language", []languageOption{
+		{Label: "en", Value: "en", Description: "English"},
+		{Label: "ja", Value: "ja", Description: "Japanese"},
+		{Label: "zh", Value: "zh", Description: "Chinese"},
+		{Label: "de", Value: "de", Description: "German"},
+		{Label: "fr", Value: "fr", Description: "French"},
+	}, currentTargetLang, false)
+	if err != nil {
+		return err
+	}
+
+	targetValue, err := promptChoice(reader, a.stdout, "Default app", config.AvailableTargets(cfg), currentTarget, false)
+	if err != nil {
+		return err
+	}
+
+	update := config.DefaultsUpdate{
+		TranslationSourceLang: stringPtr(sourceLangValue),
+		TranslationTargetLang: stringPtr(targetLangValue),
+		DefaultTarget:         stringPtr(targetValue),
+	}
+	if strings.TrimSpace(apiValue) != "" {
+		update.APIKey = stringPtr(apiValue)
+	}
+
+	path, err := config.SaveDefaults(update)
+	if err != nil {
+		return err
+	}
+
+	_, _ = fmt.Fprintf(a.stdout, "\nupdated config at %s\n", path)
 	return nil
 }
 
@@ -1609,6 +1775,39 @@ func parseGoCommand(args []string, builtInShortcuts map[string]bool) (goCommandO
 	return command, nil
 }
 
+func parseStartCommand(args []string) (startCommandOptions, error) {
+	command := startCommandOptions{}
+
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		switch {
+		case arg == "--dry-run":
+			command.dryRun = true
+		case arg == "--to" || arg == "--app" || arg == "--target" || arg == "-t":
+			i++
+			if i >= len(args) {
+				return startCommandOptions{}, usageError{message: fmt.Sprintf("%s requires a value", arg), helpText: startHelpText()}
+			}
+			command.app = strings.TrimSpace(args[i])
+		case strings.HasPrefix(arg, "--to="):
+			command.app = strings.TrimSpace(strings.TrimPrefix(arg, "--to="))
+		case strings.HasPrefix(arg, "--app="):
+			command.app = strings.TrimSpace(strings.TrimPrefix(arg, "--app="))
+		case strings.HasPrefix(arg, "--target="):
+			command.app = strings.TrimSpace(strings.TrimPrefix(arg, "--target="))
+		case arg == "--":
+			command.prompt = append(command.prompt, args[i+1:]...)
+			return command, nil
+		case strings.HasPrefix(arg, "-"):
+			return startCommandOptions{}, usageError{message: fmt.Sprintf("unknown start flag %q", arg), helpText: startHelpText()}
+		default:
+			command.prompt = append(command.prompt, arg)
+		}
+	}
+
+	return command, nil
+}
+
 func parseReplayCommand(args []string, requireApp bool) (replayCommandOptions, error) {
 	command := replayCommandOptions{}
 
@@ -2232,6 +2431,9 @@ func rootHelpText() string {
 		"adds helpful context, and routes it to Claude, Codex, or Gemini.",
 		"",
 		"Start with:",
+		"  prtr start",
+		"",
+		"Or jump straight to:",
 		`  prtr go "이 에러 원인 분석해줘"`,
 		"",
 		"Then keep moving with:",
@@ -2242,6 +2444,7 @@ func rootHelpText() string {
 		"  prtr inspect",
 		"",
 		"Usage:",
+		"  prtr start [message...]",
 		"  prtr go [mode] [message...]",
 		"  prtr swap <app>",
 		"  prtr take <action>",
@@ -2249,7 +2452,6 @@ func rootHelpText() string {
 		"  prtr again",
 		"  prtr inspect [message...]",
 		"  prtr history [search <query>]",
-		"  prtr setup",
 		"  prtr doctor",
 		"  prtr version",
 		"",
@@ -2265,8 +2467,42 @@ func rootHelpText() string {
 		"  prtr rerun <id> [flags]",
 		"  prtr pin <id>",
 		"  prtr favorite <id>",
+		"  prtr setup",
 		"  prtr lang",
 		"  prtr init",
+	}, "\n")
+}
+
+func startHelpText() string {
+	return strings.Join([]string{
+		"Run the beginner-first first-send flow.",
+		"",
+		"`prtr start` helps you get from setup to a real first send with as little",
+		"friction as possible.",
+		"",
+		"What `start` does:",
+		"  1. Prompts for minimal onboarding settings when needed",
+		"  2. Runs `prtr doctor` before the first send",
+		"  3. Asks for a first request if you do not pass one",
+		"  4. Sends the request through the same flow as `prtr go`",
+		"",
+		"Usage:",
+		"  prtr start [message...]",
+		"",
+		"Examples:",
+		"  prtr start",
+		`  prtr start "이 함수 왜 느린지 설명해줘"`,
+		`  prtr start --to codex "왜 테스트가 깨지는지 찾아줘"`,
+		"  prtr start --dry-run",
+		"",
+		"Flags:",
+		"      --to <app>        Choose the app: claude | codex | gemini",
+		"      --dry-run         Show the first-send prompt without opening any app",
+		"  -h, --help            Help for start",
+		"",
+		"Advanced setup:",
+		"  Use `prtr setup` when you want the full configuration flow for role,",
+		"  template preset, and other advanced defaults.",
 	}, "\n")
 }
 
