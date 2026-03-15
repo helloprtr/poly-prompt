@@ -317,7 +317,7 @@ func (a *App) runStart(ctx context.Context, args []string, stdin io.Reader, stdi
 	}
 
 	_, _ = fmt.Fprintln(a.stdout, "running prtr doctor before the first send...")
-	if err := a.runDoctor(ctx, false); err != nil {
+	if err := a.runDoctorForStart(ctx, command.dryRun); err != nil {
 		return err
 	}
 
@@ -365,6 +365,9 @@ func (a *App) runStart(ctx context.Context, args []string, stdin io.Reader, stdi
 }
 
 func startNeedsOnboarding(cfg config.Config, currentAPIKey string) bool {
+	if !cfg.HasUserConfig {
+		return true
+	}
 	if strings.TrimSpace(currentAPIKey) == "" {
 		return true
 	}
@@ -378,6 +381,51 @@ func startNeedsOnboarding(cfg config.Config, currentAPIKey string) bool {
 		return true
 	}
 	return false
+}
+
+func (a *App) runDoctorForStart(ctx context.Context, dryRun bool) error {
+	cfg, err := a.configLoader()
+	if err != nil {
+		return err
+	}
+
+	report := a.buildDoctorReport(ctx, cfg)
+	a.writeDoctorSection("Platform matrix", report.Platform)
+	a.writeDoctorSection("Checks", report.Checks)
+
+	failures := 0
+	for _, check := range append(append([]doctorCheck{}, report.Platform...), report.Checks...) {
+		if check.Severity != doctorBlocking {
+			continue
+		}
+		if dryRun && startAllowsDryRunBlockingCheck(check.Label) {
+			continue
+		}
+		failures++
+	}
+	if failures > 0 {
+		return fmt.Errorf("doctor found %d issue(s)", failures)
+	}
+	return nil
+}
+
+func startAllowsDryRunBlockingCheck(label string) bool {
+	switch {
+	case label == "user config":
+		return true
+	case label == "clipboard":
+		return true
+	case label == "launcher surface":
+		return true
+	case label == "paste surface":
+		return true
+	case strings.HasPrefix(label, "launcher "):
+		return true
+	case strings.HasPrefix(label, "automation "):
+		return true
+	default:
+		return false
+	}
 }
 
 func (a *App) runStartOnboarding(reader *bufio.Reader, cfg config.Config, currentAPIKey string) error {
@@ -1869,10 +1917,10 @@ func parseTakeCommand(args []string) (takeCommandOptions, error) {
 	}
 
 	if command.action == "" {
-		return takeCommandOptions{}, usageError{message: "take requires an action such as patch, test, commit, or summary", helpText: takeHelpText()}
+		return takeCommandOptions{}, usageError{message: "take requires an action such as patch, test, commit, summary, issue, or plan", helpText: takeHelpText()}
 	}
 	if !isSupportedTakeAction(command.action) {
-		return takeCommandOptions{}, usageError{message: fmt.Sprintf("unknown take action %q (available: patch, test, commit, summary)", command.action), helpText: takeHelpText()}
+		return takeCommandOptions{}, usageError{message: fmt.Sprintf("unknown take action %q (available: patch, test, commit, summary, clarify, issue, plan)", command.action), helpText: takeHelpText()}
 	}
 
 	return command, nil
@@ -2425,10 +2473,9 @@ func usageText() string {
 
 func rootHelpText() string {
 	return strings.Join([]string{
-		"Translate intent into the next AI action.",
+		"prtr is the beginner-first AI command layer that turns user intent into the next action for Claude, Codex, or Gemini.",
 		"",
-		"prtr is a cross-platform CLI that translates your request to English,",
-		"adds helpful context, and routes it to Claude, Codex, or Gemini.",
+		"Write in your language. Ship the next action.",
 		"",
 		"Start with:",
 		"  prtr start",
@@ -2456,7 +2503,7 @@ func rootHelpText() string {
 		"  prtr again",
 		"  prtr inspect [message...]",
 		"  prtr history [search <query>]",
-		"  prtr doctor",
+		"  prtr doctor [--fix]",
 		"  prtr version",
 		"",
 		"Compatibility aliases:",
@@ -2474,6 +2521,39 @@ func rootHelpText() string {
 		"  prtr setup",
 		"  prtr lang",
 		"  prtr init",
+	}, "\n")
+}
+
+func setupHelpText() string {
+	return strings.Join([]string{
+		"Run the advanced guided setup flow.",
+		"",
+		"`prtr setup` is the compatibility path for people who want the full",
+		"interactive defaults flow instead of the smaller first-run path in `start`.",
+		"",
+		"What `setup` asks for:",
+		"  - DeepL API key",
+		"  - default input language",
+		"  - default output language",
+		"  - default app",
+		"  - default role",
+		"  - default template preset",
+	}, "\n")
+}
+
+func doctorHelpText() string {
+	return strings.Join([]string{
+		"Run environment and configuration diagnostics.",
+		"",
+		"`prtr doctor` checks config, translation readiness, clipboard support,",
+		"launchers, automation, and the current platform matrix.",
+		"",
+		"Usage:",
+		"  prtr doctor",
+		"  prtr doctor --fix",
+		"",
+		"`--fix` applies safe automatic fixes when possible, then prints fallback",
+		"suggestions for anything it cannot repair automatically.",
 	}, "\n")
 }
 
@@ -2663,12 +2743,17 @@ func takeHelpText() string {
 		"  test      Turn the answer into a testing prompt",
 		"  commit    Turn the answer into a commit message prompt",
 		"  summary   Turn the answer into a short reusable summary prompt",
+		"  clarify   Turn the answer into a clarification prompt",
+		"  issue     Turn the answer into an issue or task prompt",
+		"  plan      Turn the answer into an implementation plan prompt",
 		"",
 		"Examples:",
 		"  prtr take patch",
 		"  prtr take test --to codex",
 		"  prtr take commit --dry-run",
 		"  prtr take summary --edit",
+		"  prtr take issue",
+		"  prtr take plan",
 		"",
 		"Flags:",
 		"      --to <app>        Choose the app: claude | codex | gemini",
@@ -2737,7 +2822,7 @@ func inspectHelpText() string {
 
 func isSupportedTakeAction(action string) bool {
 	switch normalizeTakeAction(action) {
-	case "patch", "test", "commit", "summary":
+	case "patch", "test", "commit", "summary", "clarify", "issue", "plan":
 		return true
 	default:
 		return false
@@ -2759,6 +2844,12 @@ func takePrompt(action, clipboardText string) string {
 		goal = "Turn the material below into a prompt that produces a single concise commit message. Ask for one strong commit message only."
 	case "summary":
 		goal = "Turn the material below into a prompt that produces a short reusable summary. Keep it compact and easy to share."
+	case "clarify":
+		goal = "Turn the material below into a prompt that asks for a clearer explanation. Request plain language, assumptions, and a couple of concrete examples."
+	case "issue":
+		goal = "Turn the material below into a prompt that produces a clean issue or task description with summary, context, acceptance criteria, and open questions."
+	case "plan":
+		goal = "Turn the material below into a prompt that produces a step-by-step implementation plan with risks, dependencies, file areas, and validation steps."
 	default:
 		goal = "Turn the material below into the next useful prompt."
 	}

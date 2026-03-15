@@ -310,7 +310,7 @@ func TestExecuteRootHelp(t *testing.T) {
 	if err := app.Execute(context.Background(), []string{"--help"}, strings.NewReader(""), false); err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
-	if !strings.Contains(stdout.String(), "Translate intent into the next AI action.") {
+	if !strings.Contains(stdout.String(), "beginner-first AI command layer") {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), `prtr go [mode] [message...]`) {
@@ -634,7 +634,7 @@ func TestExecuteStartOnboardsAndRunsGo(t *testing.T) {
 			return termbook.Book{}, os.ErrNotExist
 		},
 	})
-	stdout, _ := buffersFromApp(app)
+	stdout, stderr := buffersFromApp(app)
 
 	input := strings.NewReader("saved-key\nko\nen\ncodex\n")
 	if err := app.Execute(context.Background(), []string{"start", "--dry-run", "이 함수 왜 느린지 설명해줘"}, input, false); err != nil {
@@ -650,6 +650,9 @@ func TestExecuteStartOnboardsAndRunsGo(t *testing.T) {
 	}
 	if translator.gotInput.Text != "이 함수 왜 느린지 설명해줘" {
 		t.Fatalf("translate input = %q", translator.gotInput.Text)
+	}
+	if !strings.Contains(stderr.String(), "-> ask | codex | prompt+repo | preview | ko->en") {
+		t.Fatalf("stderr = %q", stderr.String())
 	}
 	if !strings.Contains(stdout.String(), "updated config at") {
 		t.Fatalf("stdout = %q", stdout.String())
@@ -697,6 +700,46 @@ func TestExecuteStartUsesDefaultFirstPromptWhenBlank(t *testing.T) {
 	}
 }
 
+func TestExecuteStartWithEnvKeyStillOnboardsWhenUserConfigIsMissing(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tempDir)
+
+	translator := &stubTranslator{output: "Translated prompt"}
+	app := New(Dependencies{
+		Version:         "test",
+		Stdout:          &bytes.Buffer{},
+		Stderr:          &bytes.Buffer{},
+		Translator:      translator,
+		Clipboard:       &stubClipboard{},
+		Editor:          &stubEditor{},
+		Launcher:        &stubLauncher{desc: "Terminal.app"},
+		Automator:       &stubAutomator{diagErr: errors.New("paste unavailable")},
+		SubmitConfirmer: &stubConfirmer{},
+		ConfigLoader:    config.Load,
+		ConfigInit:      config.Init,
+		LookupEnv: func(key string) (string, bool) {
+			if key == "DEEPL_API_KEY" {
+				return "env-key", true
+			}
+			return "", false
+		},
+		HistoryStore: history.New(filepath.Join(t.TempDir(), "history.json")),
+	})
+
+	input := strings.NewReader("\nko\nen\ncodex\n")
+	if err := app.Execute(context.Background(), []string{"start", "--dry-run", "이 함수 왜 느린지 설명해줘"}, input, false); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if !cfg.HasUserConfig {
+		t.Fatalf("HasUserConfig = false")
+	}
+}
+
 func TestExecuteStartRejectsPipedOnboarding(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", tempDir)
@@ -723,6 +766,34 @@ func TestExecuteStartRejectsPipedOnboarding(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "interactive terminal") {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestExecuteSetupHelpShowsAdvancedSetupText(t *testing.T) {
+	t.Parallel()
+
+	app := newTestApp(t, testConfig(), &stubTranslator{}, &stubClipboard{}, &stubEditor{}, history.New(filepath.Join(t.TempDir(), "history.json")))
+	stdout, _ := buffersFromApp(app)
+
+	if err := app.Execute(context.Background(), []string{"setup", "--help"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "advanced guided setup flow") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
+func TestExecuteDoctorHelpShowsFixUsage(t *testing.T) {
+	t.Parallel()
+
+	app := newTestApp(t, testConfig(), &stubTranslator{}, &stubClipboard{}, &stubEditor{}, history.New(filepath.Join(t.TempDir(), "history.json")))
+	stdout, _ := buffersFromApp(app)
+
+	if err := app.Execute(context.Background(), []string{"doctor", "--help"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "prtr doctor --fix") {
+		t.Fatalf("stdout = %q", stdout.String())
 	}
 }
 
@@ -1525,6 +1596,34 @@ func TestExecuteSyncInitAndStatus(t *testing.T) {
 	}
 }
 
+func TestExecuteSyncStatusBeforeInitSuggestsInit(t *testing.T) {
+	tempDir := t.TempDir()
+	repoRoot := filepath.Join(tempDir, "repo")
+	if err := os.MkdirAll(filepath.Join(repoRoot, ".git"), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+
+	app := New(Dependencies{
+		Version:      "test",
+		Stdout:       &bytes.Buffer{},
+		Stderr:       &bytes.Buffer{},
+		ConfigLoader: func() (config.Config, error) { return testConfig(), nil },
+		ConfigInit:   func() (string, error) { return "", nil },
+		LookupEnv:    func(string) (string, bool) { return "", false },
+		RepoRootFinder: func() (string, error) {
+			return repoRoot, nil
+		},
+	})
+
+	err := app.Execute(context.Background(), []string{"sync", "status"}, strings.NewReader(""), false)
+	if err == nil {
+		t.Fatal("expected sync status error")
+	}
+	if !strings.Contains(err.Error(), "run `prtr sync init` first") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
 func TestExecuteSyncWriteCreatesVendorFiles(t *testing.T) {
 	tempDir := t.TempDir()
 	repoRoot := filepath.Join(tempDir, "repo")
@@ -1567,6 +1666,21 @@ func TestExecuteSyncWriteCreatesVendorFiles(t *testing.T) {
 		if !strings.Contains(string(data), "Generated by prtr sync") {
 			t.Fatalf("%s = %q", path, string(data))
 		}
+	}
+}
+
+func TestExecuteTakePlanSupportsNewAction(t *testing.T) {
+	t.Parallel()
+
+	clipboard := &stubClipboard{read: "We need a rollout plan for this migration."}
+	app := newTestApp(t, testConfig(), &stubTranslator{}, clipboard, &stubEditor{}, history.New(filepath.Join(t.TempDir(), "history.json")))
+	stdout, _ := buffersFromApp(app)
+
+	if err := app.Execute(context.Background(), []string{"take", "plan", "--dry-run"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "step-by-step implementation plan") {
+		t.Fatalf("stdout = %q", stdout.String())
 	}
 }
 
