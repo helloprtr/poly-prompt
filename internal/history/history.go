@@ -22,6 +22,8 @@ type Entry struct {
 	Translated          string    `json:"translated"`
 	FinalPrompt         string    `json:"final_prompt"`
 	Target              string    `json:"target"`
+	TargetSource        string    `json:"target_source,omitempty"`
+	TargetReason        string    `json:"target_reason,omitempty"`
 	Role                string    `json:"role,omitempty"`
 	TemplatePreset      string    `json:"template_preset,omitempty"`
 	Shortcut            string    `json:"shortcut,omitempty"`
@@ -34,6 +36,9 @@ type Entry struct {
 	Pasted              bool      `json:"pasted,omitempty"`
 	SubmitMode          string    `json:"submit_mode,omitempty"`
 	Submitted           bool      `json:"submitted,omitempty"`
+	ParentID            string    `json:"parent_id,omitempty"`
+	Action              string    `json:"action,omitempty"`
+	SourceKind          string    `json:"source_kind,omitempty"`
 	Pinned              bool      `json:"pinned,omitempty"`
 	Favorite            bool      `json:"favorite,omitempty"`
 }
@@ -149,7 +154,11 @@ func (s *Store) Search(query string) ([]Entry, error) {
 			entry.FinalPrompt,
 			entry.Role,
 			entry.Target,
+			entry.TargetSource,
+			entry.TargetReason,
 			entry.Shortcut,
+			entry.Action,
+			entry.SourceKind,
 			entry.TemplatePreset,
 		}, "\n"))
 		if strings.Contains(haystack, query) {

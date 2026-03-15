@@ -16,6 +16,7 @@ import (
 	"github.com/helloprtr/poly-prompt/internal/history"
 	"github.com/helloprtr/poly-prompt/internal/input"
 	"github.com/helloprtr/poly-prompt/internal/launcher"
+	"github.com/helloprtr/poly-prompt/internal/memory"
 	"github.com/helloprtr/poly-prompt/internal/repoctx"
 	"github.com/helloprtr/poly-prompt/internal/translate"
 )
@@ -60,6 +61,7 @@ func main() {
 		Automator:       automation.New(),
 		SubmitConfirmer: app.NewTTYConfirmer(os.Stderr),
 		HistoryStore:    history.New(historyPath),
+		MemoryLoader:    memory.Load,
 	})
 
 	if err := application.Execute(context.Background(), os.Args[1:], os.Stdin, stdinPiped); err != nil {

@@ -17,6 +17,22 @@ translation_target_lang = "en"
 default_target = "claude"
 default_template_preset = "claude-structured"
 
+[routing]
+enabled = true
+policy = "deterministic-v1"
+
+[routing.fixed_targets]
+ask = ""
+review = ""
+fix = ""
+design = ""
+
+[routing.mode_defaults]
+ask = "claude"
+review = "claude"
+fix = "codex"
+design = "gemini"
+
 [targets.claude]
 family = "claude"
 default_template_preset = "claude-structured"
@@ -195,6 +211,7 @@ type Config struct {
 	DefaultTarget         string
 	DefaultRole           string
 	DefaultTemplatePreset string
+	Routing               RoutingConfig
 	Targets               map[string]TargetConfig
 	TemplatePresets       map[string]TemplatePresetConfig
 	Roles                 map[string]RoleConfig
@@ -263,6 +280,13 @@ type LauncherConfig struct {
 	SubmitMode   string   `toml:"submit_mode"`
 }
 
+type RoutingConfig struct {
+	Enabled      bool              `toml:"enabled"`
+	Policy       string            `toml:"policy"`
+	FixedTargets map[string]string `toml:"fixed_targets"`
+	ModeDefaults map[string]string `toml:"mode_defaults"`
+}
+
 type DefaultsUpdate struct {
 	APIKey                *string
 	TranslationSourceLang *string
@@ -279,6 +303,7 @@ type fileConfig struct {
 	DefaultTarget         string                          `toml:"default_target"`
 	DefaultRole           string                          `toml:"default_role"`
 	DefaultTemplatePreset string                          `toml:"default_template_preset"`
+	Routing               fileRoutingConfig               `toml:"routing"`
 	Targets               map[string]TargetConfig         `toml:"targets"`
 	TemplatePresets       map[string]TemplatePresetConfig `toml:"template_presets"`
 	Roles                 map[string]fileRoleConfig       `toml:"roles"`
@@ -300,6 +325,13 @@ type fileLauncherConfig struct {
 	SubmitMode   string   `toml:"submit_mode"`
 }
 
+type fileRoutingConfig struct {
+	Enabled      *bool             `toml:"enabled"`
+	Policy       string            `toml:"policy"`
+	FixedTargets map[string]string `toml:"fixed_targets"`
+	ModeDefaults map[string]string `toml:"mode_defaults"`
+}
+
 func Load() (Config, error) {
 	cfg := Config{
 		Targets:               defaultTargets(),
@@ -308,6 +340,7 @@ func Load() (Config, error) {
 		Profiles:              defaultProfiles(),
 		Shortcuts:             defaultShortcuts(),
 		Launchers:             defaultLaunchers(),
+		Routing:               defaultRouting(),
 		TranslationSourceLang: "auto",
 		TranslationTargetLang: "en",
 	}
@@ -579,6 +612,7 @@ func applyFileConfig(cfg *Config, raw fileConfig, source string, includeAPIKey b
 		cfg.DefaultTemplatePreset = preset
 		cfg.DefaultPresetSource = source
 	}
+	cfg.Routing = normalizeRouting(cfg.Routing, raw.Routing)
 
 	for name, target := range raw.Targets {
 		trimmedName := strings.TrimSpace(name)
@@ -727,6 +761,39 @@ func normalizeLauncher(base LauncherConfig, launcher fileLauncherConfig) Launche
 		PasteDelayMS: pasteDelay,
 		SubmitMode:   submitMode,
 	}
+}
+
+func normalizeRouting(base RoutingConfig, raw fileRoutingConfig) RoutingConfig {
+	next := RoutingConfig{
+		Enabled:      base.Enabled,
+		Policy:       strings.TrimSpace(base.Policy),
+		FixedTargets: cloneStringMap(base.FixedTargets),
+		ModeDefaults: cloneStringMap(base.ModeDefaults),
+	}
+	if next.Policy == "" {
+		next.Policy = "deterministic-v1"
+	}
+	if raw.Enabled != nil {
+		next.Enabled = *raw.Enabled
+	}
+	if policy := strings.TrimSpace(raw.Policy); policy != "" {
+		next.Policy = policy
+	}
+	for name, value := range raw.FixedTargets {
+		name = strings.ToLower(strings.TrimSpace(name))
+		if name == "" {
+			continue
+		}
+		next.FixedTargets[name] = strings.TrimSpace(value)
+	}
+	for name, value := range raw.ModeDefaults {
+		name = strings.ToLower(strings.TrimSpace(name))
+		if name == "" {
+			continue
+		}
+		next.ModeDefaults[name] = strings.TrimSpace(value)
+	}
+	return next
 }
 
 func defaultTargets() map[string]TargetConfig {
@@ -924,6 +991,25 @@ func defaultLaunchers() map[string]LauncherConfig {
 	}
 }
 
+func defaultRouting() RoutingConfig {
+	return RoutingConfig{
+		Enabled: true,
+		Policy:  "deterministic-v1",
+		FixedTargets: map[string]string{
+			"ask":    "",
+			"review": "",
+			"fix":    "",
+			"design": "",
+		},
+		ModeDefaults: map[string]string{
+			"ask":    "claude",
+			"review": "claude",
+			"fix":    "codex",
+			"design": "gemini",
+		},
+	}
+}
+
 func normalizeSourceLanguage(value string) string {
 	value = strings.ToLower(strings.TrimSpace(value))
 	switch value {
@@ -961,4 +1047,15 @@ func sortedKeys[T any](items map[string]T) []string {
 	}
 	sort.Strings(names)
 	return names
+}
+
+func cloneStringMap(input map[string]string) map[string]string {
+	if input == nil {
+		return map[string]string{}
+	}
+	cloned := make(map[string]string, len(input))
+	for key, value := range input {
+		cloned[key] = value
+	}
+	return cloned
 }
