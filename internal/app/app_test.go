@@ -620,7 +620,7 @@ func TestExecuteStartOnboardsAndRunsGo(t *testing.T) {
 			return termbook.Book{}, os.ErrNotExist
 		},
 	})
-	stdout, _ := buffersFromApp(app)
+	stdout, stderr := buffersFromApp(app)
 
 	input := strings.NewReader("saved-key\nko\nen\ncodex\n")
 	if err := app.Execute(context.Background(), []string{"start", "--dry-run", "이 함수 왜 느린지 설명해줘"}, input, false); err != nil {
@@ -636,6 +636,9 @@ func TestExecuteStartOnboardsAndRunsGo(t *testing.T) {
 	}
 	if translator.gotInput.Text != "이 함수 왜 느린지 설명해줘" {
 		t.Fatalf("translate input = %q", translator.gotInput.Text)
+	}
+	if !strings.Contains(stderr.String(), "-> ask | codex | prompt+repo | preview | ko->en") {
+		t.Fatalf("stderr = %q", stderr.String())
 	}
 	if !strings.Contains(stdout.String(), "updated config at") {
 		t.Fatalf("stdout = %q", stdout.String())
@@ -1591,6 +1594,34 @@ func TestExecuteSyncInitAndStatus(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "MISSING") {
 		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
+func TestExecuteSyncStatusBeforeInitSuggestsInit(t *testing.T) {
+	tempDir := t.TempDir()
+	repoRoot := filepath.Join(tempDir, "repo")
+	if err := os.MkdirAll(filepath.Join(repoRoot, ".git"), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+
+	app := New(Dependencies{
+		Version:      "test",
+		Stdout:       &bytes.Buffer{},
+		Stderr:       &bytes.Buffer{},
+		ConfigLoader: func() (config.Config, error) { return testConfig(), nil },
+		ConfigInit:   func() (string, error) { return "", nil },
+		LookupEnv:    func(string) (string, bool) { return "", false },
+		RepoRootFinder: func() (string, error) {
+			return repoRoot, nil
+		},
+	})
+
+	err := app.Execute(context.Background(), []string{"sync", "status"}, strings.NewReader(""), false)
+	if err == nil {
+		t.Fatal("expected sync status error")
+	}
+	if !strings.Contains(err.Error(), "run `prtr sync init` first") {
+		t.Fatalf("err = %v", err)
 	}
 }
 

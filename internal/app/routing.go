@@ -31,6 +31,11 @@ func selectGoTarget(cfg config.Config, mode, explicitTarget, promptText string, 
 		if decision, ok := applyDeterministicRoute(mode, promptText, repoSummary); ok {
 			return decision
 		}
+		if mode == "ask" {
+			if target := strings.TrimSpace(cfg.DefaultTarget); target != "" {
+				return routeDecision{Target: target, Source: "config default", Reason: "generic ask request uses configured default target"}
+			}
+		}
 		if target := strings.TrimSpace(cfg.Routing.ModeDefaults[mode]); target != "" {
 			return routeDecision{Target: target, Source: "mode_default", Reason: mode + " default from routing config"}
 		}
@@ -63,7 +68,7 @@ func applyDeterministicRoute(mode, promptText string, repoSummary repoctx.Summar
 		if isUIHeavy(promptText) {
 			return routeDecision{Target: "gemini", Source: "auto_route", Reason: "request includes UI or product signals"}, true
 		}
-		return routeDecision{Target: "claude", Source: "auto_route", Reason: "generic ask request prefers claude"}, true
+		return routeDecision{}, false
 	default:
 		return routeDecision{}, false
 	}

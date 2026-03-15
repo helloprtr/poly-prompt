@@ -162,6 +162,9 @@ func (a *App) runSyncInit(repoRoot string, dryRun bool) error {
 func (a *App) runSyncStatus(repoRoot string, write []string) error {
 	targets, err := a.renderSyncTargets(repoRoot, write)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("sync is not initialized in this repository yet; run `prtr sync init` first")
+		}
 		return err
 	}
 	for _, target := range targets {
@@ -173,6 +176,9 @@ func (a *App) runSyncStatus(repoRoot string, write []string) error {
 func (a *App) runSyncWrite(repoRoot string, write []string, dryRun bool) error {
 	targets, err := a.renderSyncTargets(repoRoot, write)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("sync is not initialized in this repository yet; run `prtr sync init` first")
+		}
 		return err
 	}
 	for _, target := range targets {
