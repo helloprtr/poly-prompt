@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"runtime"
 	"strings"
 	"time"
 
@@ -222,8 +221,11 @@ func (a *App) buildDoctorReport(ctx context.Context, cfg config.Config) doctorRe
 }
 
 func (a *App) buildPlatformMatrix(cfg config.Config) []doctorCheck {
-	checks := []doctorCheck{
-		{Severity: doctorOK, Label: "current surface", Detail: a.currentPlatformLabel()},
+	surface := detectPlatformSurface(currentGOOS(), a.lookupEnv)
+	checks := []doctorCheck{{Severity: doctorOK, Label: "current surface", Detail: surface.Label}}
+	if !surface.Supported {
+		checks[0].Severity = doctorBlocking
+		checks[0].Detail = "real open-copy handoff is unavailable on this surface"
 	}
 
 	if diagnoser, ok := a.clipboard.(clipboard.Diagnoser); ok {
@@ -264,22 +266,6 @@ func (a *App) buildPlatformMatrix(cfg config.Config) []doctorCheck {
 
 	checks = append(checks, doctorCheck{Severity: doctorWarning, Label: "submit surface", Detail: "manual only in the current release"})
 	return checks
-}
-
-func (a *App) currentPlatformLabel() string {
-	switch runtime.GOOS {
-	case "darwin":
-		return "macOS + Terminal.app"
-	case "linux":
-		if value, ok := a.lookupEnv("WAYLAND_DISPLAY"); ok && strings.TrimSpace(value) != "" {
-			return "Linux + Wayland"
-		}
-		return "Linux + X11"
-	case "windows":
-		return "Windows interactive session"
-	default:
-		return "unsupported platform"
-	}
 }
 
 func firstLauncherRequest(cfg config.Config) (launcher.Request, bool) {
