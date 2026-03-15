@@ -301,6 +301,23 @@ func TestExecuteGoHelp(t *testing.T) {
 	}
 }
 
+func TestExecuteStartHelp(t *testing.T) {
+	t.Parallel()
+
+	app := newTestApp(t, testConfig(), &stubTranslator{}, &stubClipboard{}, &stubEditor{}, history.New(filepath.Join(t.TempDir(), "history.json")))
+	stdout, _ := buffersFromApp(app)
+
+	if err := app.Execute(context.Background(), []string{"start", "--help"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "prtr start [message...]") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "Use `prtr setup` when you want the full configuration flow") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
 func TestExecuteTakeHelp(t *testing.T) {
 	t.Parallel()
 
@@ -553,6 +570,125 @@ func TestExecuteGoNoContextSkipsRepoContext(t *testing.T) {
 	}
 	if len(translator.gotInput.ProtectedTerms) != 0 {
 		t.Fatalf("ProtectedTerms = %v", translator.gotInput.ProtectedTerms)
+	}
+}
+
+func TestExecuteStartOnboardsAndRunsGo(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tempDir)
+
+	translator := &stubTranslator{output: "Translated prompt"}
+	app := New(Dependencies{
+		Version:         "test",
+		Stdout:          &bytes.Buffer{},
+		Stderr:          &bytes.Buffer{},
+		Translator:      translator,
+		Clipboard:       &stubClipboard{},
+		Editor:          &stubEditor{},
+		Launcher:        &stubLauncher{desc: "Terminal.app"},
+		Automator:       &stubAutomator{desc: "Terminal.app"},
+		SubmitConfirmer: &stubConfirmer{},
+		ConfigLoader:    config.Load,
+		ConfigInit:      config.Init,
+		LookupEnv:       func(string) (string, bool) { return "", false },
+		HistoryStore:    history.New(filepath.Join(t.TempDir(), "history.json")),
+		RepoContext:     &stubRepoContext{},
+		RepoRootFinder: func() (string, error) {
+			return "", termbook.ErrNotGitRepo
+		},
+		TermbookLoader: func(string) (termbook.Book, error) {
+			return termbook.Book{}, os.ErrNotExist
+		},
+	})
+	stdout, _ := buffersFromApp(app)
+
+	input := strings.NewReader("saved-key\nko\nen\ncodex\n")
+	if err := app.Execute(context.Background(), []string{"start", "--dry-run", "이 함수 왜 느린지 설명해줘"}, input, false); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.DefaultTarget != "codex" {
+		t.Fatalf("DefaultTarget = %q", cfg.DefaultTarget)
+	}
+	if translator.gotInput.Text != "이 함수 왜 느린지 설명해줘" {
+		t.Fatalf("translate input = %q", translator.gotInput.Text)
+	}
+	if !strings.Contains(stdout.String(), "updated config at") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "next actions:") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
+func TestExecuteStartUsesDefaultFirstPromptWhenBlank(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tempDir)
+
+	translator := &stubTranslator{output: "Translated prompt"}
+	app := New(Dependencies{
+		Version:         "test",
+		Stdout:          &bytes.Buffer{},
+		Stderr:          &bytes.Buffer{},
+		Translator:      translator,
+		Clipboard:       &stubClipboard{},
+		Editor:          &stubEditor{},
+		Launcher:        &stubLauncher{desc: "Terminal.app"},
+		Automator:       &stubAutomator{desc: "Terminal.app"},
+		SubmitConfirmer: &stubConfirmer{},
+		ConfigLoader:    config.Load,
+		ConfigInit:      config.Init,
+		LookupEnv:       func(string) (string, bool) { return "", false },
+		HistoryStore:    history.New(filepath.Join(t.TempDir(), "history.json")),
+		RepoContext:     &stubRepoContext{},
+		RepoRootFinder: func() (string, error) {
+			return "", termbook.ErrNotGitRepo
+		},
+		TermbookLoader: func(string) (termbook.Book, error) {
+			return termbook.Book{}, os.ErrNotExist
+		},
+	})
+
+	input := strings.NewReader("saved-key\nko\nen\nclaude\n\n")
+	if err := app.Execute(context.Background(), []string{"start", "--dry-run"}, input, false); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if translator.gotInput.Text != "이 함수 왜 느린지 설명해줘" {
+		t.Fatalf("translate input = %q", translator.gotInput.Text)
+	}
+}
+
+func TestExecuteStartRejectsPipedOnboarding(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tempDir)
+
+	app := New(Dependencies{
+		Version:         "test",
+		Stdout:          &bytes.Buffer{},
+		Stderr:          &bytes.Buffer{},
+		Translator:      &stubTranslator{output: "Translated prompt"},
+		Clipboard:       &stubClipboard{},
+		Editor:          &stubEditor{},
+		Launcher:        &stubLauncher{},
+		Automator:       &stubAutomator{},
+		SubmitConfirmer: &stubConfirmer{},
+		ConfigLoader:    config.Load,
+		ConfigInit:      config.Init,
+		LookupEnv:       func(string) (string, bool) { return "", false },
+		HistoryStore:    history.New(filepath.Join(t.TempDir(), "history.json")),
+	})
+
+	err := app.Execute(context.Background(), []string{"start"}, strings.NewReader("stack trace"), true)
+	if err == nil {
+		t.Fatal("Execute() expected an error, got nil")
+	}
+	if !strings.Contains(err.Error(), "interactive terminal") {
+		t.Fatalf("error = %v", err)
 	}
 }
 
