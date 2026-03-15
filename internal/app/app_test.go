@@ -15,6 +15,7 @@ import (
 	"github.com/helloprtr/poly-prompt/internal/editor"
 	"github.com/helloprtr/poly-prompt/internal/history"
 	"github.com/helloprtr/poly-prompt/internal/launcher"
+	"github.com/helloprtr/poly-prompt/internal/memory"
 	"github.com/helloprtr/poly-prompt/internal/repoctx"
 	"github.com/helloprtr/poly-prompt/internal/termbook"
 	"github.com/helloprtr/poly-prompt/internal/translate"
@@ -169,6 +170,22 @@ func testConfig() config.Config {
 		TranslationTargetLang: "en",
 		DefaultTarget:         "claude",
 		DefaultTemplatePreset: "claude-structured",
+		Routing: config.RoutingConfig{
+			Enabled: true,
+			Policy:  "deterministic-v1",
+			FixedTargets: map[string]string{
+				"ask":    "",
+				"review": "",
+				"fix":    "",
+				"design": "",
+			},
+			ModeDefaults: map[string]string{
+				"ask":    "claude",
+				"review": "claude",
+				"fix":    "codex",
+				"design": "gemini",
+			},
+		},
 		Targets: map[string]config.TargetConfig{
 			"claude": {Family: "claude", DefaultTemplatePreset: "claude-structured", TranslationTargetLang: "en", DefaultDelivery: "open-copy"},
 			"codex":  {Family: "codex", DefaultTemplatePreset: "codex-implement", TranslationTargetLang: "en", DefaultDelivery: "open-copy"},
@@ -235,6 +252,9 @@ func newTestApp(t *testing.T, cfg config.Config, translator *stubTranslator, cli
 		},
 		TermbookLoader: func(string) (termbook.Book, error) {
 			return termbook.Book{}, os.ErrNotExist
+		},
+		MemoryLoader: func(string) (memory.Book, error) {
+			return memory.Book{}, os.ErrNotExist
 		},
 	})
 }
@@ -373,7 +393,7 @@ func TestExecuteShortcutUsesShortcutDefaults(t *testing.T) {
 	}
 }
 
-func TestExecuteGoUsesLastAppAndCompactStatus(t *testing.T) {
+func TestExecuteGoUsesDeterministicRoutingAndCompactStatus(t *testing.T) {
 	t.Parallel()
 
 	store := history.New(filepath.Join(t.TempDir(), "history.json"))
@@ -415,13 +435,13 @@ func TestExecuteGoUsesLastAppAndCompactStatus(t *testing.T) {
 		t.Fatalf("Execute() error = %v", err)
 	}
 
-	if !strings.Contains(stdout.String(), "// Target: codex") {
+	if !strings.Contains(stdout.String(), "<task>") {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
 	if launchStub.calls != 1 || autoStub.pasteCalls != 1 {
 		t.Fatalf("launch=%d paste=%d, want 1/1", launchStub.calls, autoStub.pasteCalls)
 	}
-	if !strings.Contains(stderr.String(), "-> review | codex | prompt | launch+paste | auto->en") {
+	if !strings.Contains(stderr.String(), "-> review | claude | prompt | launch+paste | auto->en") {
 		t.Fatalf("stderr = %q", stderr.String())
 	}
 }
@@ -1516,6 +1536,106 @@ func TestExecuteTakePlanSupportsNewAction(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "step-by-step implementation plan") {
 		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
+func TestExecuteGoUsesRoutingForFixMode(t *testing.T) {
+	t.Parallel()
+
+	translator := &stubTranslator{output: "translated"}
+	clipboard := &stubClipboard{}
+	app := newTestApp(t, testConfig(), translator, clipboard, &stubEditor{}, history.New(filepath.Join(t.TempDir(), "history.json")))
+	stdout, stderr := buffersFromApp(app)
+
+	if err := app.Execute(context.Background(), []string{"go", "fix", "테스트가 왜 깨지지?"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "// Target: codex") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "fix | codex") {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+}
+
+func TestExecuteSyncInitAndStatus(t *testing.T) {
+	tempDir := t.TempDir()
+	repoRoot := filepath.Join(tempDir, "repo")
+	if err := os.MkdirAll(filepath.Join(repoRoot, ".git"), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+
+	app := New(Dependencies{
+		Version:      "test",
+		Stdout:       &bytes.Buffer{},
+		Stderr:       &bytes.Buffer{},
+		ConfigLoader: func() (config.Config, error) { return testConfig(), nil },
+		ConfigInit:   func() (string, error) { return "", nil },
+		LookupEnv:    func(string) (string, bool) { return "", false },
+		RepoRootFinder: func() (string, error) {
+			return repoRoot, nil
+		},
+	})
+	stdout, _ := buffersFromApp(app)
+
+	if err := app.Execute(context.Background(), []string{"sync", "init"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("sync init error = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(repoRoot, ".prtr", "guide.md")); err != nil {
+		t.Fatalf("guide stat error = %v", err)
+	}
+	stdout.Reset()
+
+	if err := app.Execute(context.Background(), []string{"sync", "status"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("sync status error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "MISSING") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
+func TestExecuteSyncWriteCreatesVendorFiles(t *testing.T) {
+	tempDir := t.TempDir()
+	repoRoot := filepath.Join(tempDir, "repo")
+	if err := os.MkdirAll(filepath.Join(repoRoot, ".git"), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(repoRoot, ".prtr"), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repoRoot, ".prtr", "guide.md"), []byte("# Guide\n\nKeep names stable.\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if _, err := termbook.Save(repoRoot, termbook.Book{ProtectedTerms: []string{"prtr"}}); err != nil {
+		t.Fatalf("termbook save error = %v", err)
+	}
+	if _, err := memory.Save(repoRoot, memory.Book{RepoSummary: "Repo summary", Guidance: []string{"Prefer concrete next actions."}}); err != nil {
+		t.Fatalf("memory save error = %v", err)
+	}
+
+	app := New(Dependencies{
+		Version:      "test",
+		Stdout:       &bytes.Buffer{},
+		Stderr:       &bytes.Buffer{},
+		ConfigLoader: func() (config.Config, error) { return testConfig(), nil },
+		ConfigInit:   func() (string, error) { return "", nil },
+		LookupEnv:    func(string) (string, bool) { return "", false },
+		RepoRootFinder: func() (string, error) {
+			return repoRoot, nil
+		},
+	})
+
+	if err := app.Execute(context.Background(), []string{"sync", "--write", "claude,codex"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("sync write error = %v", err)
+	}
+	for _, path := range []string{"CLAUDE.md", "AGENTS.md"} {
+		data, err := os.ReadFile(filepath.Join(repoRoot, path))
+		if err != nil {
+			t.Fatalf("ReadFile(%s) error = %v", path, err)
+		}
+		if !strings.Contains(string(data), "Generated by prtr sync") {
+			t.Fatalf("%s = %q", path, string(data))
+		}
 	}
 }
 func TestExecuteReturnsUnknownTemplateError(t *testing.T) {

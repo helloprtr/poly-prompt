@@ -32,6 +32,13 @@ translation_target_lang = "en"
 default_target = "gemini"
 default_role = "be"
 
+[routing]
+enabled = false
+policy = "deterministic-v1"
+
+[routing.mode_defaults]
+ask = "gemini"
+
 [template_presets.team]
 template = "Team:\n{{prompt}}"
 
@@ -50,6 +57,12 @@ template_preset = "codex-implement"
 	projectContent := `default_target = "codex"
 default_template_preset = "team"
 translation_target_lang = "ja"
+
+[routing]
+enabled = true
+
+[routing.fixed_targets]
+review = "codex"
 
 [profiles.backend_review]
 target = "claude"
@@ -94,6 +107,15 @@ submit_mode = "confirm"
 	}
 	if cfg.DefaultTemplatePreset != "team" {
 		t.Fatalf("DefaultTemplatePreset = %q, want %q", cfg.DefaultTemplatePreset, "team")
+	}
+	if !cfg.Routing.Enabled {
+		t.Fatalf("Routing.Enabled = %v, want true", cfg.Routing.Enabled)
+	}
+	if cfg.Routing.FixedTargets["review"] != "codex" {
+		t.Fatalf("Routing.FixedTargets[review] = %q", cfg.Routing.FixedTargets["review"])
+	}
+	if cfg.Routing.ModeDefaults["ask"] != "gemini" {
+		t.Fatalf("Routing.ModeDefaults[ask] = %q", cfg.Routing.ModeDefaults["ask"])
 	}
 	if cfg.DefaultTargetSource != "project config" {
 		t.Fatalf("DefaultTargetSource = %q", cfg.DefaultTargetSource)
@@ -155,6 +177,30 @@ func TestResolveFunctions(t *testing.T) {
 	}
 	if key, source := ResolveAPIKey("", cfg); key != "config-key" || source == "" {
 		t.Fatalf("ResolveAPIKey() = %q, %q", key, source)
+	}
+}
+
+func TestLoadUsesDefaultRoutingWhenUnset(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tempDir)
+	oldWD, _ := os.Getwd()
+	t.Cleanup(func() { _ = os.Chdir(oldWD) })
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("Chdir() error = %v", err)
+	}
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if !cfg.Routing.Enabled {
+		t.Fatalf("Routing.Enabled = %v, want true", cfg.Routing.Enabled)
+	}
+	if cfg.Routing.Policy != "deterministic-v1" {
+		t.Fatalf("Routing.Policy = %q", cfg.Routing.Policy)
+	}
+	if cfg.Routing.ModeDefaults["fix"] != "codex" {
+		t.Fatalf("Routing.ModeDefaults[fix] = %q", cfg.Routing.ModeDefaults["fix"])
 	}
 }
 
