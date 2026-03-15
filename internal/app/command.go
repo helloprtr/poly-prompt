@@ -37,6 +37,8 @@ func (a *App) Command(ctx context.Context, stdin io.Reader, stdinPiped bool) *co
 	root.AddCommand(a.newLearnCommand())
 	root.AddCommand(a.newSyncCommand())
 	root.AddCommand(a.newPlatformCommand())
+	root.AddCommand(a.newExecCommand(ctx, stdin, stdinPiped))
+	root.AddCommand(a.newServerCommand(ctx))
 	root.AddCommand(a.newInspectCommand(ctx, stdin, stdinPiped))
 	root.AddCommand(a.newHistoryCommand())
 	root.AddCommand(a.newSetupCommand(stdin))
@@ -191,6 +193,40 @@ func (a *App) newPlatformCommand() *cobra.Command {
 				return err
 			}
 			return a.runPlatform(jsonOutput)
+		},
+	}
+	cmd.SetHelpFunc(func(cmd *cobra.Command, _ []string) { _, _ = fmt.Fprintln(a.stdout, cmd.Long) })
+	return cmd
+}
+
+func (a *App) newExecCommand(ctx context.Context, stdin io.Reader, stdinPiped bool) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:                "exec [mode] [message...]",
+		Short:              "Run a headless request through a target app.",
+		Long:               execHelpText(),
+		DisableFlagParsing: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if wantsHelp(args) {
+				return cmd.Help()
+			}
+			return a.runExec(ctx, args, stdin, stdinPiped)
+		},
+	}
+	cmd.SetHelpFunc(func(cmd *cobra.Command, _ []string) { _, _ = fmt.Fprintln(a.stdout, cmd.Long) })
+	return cmd
+}
+
+func (a *App) newServerCommand(ctx context.Context) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:                "server [--addr 127.0.0.1:8787]",
+		Short:              "Start the alpha orchestration server.",
+		Long:               serverHelpText(),
+		DisableFlagParsing: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if wantsHelp(args) {
+				return cmd.Help()
+			}
+			return a.runServer(ctx, args)
 		},
 	}
 	cmd.SetHelpFunc(func(cmd *cobra.Command, _ []string) { _, _ = fmt.Fprintln(a.stdout, cmd.Long) })

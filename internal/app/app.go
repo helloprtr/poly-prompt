@@ -34,6 +34,9 @@ type TranslatorFactory func(string) translate.Translator
 type RepoRootFinder func() (string, error)
 type TermbookLoader func(string) (termbook.Book, error)
 type MemoryLoader func(string) (memory.Book, error)
+type HeadlessRunner interface {
+	Run(context.Context, HeadlessRequest) (HeadlessResult, error)
+}
 
 type Dependencies struct {
 	Version           string
@@ -54,6 +57,7 @@ type Dependencies struct {
 	RepoRootFinder    RepoRootFinder
 	TermbookLoader    TermbookLoader
 	MemoryLoader      MemoryLoader
+	HeadlessRunner    HeadlessRunner
 }
 
 type App struct {
@@ -75,6 +79,7 @@ type App struct {
 	repoRootFinder    RepoRootFinder
 	termbookLoader    TermbookLoader
 	memoryLoader      MemoryLoader
+	headlessRunner    HeadlessRunner
 }
 
 type usageError struct {
@@ -135,6 +140,15 @@ type replayCommandOptions struct {
 	dryRun    bool
 	noContext bool
 	noCopy    bool
+	prompt    []string
+}
+
+type execCommandOptions struct {
+	mode      string
+	app       string
+	dryRun    bool
+	noContext bool
+	json      bool
 	prompt    []string
 }
 
@@ -214,6 +228,7 @@ func New(deps Dependencies) *App {
 		repoRootFinder:    deps.RepoRootFinder,
 		termbookLoader:    deps.TermbookLoader,
 		memoryLoader:      deps.MemoryLoader,
+		headlessRunner:    deps.HeadlessRunner,
 	}
 }
 
@@ -243,7 +258,7 @@ func (a *App) shouldRunRootDirect(args []string) bool {
 	}
 
 	switch first {
-	case "init", "version", "start", "setup", "lang", "doctor", "templates", "profiles", "history", "rerun", "pin", "favorite", "go", "again", "swap", "take", "learn", "inspect", "sync", "platform":
+	case "init", "version", "start", "setup", "lang", "doctor", "templates", "profiles", "history", "rerun", "pin", "favorite", "go", "again", "swap", "take", "learn", "inspect", "sync", "platform", "exec", "server":
 		return false
 	}
 
@@ -2436,6 +2451,8 @@ func rootHelpText() string {
 		"  prtr learn [paths...]",
 		"  prtr sync [init|status]",
 		"  prtr platform",
+		"  prtr exec [mode] [message...]",
+		"  prtr server [--addr 127.0.0.1:8787]",
 		"  prtr again",
 		"  prtr inspect [message...]",
 		"  prtr history [search <query>]",

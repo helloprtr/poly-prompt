@@ -62,6 +62,7 @@ func main() {
 		SubmitConfirmer: app.NewTTYConfirmer(os.Stderr),
 		HistoryStore:    history.New(historyPath),
 		MemoryLoader:    memory.Load,
+		HeadlessRunner:  app.CLIHeadlessRunner{},
 	})
 
 	if err := application.Execute(context.Background(), os.Args[1:], os.Stdin, stdinPiped); err != nil {
