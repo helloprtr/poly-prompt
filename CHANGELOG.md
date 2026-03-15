@@ -9,6 +9,11 @@ All notable product-facing changes to `prtr` are documented in this file.
 - Added `prtr exec` for headless target execution.
 - Added `prtr server` as the alpha orchestration surface.
 - Promoted the README and Astro site to the next-action command layer positioning.
+- Hardened first-run and readiness behavior around `start`, `doctor`, `sync`, and site onboarding copy.
+
+### Why This Release Matters
+
+`v0.5.0` is the point where `prtr` becomes both more automatable and more trustworthy for new users. The new automation surfaces are available, and the first-run path now matches the product story more closely when people actually try it.
 
 ## v0.4.5 - 2026-03-15
 
