@@ -35,6 +35,7 @@ func (a *App) Command(ctx context.Context, stdin io.Reader, stdinPiped bool) *co
 	root.AddCommand(a.newSwapCommand(ctx, stdin, stdinPiped))
 	root.AddCommand(a.newTakeCommand(ctx))
 	root.AddCommand(a.newLearnCommand())
+	root.AddCommand(a.newSyncCommand())
 	root.AddCommand(a.newInspectCommand(ctx, stdin, stdinPiped))
 	root.AddCommand(a.newHistoryCommand())
 	root.AddCommand(a.newSetupCommand(stdin))
@@ -151,6 +152,23 @@ func (a *App) newLearnCommand() *cobra.Command {
 				return cmd.Help()
 			}
 			return a.runLearn(args)
+		},
+	}
+	cmd.SetHelpFunc(func(cmd *cobra.Command, _ []string) { _, _ = fmt.Fprintln(a.stdout, cmd.Long) })
+	return cmd
+}
+
+func (a *App) newSyncCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:                "sync [init|status]",
+		Short:              "Sync canonical .prtr guidance into vendor files.",
+		Long:               syncHelpText(),
+		DisableFlagParsing: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if wantsHelp(args) {
+				return cmd.Help()
+			}
+			return a.runSync(args)
 		},
 	}
 	cmd.SetHelpFunc(func(cmd *cobra.Command, _ []string) { _, _ = fmt.Fprintln(a.stdout, cmd.Long) })

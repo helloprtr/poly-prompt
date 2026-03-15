@@ -20,6 +20,7 @@ import (
 	"github.com/helloprtr/poly-prompt/internal/history"
 	"github.com/helloprtr/poly-prompt/internal/input"
 	"github.com/helloprtr/poly-prompt/internal/launcher"
+	"github.com/helloprtr/poly-prompt/internal/memory"
 	"github.com/helloprtr/poly-prompt/internal/repoctx"
 	prompttemplate "github.com/helloprtr/poly-prompt/internal/template"
 	"github.com/helloprtr/poly-prompt/internal/termbook"
@@ -32,6 +33,7 @@ type LookupEnv func(string) (string, bool)
 type TranslatorFactory func(string) translate.Translator
 type RepoRootFinder func() (string, error)
 type TermbookLoader func(string) (termbook.Book, error)
+type MemoryLoader func(string) (memory.Book, error)
 
 type Dependencies struct {
 	Version           string
@@ -51,6 +53,7 @@ type Dependencies struct {
 	RepoContext       repoctx.Collector
 	RepoRootFinder    RepoRootFinder
 	TermbookLoader    TermbookLoader
+	MemoryLoader      MemoryLoader
 }
 
 type App struct {
@@ -71,6 +74,7 @@ type App struct {
 	repoContext       repoctx.Collector
 	repoRootFinder    RepoRootFinder
 	termbookLoader    TermbookLoader
+	memoryLoader      MemoryLoader
 }
 
 type usageError struct {
@@ -80,6 +84,8 @@ type usageError struct {
 
 type runOptions struct {
 	target               string
+	targetSource         string
+	targetReason         string
 	role                 string
 	templatePreset       string
 	sourceLang           string
@@ -102,6 +108,9 @@ type runOptions struct {
 	promptSuffix         string
 	protectedTerms       []string
 	preferTargetTemplate bool
+	parentID             string
+	action               string
+	sourceKind           string
 }
 
 type goCommandOptions struct {
@@ -148,6 +157,7 @@ type resolvedRun struct {
 	finalPrompt         string
 	targetName          string
 	targetSource        string
+	targetReason        string
 	targetConfig        config.TargetConfig
 	roleName            string
 	rolePrompt          string
@@ -172,6 +182,9 @@ type resolvedRun struct {
 	translationMode     string
 	translationDecision string
 	config              config.Config
+	parentID            string
+	action              string
+	sourceKind          string
 }
 
 func New(deps Dependencies) *App {
@@ -200,6 +213,7 @@ func New(deps Dependencies) *App {
 		repoContext:       deps.RepoContext,
 		repoRootFinder:    deps.RepoRootFinder,
 		termbookLoader:    deps.TermbookLoader,
+		memoryLoader:      deps.MemoryLoader,
 	}
 }
 
@@ -229,7 +243,7 @@ func (a *App) shouldRunRootDirect(args []string) bool {
 	}
 
 	switch first {
-	case "init", "version", "start", "setup", "lang", "doctor", "templates", "profiles", "history", "rerun", "pin", "favorite", "go", "again", "swap", "take", "learn", "inspect":
+	case "init", "version", "start", "setup", "lang", "doctor", "templates", "profiles", "history", "rerun", "pin", "favorite", "go", "again", "swap", "take", "learn", "inspect", "sync":
 		return false
 	}
 
@@ -846,18 +860,18 @@ func (a *App) runGo(ctx context.Context, args []string, stdin io.Reader, stdinPi
 		}
 		return fmt.Errorf("read input: %w", err)
 	}
-	repoSuffix, inputSource := a.resolveRepoContext(ctx, inputSource, command.noContext)
-	protectedTerms, protectedSuffix := a.resolveLearnedTerms(command.noContext)
-
-	target := strings.TrimSpace(command.app)
-	if target == "" {
-		if entry, err := a.latestHistoryEntry(); err == nil {
-			target = entry.Target
-		}
+	repoSummary, repoSuffix, inputSource := a.collectRepoContext(ctx, inputSource, command.noContext)
+	learned := a.resolveLearnedContext(command.mode, command.noContext)
+	cfg, err := a.configLoader()
+	if err != nil {
+		return err
 	}
+	decision := selectGoTarget(cfg, command.mode, command.app, text, repoSummary)
 
 	opts := runOptions{
-		target:               target,
+		target:               decision.Target,
+		targetSource:         decision.Source,
+		targetReason:         decision.Reason,
 		interactive:          command.edit,
 		noCopy:               command.dryRun || command.noCopy,
 		launch:               !command.dryRun,
@@ -866,27 +880,29 @@ func (a *App) runGo(ctx context.Context, args []string, stdin io.Reader, stdinPi
 		surfaceMode:          command.mode,
 		surfaceInput:         inputSource,
 		surfaceDelivery:      surfaceDeliveryLabel(command.dryRun),
-		promptSuffix:         joinPromptSections(repoSuffix, protectedSuffix),
-		protectedTerms:       protectedTerms,
+		promptSuffix:         joinPromptSections(repoSuffix, learned.suffix),
+		protectedTerms:       learned.protectedTerms,
 		preferTargetTemplate: true,
+		action:               "go",
+		sourceKind:           inputSource,
 	}
 
 	return a.executePrompt(ctx, opts, text, command.mode)
 }
 
-func (a *App) resolveRepoContext(ctx context.Context, inputSource string, disabled bool) (string, string) {
+func (a *App) collectRepoContext(ctx context.Context, inputSource string, disabled bool) (repoctx.Summary, string, string) {
 	if disabled || a.repoContext == nil {
-		return "", inputSource
+		return repoctx.Summary{}, "", inputSource
 	}
 
 	summary, err := a.repoContext.Collect(ctx)
 	if err != nil {
-		return "", inputSource
+		return repoctx.Summary{}, "", inputSource
 	}
 
 	contextBlock := formatRepoContext(summary)
 	if contextBlock == "" {
-		return "", inputSource
+		return repoctx.Summary{}, "", inputSource
 	}
 
 	label := inputSource
@@ -897,28 +913,34 @@ func (a *App) resolveRepoContext(ctx context.Context, inputSource string, disabl
 		label += "+repo"
 	}
 
-	return contextBlock, label
+	return summary, contextBlock, label
 }
 
-func (a *App) resolveLearnedTerms(disabled bool) ([]string, string) {
+type learnedContext struct {
+	protectedTerms []string
+	suffix         string
+}
+
+func (a *App) resolveLearnedContext(surfaceMode string, disabled bool) learnedContext {
 	if disabled {
-		return nil, ""
+		return learnedContext{}
 	}
 
 	repoRoot, err := a.resolveRepoRoot()
 	if err != nil {
-		return nil, ""
+		return learnedContext{}
 	}
 
-	book, err := a.loadTermbook(repoRoot)
-	if err != nil {
-		return nil, ""
+	result := learnedContext{}
+	if book, err := a.loadTermbook(repoRoot); err == nil {
+		result.protectedTerms = book.ProtectedTerms
 	}
-	if len(book.ProtectedTerms) == 0 {
-		return nil, ""
+	parts := []string{formatProtectedTerms(result.protectedTerms)}
+	if book, err := a.loadMemory(repoRoot); err == nil {
+		parts = append(parts, formatMemoryGuidance(surfaceMode, book))
 	}
-
-	return book.ProtectedTerms, formatProtectedTerms(book.ProtectedTerms)
+	result.suffix = joinPromptSections(parts...)
+	return result
 }
 
 func (a *App) resolveRepoRoot() (string, error) {
@@ -933,6 +955,13 @@ func (a *App) loadTermbook(repoRoot string) (termbook.Book, error) {
 		return a.termbookLoader(repoRoot)
 	}
 	return termbook.Load(repoRoot)
+}
+
+func (a *App) loadMemory(repoRoot string) (memory.Book, error) {
+	if a.memoryLoader != nil {
+		return a.memoryLoader(repoRoot)
+	}
+	return memory.Load(repoRoot)
 }
 
 func (a *App) runAgain(ctx context.Context, args []string, stdin io.Reader, stdinPiped bool) error {
@@ -957,9 +986,12 @@ func (a *App) runAgain(ctx context.Context, args []string, stdin io.Reader, stdi
 			return fmt.Errorf("read input: %w", err)
 		}
 	}
+	learned := a.resolveLearnedContext(blankDefault(entry.Shortcut, "ask"), command.noContext)
 
 	opts := runOptions{
 		target:          entry.Target,
+		targetSource:    blankDefault(entry.TargetSource, "history"),
+		targetReason:    blankDefault(entry.TargetReason, "reusing latest history target"),
 		role:            entry.Role,
 		templatePreset:  entry.TemplatePreset,
 		sourceLang:      entry.SourceLang,
@@ -973,6 +1005,11 @@ func (a *App) runAgain(ctx context.Context, args []string, stdin io.Reader, stdi
 		surfaceMode:     blankDefault(entry.Shortcut, "ask"),
 		surfaceInput:    inputSource,
 		surfaceDelivery: surfaceDeliveryLabel(command.dryRun),
+		promptSuffix:    learned.suffix,
+		protectedTerms:  learned.protectedTerms,
+		parentID:        entry.ID,
+		action:          "again",
+		sourceKind:      inputSource,
 	}
 
 	return a.executePrompt(ctx, opts, text, entry.Shortcut)
@@ -1000,9 +1037,12 @@ func (a *App) runSwap(ctx context.Context, args []string, stdin io.Reader, stdin
 			return fmt.Errorf("read input: %w", err)
 		}
 	}
+	learned := a.resolveLearnedContext(blankDefault(entry.Shortcut, "ask"), command.noContext)
 
 	opts := runOptions{
 		target:               command.app,
+		targetSource:         "swap",
+		targetReason:         "explicit swap target",
 		role:                 entry.Role,
 		sourceLang:           entry.SourceLang,
 		targetLang:           entry.TargetLang,
@@ -1015,7 +1055,12 @@ func (a *App) runSwap(ctx context.Context, args []string, stdin io.Reader, stdin
 		surfaceMode:          blankDefault(entry.Shortcut, "ask"),
 		surfaceInput:         inputSource,
 		surfaceDelivery:      surfaceDeliveryLabel(command.dryRun),
+		promptSuffix:         learned.suffix,
+		protectedTerms:       learned.protectedTerms,
 		preferTargetTemplate: true,
+		parentID:             entry.ID,
+		action:               "swap",
+		sourceKind:           inputSource,
 	}
 
 	return a.executePrompt(ctx, opts, text, entry.Shortcut)
@@ -1042,9 +1087,16 @@ func (a *App) runTake(ctx context.Context, args []string) error {
 			target = entry.Target
 		}
 	}
+	parentID := ""
+	if entry, err := a.latestHistoryEntry(); err == nil {
+		parentID = entry.ID
+	}
+	learned := a.resolveLearnedContext("take:"+command.action, false)
 
 	opts := runOptions{
 		target:               target,
+		targetSource:         "take",
+		targetReason:         "clipboard follow-up",
 		sourceLang:           "en",
 		targetLang:           "en",
 		translationMode:      string(translate.ModeSkip),
@@ -1056,7 +1108,12 @@ func (a *App) runTake(ctx context.Context, args []string) error {
 		surfaceMode:          "take:" + command.action,
 		surfaceInput:         "clipboard",
 		surfaceDelivery:      surfaceDeliveryLabel(command.dryRun),
+		promptSuffix:         learned.suffix,
+		protectedTerms:       learned.protectedTerms,
 		preferTargetTemplate: true,
+		parentID:             parentID,
+		action:               command.action,
+		sourceKind:           "clipboard",
 	}
 
 	return a.executePrompt(ctx, opts, takePrompt(command.action, clipboardText), "take:"+command.action)
@@ -1372,7 +1429,11 @@ func (a *App) prepareRun(ctx context.Context, opts runOptions, text, shortcutNam
 		}
 	}
 
-	target, targetSource := resolveRunTarget(opts.target, shortcut, cfg, envTarget)
+	target := strings.TrimSpace(opts.target)
+	targetSource := strings.TrimSpace(opts.targetSource)
+	if target == "" || targetSource == "" {
+		target, targetSource = resolveRunTarget(opts.target, shortcut, cfg, envTarget)
+	}
 	targetConfig, ok := cfg.Targets[target]
 	if !ok {
 		return resolvedRun{}, fmt.Errorf("unknown target %q (available: %s)", target, strings.Join(config.AvailableTargets(cfg), ", "))
@@ -1450,6 +1511,7 @@ func (a *App) prepareRun(ctx context.Context, opts runOptions, text, shortcutNam
 		finalPrompt:         finalPrompt,
 		targetName:          target,
 		targetSource:        targetSource,
+		targetReason:        opts.targetReason,
 		targetConfig:        targetConfig,
 		roleName:            role,
 		rolePrompt:          rolePrompt,
@@ -1469,12 +1531,18 @@ func (a *App) prepareRun(ctx context.Context, opts runOptions, text, shortcutNam
 		deliveryMode:        deliveryMode,
 		submitMode:          resolvedSubmitMode,
 		config:              cfg,
+		parentID:            opts.parentID,
+		action:              opts.action,
+		sourceKind:          opts.sourceKind,
 	}, nil
 }
 
 func (a *App) writeExplain(run resolvedRun) {
 	_, _ = fmt.Fprintln(a.stderr, "Resolved configuration:")
 	_, _ = fmt.Fprintf(a.stderr, "- target: %s (%s)\n", run.targetName, run.targetSource)
+	if strings.TrimSpace(run.targetReason) != "" {
+		_, _ = fmt.Fprintf(a.stderr, "- target reason: %s\n", run.targetReason)
+	}
 	if run.roleName != "" {
 		_, _ = fmt.Fprintf(a.stderr, "- role: %s (%s)\n", run.roleName, run.roleSource)
 		if run.roleVariantSource != "" {
@@ -1522,6 +1590,8 @@ func (a *App) appendHistory(run resolvedRun) error {
 		Translated:          run.translated,
 		FinalPrompt:         run.finalPrompt,
 		Target:              run.targetName,
+		TargetSource:        run.targetSource,
+		TargetReason:        run.targetReason,
 		Role:                run.roleName,
 		TemplatePreset:      run.templateName,
 		Shortcut:            run.shortcut,
@@ -1534,6 +1604,9 @@ func (a *App) appendHistory(run resolvedRun) error {
 		Pasted:              run.pasted,
 		SubmitMode:          run.submitMode,
 		Submitted:           run.submitted,
+		ParentID:            run.parentID,
+		Action:              run.action,
+		SourceKind:          run.sourceKind,
 	})
 }
 
@@ -1925,6 +1998,31 @@ func formatProtectedTerms(terms []string) string {
 	}
 	limit := minInt(20, len(terms))
 	return "Protected project terms: " + strings.Join(terms[:limit], ", ")
+}
+
+func formatMemoryGuidance(surfaceMode string, book memory.Book) string {
+	parts := make([]string, 0, 4)
+	if strings.TrimSpace(book.RepoSummary) != "" {
+		parts = append(parts, "Repo memory: "+strings.TrimSpace(book.RepoSummary))
+	}
+	if len(book.Guidance) > 0 {
+		parts = append(parts, "Guidance: "+strings.Join(book.Guidance[:minInt(3, len(book.Guidance))], "; "))
+	}
+	mode := strings.ToLower(strings.TrimSpace(surfaceMode))
+	switch {
+	case strings.Contains(mode, "fix"), strings.Contains(mode, "patch"), strings.Contains(mode, "plan"):
+		if len(book.CodingNorms) > 0 {
+			parts = append(parts, "Coding norms: "+strings.Join(book.CodingNorms[:minInt(3, len(book.CodingNorms))], "; "))
+		}
+	case strings.Contains(mode, "review"), strings.Contains(mode, "test"):
+		if len(book.TestingNorms) > 0 {
+			parts = append(parts, "Testing norms: "+strings.Join(book.TestingNorms[:minInt(3, len(book.TestingNorms))], "; "))
+		}
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return strings.Join(parts, "\n")
 }
 
 func joinPromptSections(parts ...string) string {
@@ -2383,6 +2481,7 @@ func rootHelpText() string {
 		"  prtr swap <app>",
 		"  prtr take <action>",
 		"  prtr learn [paths...]",
+		"  prtr sync [init|status]",
 		"  prtr again",
 		"  prtr inspect [message...]",
 		"  prtr history [search <query>]",
@@ -2530,6 +2629,32 @@ func goHelpText() string {
 		"  prtr learn            Teach prtr your repo terms and style",
 		"  prtr again            Run the latest flow again",
 		"  prtr inspect          Inspect the compiled prompt and config",
+	}, "\n")
+}
+
+func syncHelpText() string {
+	return strings.Join([]string{
+		"Sync canonical .prtr guidance into vendor files.",
+		"",
+		"`prtr sync` treats `.prtr/guide.md`, `.prtr/termbook.toml`, and",
+		"`.prtr/memory.toml` as the canonical source, then renders vendor-facing",
+		"guidance files for Claude, Gemini, and Codex.",
+		"",
+		"Usage:",
+		"  prtr sync init",
+		"  prtr sync status",
+		"  prtr sync [--dry-run] [--write claude,gemini,codex]",
+		"",
+		"Examples:",
+		"  prtr sync init",
+		"  prtr sync status",
+		"  prtr sync --dry-run",
+		"  prtr sync --write claude,codex",
+		"",
+		"Flags:",
+		"      --dry-run         Show what would be written",
+		"      --write <list>    Limit output targets to claude, gemini, or codex",
+		"  -h, --help            Help for sync",
 	}, "\n")
 }
 
