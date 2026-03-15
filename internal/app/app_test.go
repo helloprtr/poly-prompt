@@ -1398,6 +1398,42 @@ func TestExecuteDoctorReportsFailures(t *testing.T) {
 	if !strings.Contains(stdout.String(), "FAIL deepl api key") {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
+	if !strings.Contains(stdout.String(), "Platform matrix") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
+func TestExecuteDoctorFixCreatesStarterConfig(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tempDir)
+
+	app := New(Dependencies{
+		Version:         "test",
+		Stdout:          &bytes.Buffer{},
+		Stderr:          &bytes.Buffer{},
+		Translator:      &stubTranslator{output: "ok"},
+		Clipboard:       &stubClipboard{},
+		Editor:          &stubEditor{},
+		Launcher:        &stubLauncher{desc: "Terminal.app"},
+		Automator:       &stubAutomator{desc: "Terminal.app"},
+		SubmitConfirmer: &stubConfirmer{},
+		ConfigLoader:    config.Load,
+		ConfigInit:      config.Init,
+		LookupEnv:       func(string) (string, bool) { return "", false },
+		HistoryStore:    history.New(filepath.Join(t.TempDir(), "history.json")),
+	})
+	stdout, _ := buffersFromApp(app)
+
+	err := app.Execute(context.Background(), []string{"doctor", "--fix"}, strings.NewReader(""), false)
+	if err == nil {
+		t.Fatal("doctor --fix expected an error because api key is still missing")
+	}
+	if !strings.Contains(stdout.String(), "FIX  user config: created starter config") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if _, statErr := os.Stat(filepath.Join(tempDir, "prtr", "config.toml")); statErr != nil {
+		t.Fatalf("config stat error = %v", statErr)
+	}
 }
 
 func TestExecuteReturnsUnknownTemplateError(t *testing.T) {
