@@ -243,7 +243,7 @@ func (a *App) shouldRunRootDirect(args []string) bool {
 	}
 
 	switch first {
-	case "init", "version", "start", "setup", "lang", "doctor", "templates", "profiles", "history", "rerun", "pin", "favorite", "go", "again", "swap", "take", "learn", "inspect", "sync":
+	case "init", "version", "start", "setup", "lang", "doctor", "templates", "profiles", "history", "rerun", "pin", "favorite", "go", "again", "swap", "take", "learn", "inspect", "sync", "platform":
 		return false
 	}
 
@@ -2482,6 +2482,7 @@ func rootHelpText() string {
 		"  prtr take <action>",
 		"  prtr learn [paths...]",
 		"  prtr sync [init|status]",
+		"  prtr platform",
 		"  prtr again",
 		"  prtr inspect [message...]",
 		"  prtr history [search <query>]",
