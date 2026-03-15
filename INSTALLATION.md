@@ -250,6 +250,7 @@ Optional diagnostic check:
 ```bash
 prtr doctor
 prtr doctor --fix
+prtr sync init
 ```
 
 Optional interactive check:
