@@ -2,6 +2,24 @@
 
 All notable product-facing changes to `prtr` are documented in this file.
 
+## v0.4.2 - 2026-03-15
+
+### Highlights
+
+- Added `prtr doctor --fix` for safe automatic repair when possible.
+- Introduced a platform matrix summary for doctor output.
+- Improved recovery guidance for clipboard, launcher, paste, and translation failures.
+
+### Why This Release Matters
+
+`v0.4.2` moves `doctor` from a pure diagnostics screen toward an actual recovery surface. It still stays honest about what can and cannot be repaired automatically, but it now helps users get unstuck faster.
+
+### Product Value
+
+- Better repair guidance
+- Clearer platform readiness visibility
+- Faster recovery from setup and delivery failures
+
 ## v0.4.1 - 2026-03-15
 
 ### Highlights

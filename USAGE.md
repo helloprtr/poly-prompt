@@ -80,6 +80,14 @@ prtr doctor
 - launcher readiness
 - automation readiness for desktop paste support
 
+`doctor` now also prints a platform matrix summary and supports:
+
+```bash
+prtr doctor --fix
+```
+
+`--fix` applies safe automatic fixes when possible, such as creating or resetting the user config, then prints fallback suggestions for anything it cannot repair automatically.
+
 ## 2. The fastest path after start: `prtr go`
 
 Send a request in your own language:

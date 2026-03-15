@@ -6,6 +6,15 @@ Release page:
 
 - [helloprtr/poly-prompt releases](https://github.com/helloprtr/poly-prompt/releases)
 
+## Platform matrix
+
+`prtr doctor` now summarizes the current surface using these labels:
+
+- `macOS + Terminal.app`
+- `Linux + X11`
+- `Linux + Wayland`
+- `Windows interactive session`
+
 ## macOS
 
 ### Install with Homebrew
@@ -240,6 +249,7 @@ Optional diagnostic check:
 
 ```bash
 prtr doctor
+prtr doctor --fix
 ```
 
 Optional interactive check:
