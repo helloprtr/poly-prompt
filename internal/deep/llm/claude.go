@@ -7,12 +7,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/helloprtr/poly-prompt/internal/deep/schema"
 )
 
 const claudeModel = "claude-opus-4-6"
 const claudeAPIURL = "https://api.anthropic.com/v1/messages"
+
+var claudeHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
 type claudeEnhancer struct {
 	apiKey  string
@@ -48,7 +51,7 @@ func (e *claudeEnhancer) Enhance(ctx context.Context, source string, bundle sche
 	req.Header.Set("x-api-key", e.apiKey)
 	req.Header.Set("anthropic-version", "2023-06-01")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := claudeHTTPClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("claude: http: %w", err)
 	}

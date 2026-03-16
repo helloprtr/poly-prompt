@@ -7,11 +7,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/helloprtr/poly-prompt/internal/deep/schema"
 )
 
 const geminiAPIURL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+
+var geminiHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
 type geminiEnhancer struct {
 	apiKey  string
@@ -45,7 +48,7 @@ func (e *geminiEnhancer) Enhance(ctx context.Context, source string, bundle sche
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := geminiHTTPClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("gemini: http: %w", err)
 	}

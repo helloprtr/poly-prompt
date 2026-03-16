@@ -7,12 +7,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/helloprtr/poly-prompt/internal/deep/schema"
 )
 
 const codexAPIURL = "https://api.openai.com/v1/chat/completions"
 const codexModel = "o4-mini"
+
+var codexHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
 type codexEnhancer struct {
 	apiKey  string
@@ -46,7 +49,7 @@ func (e *codexEnhancer) Enhance(ctx context.Context, source string, bundle schem
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+e.apiKey)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := codexHTTPClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("codex: http: %w", err)
 	}

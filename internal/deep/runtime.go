@@ -76,6 +76,7 @@ const (
 	EventMemorySuggested   EventType = deepevent.MemorySuggested
 	EventRunCompleted      EventType = deepevent.RunCompleted
 	EventRunFailed         EventType = deepevent.RunFailed
+	EventLLMEnhanceFailed  EventType = deepevent.LLMEnhanceFailed
 )
 
 // AppendEvent appends a structured event to the run's event log.
@@ -288,11 +289,18 @@ func executePatchRunWithGraph(
 	deliveryPrompt := buildDeliveryPrompt(run.Plan, bundle, opts.Source)
 	if opts.LLMProvider != "" && opts.LLMAPIKey != "" {
 		enhancer, err := llmFactory(opts.LLMProvider, opts.LLMAPIKey)
-		if err == nil {
-			if enriched, enhanceErr := enhancer.Enhance(ctx, opts.Source, bundle, deliveryPrompt); enhanceErr == nil {
-				deliveryPrompt = enriched
-			}
-			// on error: silently fall back to rule-based prompt
+		if err != nil {
+			_ = AppendEvent(run.EventLogPath, Event{
+				Type: EventLLMEnhanceFailed,
+				Data: map[string]any{"provider": opts.LLMProvider, "error": err.Error(), "stage": "factory"},
+			})
+		} else if enriched, enhanceErr := enhancer.Enhance(ctx, opts.Source, bundle, deliveryPrompt); enhanceErr != nil {
+			_ = AppendEvent(run.EventLogPath, Event{
+				Type: EventLLMEnhanceFailed,
+				Data: map[string]any{"provider": opts.LLMProvider, "error": enhanceErr.Error(), "stage": "enhance"},
+			})
+		} else {
+			deliveryPrompt = enriched
 		}
 	}
 
