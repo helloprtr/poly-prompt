@@ -25,7 +25,7 @@ func (e *geminiEnhancer) Enhance(ctx context.Context, source string, bundle sche
 	// The key does not appear in returned error messages (which log only status+body).
 	url := geminiAPIURL + "?key=" + e.apiKey
 	if e.baseURL != "" {
-		url = e.baseURL + "?key=" + e.apiKey
+		url = e.baseURL + "/v1beta/models/gemini-2.0-flash:generateContent" + "?key=" + e.apiKey
 	}
 
 	prompt := buildEnhancePrompt(source, bundle, ruleBased)

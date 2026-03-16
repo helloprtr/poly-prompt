@@ -63,7 +63,9 @@ func TestClaudeEnhancerErrorOnBadStatus(t *testing.T) {
 }
 
 func TestGeminiEnhancerCallsCorrectEndpoint(t *testing.T) {
+	var gotPath string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
 		if !strings.Contains(r.URL.RawQuery, "key=test-key") {
 			t.Errorf("expected key query param, got %q", r.URL.RawQuery)
 		}
@@ -85,6 +87,9 @@ func TestGeminiEnhancerCallsCorrectEndpoint(t *testing.T) {
 	}
 	if result != "gemini enhanced" {
 		t.Errorf("got %q, want %q", result, "gemini enhanced")
+	}
+	if gotPath != "/v1beta/models/gemini-2.0-flash:generateContent" {
+		t.Errorf("got path %q, want /v1beta/models/gemini-2.0-flash:generateContent", gotPath)
 	}
 }
 
@@ -115,7 +120,9 @@ func TestCodexEnhancerErrorOnBadStatus(t *testing.T) {
 }
 
 func TestCodexEnhancerCallsCorrectEndpoint(t *testing.T) {
+	var gotPath string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
 			"choices": []map[string]any{
@@ -132,6 +139,9 @@ func TestCodexEnhancerCallsCorrectEndpoint(t *testing.T) {
 	}
 	if result != "codex enhanced" {
 		t.Errorf("got %q, want %q", result, "codex enhanced")
+	}
+	if gotPath != "/v1/chat/completions" {
+		t.Errorf("got path %q, want /v1/chat/completions", gotPath)
 	}
 }
 

@@ -24,7 +24,7 @@ func (e *codexEnhancer) Provider() string { return "codex" }
 func (e *codexEnhancer) Enhance(ctx context.Context, source string, bundle schema.PatchBundle, ruleBased string) (string, error) {
 	url := codexAPIURL
 	if e.baseURL != "" {
-		url = e.baseURL
+		url = e.baseURL + "/v1/chat/completions"
 	}
 
 	prompt := buildEnhancePrompt(source, bundle, ruleBased)
