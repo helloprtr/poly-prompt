@@ -2,9 +2,12 @@ package translate
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
+	"fmt"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -136,21 +139,30 @@ func protectSegments(text string, protectedTerms []string) (string, map[string]s
 	protected := text
 	index := 0
 
+	// Use a hash-based nonce so tokens can't collide with user text.
+	// STX/ETX control chars further guarantee no collision with normal text.
+	sum := sha256.Sum256([]byte(text))
+	nonce := fmt.Sprintf("%x", sum[:4])
+
+	makeToken := func() string {
+		tok := "\x02PRTR" + nonce + strconv.Itoa(index) + "\x03"
+		index++
+		return tok
+	}
+
 	for _, term := range sortedProtectedTerms(protectedTerms) {
 		if term == "" || !strings.Contains(protected, term) {
 			continue
 		}
-		token := preserveToken(index)
+		token := makeToken()
 		restore[token] = term
-		index++
 		protected = strings.ReplaceAll(protected, term, token)
 	}
 
 	for _, pattern := range preservePatterns {
 		protected = pattern.ReplaceAllStringFunc(protected, func(match string) string {
-			token := preserveToken(index)
+			token := makeToken()
 			restore[token] = match
-			index++
 			return token
 		})
 	}
@@ -178,10 +190,6 @@ func sortedProtectedTerms(terms []string) []string {
 	return filtered
 }
 
-func preserveToken(index int) string {
-	return "PRTRPRESERVE_" + strconvItoa(index) + "_TOKEN"
-}
-
 func normalizeComparableLang(value string) string {
 	value = strings.ToLower(strings.TrimSpace(value))
 	switch value {
@@ -190,19 +198,4 @@ func normalizeComparableLang(value string) string {
 	default:
 		return value
 	}
-}
-
-func strconvItoa(value int) string {
-	if value == 0 {
-		return "0"
-	}
-
-	var digits [20]byte
-	i := len(digits)
-	for value > 0 {
-		i--
-		digits[i] = byte('0' + (value % 10))
-		value /= 10
-	}
-	return string(digits[i:])
 }
