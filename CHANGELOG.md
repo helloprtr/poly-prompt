@@ -2,6 +2,56 @@
 
 All notable product-facing changes to `prtr` are documented in this file.
 
+## v0.7.0 - 2026-03-17
+
+### Highlights
+
+- Introduced `prtr take --deep` (alias `--dip`): a five-worker AI pipeline that turns clipboard answers into structured, evidence-backed execution runs.
+- Added `--llm=claude|gemini|codex` flag to generate provider-optimized delivery prompts (Claude XML tags, Gemini Markdown headers, Codex numbered instructions).
+- Expanded deep actions: `take patch`, `take test`, `take debug`, `take refactor` all run the full pipeline.
+- Source-driven risk detection and test generation: workers analyze the source text and produce targeted risks and test cases instead of boilerplate.
+- New `llm_provider` config field and `PRTR_LLM_PROVIDER` env var for persistent provider selection.
+- Full documentation rewrite: English and Korean user manuals, command reference, updated README and site.
+
+### Why This Release Matters
+
+`v0.7.0` moves `prtr take` from a simple clipboard-to-prompt converter into a typed execution layer. The five-worker pipeline (planner → patcher → critic → tester → reconciler) produces a plan, a patch bundle, a risk report, and a test plan as local artifacts every time `--deep` runs. The `--llm` flag then formats the final delivery prompt to match how each AI tool processes instructions best — XML for Claude, structured Markdown for Gemini, numbered lists for Codex — so the handoff from prtr to the AI is as clear as possible regardless of which tool you use.
+
+### What Changed
+
+**Deep execution engine (`take --deep` / `--dip`)**
+- Five-worker pipeline: planner, patcher, critic, tester, reconciler
+- Artifacts written to `.prtr/runs/<id>/`: `manifest.json`, `plan.json`, `events.jsonl`, `result/patch_bundle.json`, `result/patch.diff`, `result/tests.md`, `result/summary.md`
+- `take test`, `take debug`, `take refactor` are valid deep actions alongside `take patch`
+- `planSummaryFor` and `resultTypeFor` return action-specific plan summaries and bundle types
+
+**Provider-aware delivery prompts (`--llm`)**
+- `--llm=claude` → XML semantic tags: `<role>`, `<context>`, `<task>`, `<validation>`
+- `--llm=gemini` → `##` Markdown section headers
+- `--llm=codex` → numbered instructions with ` ```diff ``` ` code blocks
+- No `--llm` → improved universal Markdown (works without any API key)
+- Config: `llm_provider = "claude"` in `~/.config/prtr/config.toml`
+- Env: `PRTR_LLM_PROVIDER=claude`
+
+**Source-driven analysis**
+- `detectSourceRisks`: maps source keywords to targeted risk items (auth, migration, API contract, concurrency, destructive ops, config/secret exposure, cache invalidation)
+- `buildTestCases`, `buildEdgeCases`, `buildVerificationSteps`: generate test cases based on source keywords (nil/panic, error paths, timeouts, auth, loops, race conditions)
+
+**Documentation**
+- `README.md`: full rewrite around the command-layer story
+- `README.ko.md`: new Korean README
+- `docs/guide.md`: complete English user manual (installation → daily use → deep mode → config)
+- `docs/guide.ko.md`: complete Korean user manual (한국어 전체 사용 설명서)
+- `docs/reference.md`: command and flag reference tables
+- GitHub Pages: `--deep` loop card, provider-aware routing section, Korean docs hub (`/docs-ko/`)
+
+### Product Value
+
+- Faster, more structured handoff to AI tools
+- Consistent prompt quality regardless of which AI tool receives it
+- Local artifact trail for every deep run (plan, diff, risks, tests)
+- Zero API key required to use the deep pipeline; `--llm` is an optional enhancement
+
 ## v0.4.2 - 2026-03-15
 
 ### Highlights
