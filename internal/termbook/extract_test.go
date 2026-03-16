@@ -59,6 +59,28 @@ func TestExtractHonorsExplicitPaths(t *testing.T) {
 	}
 }
 
+func TestIsOrderedBullet(t *testing.T) {
+	cases := []struct {
+		line string
+		want bool
+	}{
+		{"1. item", true},
+		{"12. item", true},
+		{"123. item", true},
+		{"1000. item", true},
+		{"not a list", false},
+		{"abc. not a list", false},
+		{"", false},
+		{"1", false},
+	}
+	for _, tc := range cases {
+		got := isOrderedBullet(tc.line)
+		if got != tc.want {
+			t.Errorf("isOrderedBullet(%q) = %v, want %v", tc.line, got, tc.want)
+		}
+	}
+}
+
 func writeTermbookFile(t *testing.T, path, contents string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

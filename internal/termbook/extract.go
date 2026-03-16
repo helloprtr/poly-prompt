@@ -273,3 +273,19 @@ func mapKeysSorted(values map[string]bool) []string {
 func errorsIsNotExist(err error) bool {
 	return err != nil && os.IsNotExist(err)
 }
+
+func isOrderedBullet(line string) bool {
+	if len(line) < 3 {
+		return false
+	}
+	if line[0] < '0' || line[0] > '9' {
+		return false
+	}
+	// Scan past all leading digits
+	i := 1
+	for i < len(line) && line[i] >= '0' && line[i] <= '9' {
+		i++
+	}
+	// Must be followed by ". "
+	return i+1 < len(line) && line[i] == '.' && line[i+1] == ' '
+}
