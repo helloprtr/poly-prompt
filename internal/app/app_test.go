@@ -240,6 +240,38 @@ func newTestApp(t *testing.T, cfg config.Config, translator *stubTranslator, cli
 	})
 }
 
+func newDeepTestApp(t *testing.T, cfg config.Config, translator *stubTranslator, clipboard *stubClipboard, ed *stubEditor, historyStore *history.Store, repoRoot string) *App {
+	t.Helper()
+	return New(Dependencies{
+		Version:         "test",
+		Stdout:          &bytes.Buffer{},
+		Stderr:          &bytes.Buffer{},
+		Translator:      translator,
+		Clipboard:       clipboard,
+		Editor:          ed,
+		Launcher:        &stubLauncher{},
+		Automator:       &stubAutomator{},
+		SubmitConfirmer: &stubConfirmer{},
+		ConfigLoader: func() (config.Config, error) {
+			return cfg, nil
+		},
+		ConfigInit:   func() (string, error) { return "/tmp/prtr/config.toml", nil },
+		LookupEnv:    func(string) (string, bool) { return "", false },
+		HistoryStore: historyStore,
+		RepoContext: &stubRepoContext{summary: repoctx.Summary{
+			RepoName: "translateCLI-brew",
+			Branch:   "main",
+			Changes:  []string{" M internal/app/app.go"},
+		}},
+		RepoRootFinder: func() (string, error) {
+			return repoRoot, nil
+		},
+		TermbookLoader: func(string) (termbook.Book, error) {
+			return termbook.Book{ProtectedTerms: []string{"BuildPrompt", "PRTR_TARGET"}}, nil
+		},
+	})
+}
+
 func buffersFromApp(app *App) (*bytes.Buffer, *bytes.Buffer) {
 	return app.stdout.(*bytes.Buffer), app.stderr.(*bytes.Buffer)
 }
@@ -277,7 +309,10 @@ func TestExecuteRootHelp(t *testing.T) {
 	if err := app.Execute(context.Background(), []string{"--help"}, strings.NewReader(""), false); err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
-	if !strings.Contains(stdout.String(), "beginner-first AI command layer") {
+	if !strings.Contains(stdout.String(), "prtr is the command layer for AI work.") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "prtr demo") {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), `prtr go [mode] [message...]`) {
@@ -294,7 +329,10 @@ func TestExecuteGoHelp(t *testing.T) {
 	if err := app.Execute(context.Background(), []string{"go", "--help"}, strings.NewReader(""), false); err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
-	if !strings.Contains(stdout.String(), "`prtr go` is the fastest way to use prtr.") {
+	if !strings.Contains(stdout.String(), "`prtr go` is the fastest way to use prtr for real work.") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "English requests already work without a DeepL key.") {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "If you pipe text and also pass a message, the piped text becomes evidence.") {
@@ -315,6 +353,29 @@ func TestExecuteStartHelp(t *testing.T) {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "Use `prtr setup` when you want the full configuration flow") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
+func TestExecuteDemoShowsSafePreview(t *testing.T) {
+	t.Parallel()
+
+	app := newTestApp(t, testConfig(), &stubTranslator{}, &stubClipboard{}, &stubEditor{}, history.New(filepath.Join(t.TempDir(), "history.json")))
+	stdout, _ := buffersFromApp(app)
+
+	if err := app.Execute(context.Background(), []string{"demo"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "No API key required. Safe preview only.") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "request (ko): 왜 깨지는지 정확한 원인만 찾아줘") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "// Target: codex") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), `prtr go "explain this error" --dry-run`) {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
 }
@@ -488,6 +549,77 @@ func TestExecuteGoAttachesRepoContext(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "-> fix | codex | prompt+repo | preview | auto->en") {
 		t.Fatalf("stderr = %q", stderr.String())
+	}
+}
+
+func TestExecuteGoSkipsTranslationForEnglishWithoutAPIKey(t *testing.T) {
+	t.Parallel()
+
+	app := New(Dependencies{
+		Version: "test",
+		Stdout:  &bytes.Buffer{},
+		Stderr:  &bytes.Buffer{},
+		TranslatorFactory: func(apiKey string) translate.Translator {
+			return translate.NewDeepLClient(translate.ClientOptions{APIKey: apiKey})
+		},
+		Clipboard:       &stubClipboard{},
+		Editor:          &stubEditor{},
+		Launcher:        &stubLauncher{},
+		Automator:       &stubAutomator{},
+		SubmitConfirmer: &stubConfirmer{},
+		ConfigLoader: func() (config.Config, error) {
+			return testConfig(), nil
+		},
+		ConfigInit:   func() (string, error) { return "/tmp/prtr/config.toml", nil },
+		LookupEnv:    func(string) (string, bool) { return "", false },
+		HistoryStore: history.New(filepath.Join(t.TempDir(), "history.json")),
+	})
+	stdout, stderr := buffersFromApp(app)
+
+	if err := app.Execute(context.Background(), []string{"go", "explain this error", "--dry-run"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "explain this error") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "-> ask | claude | prompt | preview | auto->en") {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+}
+
+func TestExecuteGoShowsFriendlyMissingKeyGuidance(t *testing.T) {
+	t.Parallel()
+
+	app := New(Dependencies{
+		Version: "test",
+		Stdout:  &bytes.Buffer{},
+		Stderr:  &bytes.Buffer{},
+		TranslatorFactory: func(apiKey string) translate.Translator {
+			return translate.NewDeepLClient(translate.ClientOptions{APIKey: apiKey})
+		},
+		Clipboard:       &stubClipboard{},
+		Editor:          &stubEditor{},
+		Launcher:        &stubLauncher{},
+		Automator:       &stubAutomator{},
+		SubmitConfirmer: &stubConfirmer{},
+		ConfigLoader: func() (config.Config, error) {
+			return testConfig(), nil
+		},
+		ConfigInit:   func() (string, error) { return "/tmp/prtr/config.toml", nil },
+		LookupEnv:    func(string) (string, bool) { return "", false },
+		HistoryStore: history.New(filepath.Join(t.TempDir(), "history.json")),
+		RepoContext:  &stubRepoContext{},
+	})
+
+	err := app.Execute(context.Background(), []string{"go", "왜 실패하지", "--dry-run"}, strings.NewReader(""), false)
+	if err == nil {
+		t.Fatal("Execute() expected an error, got nil")
+	}
+	if !strings.Contains(err.Error(), "You can try prtr now without a key") {
+		t.Fatalf("error = %v", err)
+	}
+	if !strings.Contains(err.Error(), "prtr demo") {
+		t.Fatalf("error = %v", err)
 	}
 }
 
@@ -999,6 +1131,93 @@ func TestExecuteTakeAllowsAppOverrideAndEdit(t *testing.T) {
 	}
 }
 
+func TestExecuteTakeDeepWritesArtifactsAndHistoryMetadata(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	store := history.New(filepath.Join(t.TempDir(), "history.json"))
+	if err := store.Append(history.Entry{
+		ID:        "last",
+		CreatedAt: time.Unix(200, 0).UTC(),
+		Target:    "codex",
+		Shortcut:  "fix",
+		Original:  "older prompt",
+	}); err != nil {
+		t.Fatalf("Append() error = %v", err)
+	}
+
+	translator := &stubTranslator{output: "should not be used"}
+	clipboard := &stubClipboard{read: "Update internal/app/app.go to keep compact status readable."}
+	app := newDeepTestApp(t, testConfig(), translator, clipboard, &stubEditor{}, store, repoRoot)
+	stdout, stderr := buffersFromApp(app)
+
+	if err := app.Execute(context.Background(), []string{"take", "patch", "--deep", "--dry-run"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if translator.gotInput.Text != "" {
+		t.Fatalf("translator should not be called, got input %q", translator.gotInput.Text)
+	}
+	if !strings.Contains(stdout.String(), "// Target: codex") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "-> take:patch --deep | codex | clipboard | preview | en->en | completed") {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "step: patch (2/5)") {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "artifact: "+filepath.Join(repoRoot, ".prtr", "runs")) {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+
+	entry, err := store.Latest()
+	if err != nil {
+		t.Fatalf("Latest() error = %v", err)
+	}
+	if entry.Engine != "deep" {
+		t.Fatalf("entry.Engine = %q", entry.Engine)
+	}
+	if entry.ResultType != "PatchBundle" {
+		t.Fatalf("entry.ResultType = %q", entry.ResultType)
+	}
+	if entry.RunStatus != "completed" {
+		t.Fatalf("entry.RunStatus = %q", entry.RunStatus)
+	}
+	if entry.RunID == "" || entry.ArtifactRoot == "" {
+		t.Fatalf("history metadata missing: %#v", entry)
+	}
+
+	planPath := filepath.Join(entry.ArtifactRoot, "plan.json")
+	bundlePath := filepath.Join(entry.ArtifactRoot, "result", "patch_bundle.json")
+	eventsPath := filepath.Join(entry.ArtifactRoot, "events.jsonl")
+	for _, path := range []string{planPath, bundlePath, eventsPath} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("expected artifact %s: %v", path, err)
+		}
+	}
+	bundleData, err := os.ReadFile(bundlePath)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if !strings.Contains(string(bundleData), "internal/app/app.go") {
+		t.Fatalf("bundle = %q", string(bundleData))
+	}
+}
+
+func TestExecuteTakeDeepRejectsUnsupportedAction(t *testing.T) {
+	t.Parallel()
+
+	app := newTestApp(t, testConfig(), &stubTranslator{}, &stubClipboard{read: "Need a tighter summary."}, &stubEditor{}, history.New(filepath.Join(t.TempDir(), "history.json")))
+	err := app.Execute(context.Background(), []string{"take", "summary", "--deep", "--dry-run"}, strings.NewReader(""), false)
+	if err == nil {
+		t.Fatal("Execute() expected an error, got nil")
+	}
+	if !strings.Contains(err.Error(), "deep execution currently supports only `take patch --deep`") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestExecuteTakeRejectsEmptyClipboard(t *testing.T) {
 	t.Parallel()
 
@@ -1464,7 +1683,30 @@ func TestExecuteDoctorReportsFailures(t *testing.T) {
 	if err == nil {
 		t.Fatal("doctor expected an error, got nil")
 	}
-	if !strings.Contains(stdout.String(), "FAIL deepl api key") {
+	if !strings.Contains(stdout.String(), "WARN deepl api key") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if !strings.Contains(err.Error(), "required issue") {
+		t.Fatalf("error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "Try now: prtr demo") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
+func TestExecuteDoctorAllowsNoKeyTryNowPath(t *testing.T) {
+	t.Parallel()
+
+	app := newTestApp(t, testConfig(), &stubTranslator{output: "ok"}, &stubClipboard{}, &stubEditor{}, history.New(filepath.Join(t.TempDir(), "history.json")))
+	stdout, _ := buffersFromApp(app)
+
+	if err := app.Execute(context.Background(), []string{"doctor"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("doctor returned error: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "WARN deepl api key") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), `prtr go "explain this error" --dry-run`) {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "Platform matrix") {
@@ -1493,11 +1735,13 @@ func TestExecuteDoctorFixCreatesStarterConfig(t *testing.T) {
 	})
 	stdout, _ := buffersFromApp(app)
 
-	err := app.Execute(context.Background(), []string{"doctor", "--fix"}, strings.NewReader(""), false)
-	if err == nil {
-		t.Fatal("doctor --fix expected an error because api key is still missing")
+	if err := app.Execute(context.Background(), []string{"doctor", "--fix"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("doctor --fix returned error: %v", err)
 	}
 	if !strings.Contains(stdout.String(), "FIX  user config: created starter config") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "WARN deepl api key") {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
 	if _, statErr := os.Stat(filepath.Join(tempDir, "prtr", "config.toml")); statErr != nil {
@@ -1551,8 +1795,8 @@ func TestTruncateOneLineUnicode(t *testing.T) {
 	}{
 		{"안녕하세요 세계입니다", 8},
 		{"hello world", 5},
-		{"안녕", 2},             // limit <= 3: no ellipsis, no panic
-		{"안녕하세요", 3},       // limit == 3: no panic
+		{"안녕", 2},    // limit <= 3: no ellipsis, no panic
+		{"안녕하세요", 3}, // limit == 3: no panic
 	}
 	for _, tc := range cases {
 		result := truncateOneLine(tc.input, tc.limit)

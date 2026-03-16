@@ -558,6 +558,24 @@ pre {
   gap: 0;
 }
 
+.promo-card {
+  overflow: hidden;
+  gap: 16px;
+}
+
+.promo-figure {
+  margin: -24px -24px 2px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.promo-figure img {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  object-position: top center;
+}
+
 .demo-figure {
   margin: 0;
   border-right: 1px solid var(--line);

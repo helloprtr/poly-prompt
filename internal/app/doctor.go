@@ -43,25 +43,90 @@ func (a *App) runDoctor(ctx context.Context, applyFix bool) error {
 	}
 
 	report := a.buildDoctorReport(ctx, cfg)
+	readyChecks, optionalChecks := splitDoctorChecks(report.Checks)
 	for _, message := range fixMessages {
 		_, _ = fmt.Fprintf(a.stdout, "FIX  user config: %s\n", message)
 	}
 	a.writeDoctorSection("Platform matrix", report.Platform)
-	a.writeDoctorSection("Checks", report.Checks)
+	a.writeDoctorSection("Ready now", readyChecks)
+	a.writeDoctorSection("Optional unlocks", optionalChecks)
+	_, _ = fmt.Fprintln(a.stdout, "Try now: prtr demo")
+	_, _ = fmt.Fprintln(a.stdout, `Or use the English fast path: prtr go "explain this error" --dry-run`)
 	if applyFix {
-		a.writeDoctorSuggestions(report)
+		a.writeDoctorSuggestions(doctorReport{Platform: report.Platform, Checks: readyChecks})
 	}
 
-	failures := 0
-	for _, check := range report.Checks {
+	requiredFailures := 0
+	optionalWarnings := 0
+	for _, check := range readyChecks {
 		if check.Severity == doctorBlocking {
-			failures++
+			requiredFailures++
 		}
 	}
-	if failures > 0 {
-		return fmt.Errorf("doctor found %d issue(s)", failures)
+	for _, check := range optionalChecks {
+		if check.Severity == doctorWarning || check.Severity == doctorBlocking {
+			optionalWarnings++
+		}
+	}
+	if requiredFailures > 0 {
+		return fmt.Errorf("doctor found %d required issue(s) and %d optional warning(s)", requiredFailures, optionalWarnings)
 	}
 	return nil
+}
+
+func splitDoctorChecks(checks []doctorCheck) ([]doctorCheck, []doctorCheck) {
+	ready := make([]doctorCheck, 0, len(checks))
+	optional := make([]doctorCheck, 0, len(checks))
+	hasTranslation := false
+
+	for _, check := range checks {
+		current := check
+		switch {
+		case current.Label == "user config":
+			if current.Severity == doctorBlocking {
+				current.Severity = doctorWarning
+				current.Err = nil
+				current.Detail = "not found; defaults still work, or run `prtr setup` later"
+			}
+			ready = append(ready, current)
+		case current.Label == "project config":
+			ready = append(ready, current)
+		case current.Label == "deepl api key":
+			current.Severity = doctorWarning
+			current.Err = nil
+			current.Detail = "not configured; you can try prtr now without a key with `prtr demo` or `prtr go \"explain this error\" --dry-run`"
+			optional = append(optional, current)
+		case current.Label == "translation":
+			hasTranslation = true
+			current.Severity = doctorWarning
+			if strings.TrimSpace(current.Detail) == "" {
+				current.Detail = "rerun `prtr setup` or verify the API key"
+			}
+			optional = append(optional, current)
+		case strings.HasPrefix(current.Label, "launcher "):
+			if current.Severity == doctorBlocking {
+				current.Severity = doctorWarning
+			}
+			optional = append(optional, current)
+		case strings.HasPrefix(current.Label, "automation "):
+			if current.Severity == doctorBlocking {
+				current.Severity = doctorWarning
+			}
+			optional = append(optional, current)
+		default:
+			ready = append(ready, current)
+		}
+	}
+
+	if !hasTranslation {
+		optional = append(optional, doctorCheck{
+			Severity: doctorWarning,
+			Label:    "translation",
+			Detail:   "live check skipped until a DeepL key is configured",
+		})
+	}
+
+	return ready, optional
 }
 
 func (a *App) loadDoctorConfig(applyFix bool) (config.Config, []string, error) {

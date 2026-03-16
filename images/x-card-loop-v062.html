@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>prtr x card loop</title>
+    <style>
+      :root {
+        --bg: #f3efe4;
+        --text: #1b2c49;
+        --muted: #5f6f88;
+        --warm: #e46a1b;
+        --warm-deep: #b84f14;
+        --mint: #167d73;
+        --panel: rgba(255, 251, 244, 0.92);
+        --line: rgba(27, 44, 73, 0.14);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        width: 1600px;
+        height: 900px;
+        overflow: hidden;
+        font-family: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at 12% 10%, rgba(228, 106, 27, 0.16), transparent 28%),
+          radial-gradient(circle at 86% 8%, rgba(22, 125, 115, 0.14), transparent 22%),
+          linear-gradient(180deg, #f5f1e7 0%, #f7f3ea 40%, #f1ebdf 100%);
+      }
+      body::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(rgba(27, 44, 73, 0.045) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(27, 44, 73, 0.045) 1px, transparent 1px);
+        background-size: 46px 46px;
+        mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.45), transparent 88%);
+      }
+      .frame {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        grid-template-columns: 1.05fr 0.95fr;
+        gap: 34px;
+        height: 100%;
+        padding: 58px;
+      }
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 18px;
+        border-radius: 999px;
+        border: 1px solid rgba(228, 106, 27, 0.24);
+        background: rgba(228, 106, 27, 0.08);
+        color: var(--warm-deep);
+        font-size: 16px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .eyebrow::before {
+        content: "prtr";
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.72);
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 12px;
+      }
+      h1 {
+        max-width: 9ch;
+        margin: 26px 0 20px;
+        font-family: "Georgia", "Iowan Old Style", serif;
+        font-size: 92px;
+        line-height: 0.92;
+        letter-spacing: -0.055em;
+      }
+      .lede {
+        max-width: 660px;
+        margin: 0;
+        color: var(--muted);
+        font-size: 30px;
+        line-height: 1.42;
+      }
+      .chips, .stats {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+      }
+      .chips { margin-top: 26px; }
+      .chip, .stat {
+        padding: 12px 18px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.72);
+        font-size: 18px;
+        font-weight: 600;
+      }
+      .aside {
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+      .panel {
+        border-radius: 30px;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        box-shadow: 0 28px 60px rgba(38, 42, 62, 0.12);
+        padding: 28px;
+      }
+      .panel h2 {
+        margin: 0 0 12px;
+        font-family: "Georgia", "Iowan Old Style", serif;
+        font-size: 38px;
+        line-height: 1.02;
+        letter-spacing: -0.04em;
+      }
+      .panel p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 21px;
+        line-height: 1.55;
+      }
+      .terminal {
+        margin-top: 18px;
+        border-radius: 24px;
+        overflow: hidden;
+        background: #17243b;
+        border: 1px solid rgba(27, 44, 73, 0.18);
+      }
+      .bar {
+        display: flex;
+        gap: 8px;
+        padding: 13px 16px;
+        border-bottom: 1px solid rgba(255,255,255,0.08);
+        background: rgba(255,255,255,0.04);
+      }
+      .dot {
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.34);
+      }
+      pre {
+        margin: 0;
+        padding: 18px 20px 22px;
+        color: #edf5ff;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 20px;
+        line-height: 1.7;
+        white-space: pre-wrap;
+      }
+      .accent { color: #73f0da; }
+      .warm { color: #ffbb7b; }
+      .loop {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 14px;
+        margin-top: 20px;
+      }
+      .step {
+        padding: 16px 16px 14px;
+        border-radius: 20px;
+        border: 1px solid var(--line);
+        background: rgba(255,255,255,0.7);
+      }
+      .step strong {
+        display: block;
+        margin-bottom: 8px;
+        color: var(--mint);
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 15px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .step span {
+        display: block;
+        font-size: 18px;
+        line-height: 1.35;
+      }
+      .footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 20px;
+      }
+      .footer small {
+        color: var(--muted);
+        font-size: 17px;
+      }
+      .footer strong {
+        color: var(--mint);
+        font-size: 18px;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="frame">
+      <section>
+        <div class="eyebrow">AI command layer</div>
+        <h1>Turn what you mean into the next AI action.</h1>
+        <p class="lede">Write in your language. Route to Claude, Codex, or Gemini. Keep the loop moving without rebuilding context by hand.</p>
+        <div class="chips">
+          <span class="chip">One intent, many AI apps</span>
+          <span class="chip">Mode before app</span>
+          <span class="chip">Repo memory</span>
+        </div>
+        <div class="loop">
+          <div class="step"><strong>go</strong><span>Start from intent.</span></div>
+          <div class="step"><strong>swap</strong><span>Compare without rewriting.</span></div>
+          <div class="step"><strong>take</strong><span>Turn the answer into work.</span></div>
+          <div class="step"><strong>learn</strong><span>Save repo memory.</span></div>
+        </div>
+        <div class="footer">
+          <small>The command layer for AI work</small>
+          <strong>github.com/helloprtr/poly-prompt</strong>
+        </div>
+      </section>
+      <aside class="aside">
+        <section class="panel">
+          <h2>The 30-second loop</h2>
+          <p>The first useful prompt, the comparison step, the next action, and the repo memory all stay inside one command surface.</p>
+          <div class="terminal">
+            <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+            <pre><span class="warm">$</span> npm test 2&gt;&amp;1 | <span class="accent">prtr go fix</span> "왜 깨지는지 정확한 원인만 찾아줘"
+<span class="warm">$</span> <span class="accent">prtr swap</span> gemini
+<span class="warm">$</span> <span class="accent">prtr take</span> patch
+<span class="warm">$</span> <span class="accent">prtr learn</span></pre>
+          </div>
+        </section>
+        <section class="panel">
+          <h2>v0.6.2</h2>
+          <p>Friendlier handoff diagnostics, selectable submit behavior on macOS, and clearer terminal preference handling through <strong><code>PRTR_TERMINAL_APP</code></strong>.</p>
+        </section>
+      </aside>
+    </main>
+  </body>
+</html>

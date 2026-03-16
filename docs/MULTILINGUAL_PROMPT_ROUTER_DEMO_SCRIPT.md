@@ -1,20 +1,17 @@
 # Multilingual Prompt Router Demo Script
 
-This script is designed for README demo GIFs or a 60 to 90 second live walkthrough.
-For the README, the clearest structure is three short demos instead of one long animation:
+This script is designed for the single proof loop that should anchor the README, GitHub social preview, release post, and live walkthroughs.
 
-1. setup and doctor
-2. multilingual routing and history
-3. copy, launch, paste, and submit
+Use one short demo instead of three unrelated animations.
 
 ## Demo Goal
 
 By the end of the demo, viewers should understand:
 
-- the input can start in Korean, Japanese, or another source language
-- the output prompt is shaped for a specific target such as Codex or Claude
-- `--explain` makes the routing decision visible
-- successful runs are searchable and reusable from history
+- the input can start in Korean
+- logs become evidence
+- the same request can be compared across apps
+- the answer can become the next action
 
 ## Environment Assumptions
 
@@ -108,37 +105,44 @@ Pause on:
 
 ## Suggested Voiceover Or Caption
 
-Use this if you want a spoken or written narration that matches the GIF set:
+Use this if you want a spoken or written narration that matches the proof-loop assets:
 
-`prtr` starts with guided setup, validates the environment, translates multilingual input when needed, shapes the request for the selected target and role, and then delivers that prompt through copy, launch, and optional paste workflows. Every successful run is also stored in local history, so the flow becomes reusable instead of one-off.
+`prtr` turns logs, diffs, and intent into the next AI action. It keeps the loop moving by turning one request into a target-aware prompt, making app comparison cheap, and carrying the answer into the next action without rebuilding context.
 
 ## README-Friendly Caption
 
 Short caption:
 
-`Setup once, route multilingual prompts clearly, then deliver them through copy and paste workflows.`
+`Turn logs and intent into the next AI action, then keep the loop moving.`
 
 Long caption:
 
-`The multilingual prompt router guides first-run setup, validates the environment with doctor, translates the user request when needed, applies target-aware prompt templates and role guidance, and supports local history plus launch and paste delivery flows.`
+`prtr is the command layer for AI work. It turns logs, diffs, and intent into the next AI action, keeps app switching cheap, and makes the answer easier to hand off into the next step.`
 
 ## Suggested Live Demo Pacing
 
 For a live walkthrough, this pacing works well:
 
-1. Show `setup` and `doctor` in one short pass.
-2. Show one translated routing example and pause on `--explain`.
-3. Show the final prompt and history line.
-4. Finish with the copy and paste delivery sequence.
+1. Show the failing test output.
+2. Run `go fix` with a Korean intent.
+3. Swap to another app.
+4. Take the answer into `patch`.
 
-That structure keeps the demo short while still teaching the full workflow.
+That structure keeps the demo short while still teaching the whole product story.
 
-## Optional Alternate Flow
-
-If you want a shortcut-based demo instead of a fully explicit routing command:
+## Recommended proof loop
 
 ```bash
-prtr review --no-copy "이 변경의 핵심 리스크를 찾아줘"
+npm test 2>&1 | prtr go fix "왜 깨지는지 정확한 원인만 찾아줘"
+prtr swap gemini
+prtr take patch
 ```
 
-Use that version when you want to emphasize the day-to-day workflow rather than the lower-level routing knobs.
+Pause on:
+
+- the Korean request
+- the evidence block
+- the target app change
+- the next-action handoff
+
+Keep `setup` and `doctor` out of the hero demo. They belong in docs and onboarding, not in the first public proof.

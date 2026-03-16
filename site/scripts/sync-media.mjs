@@ -14,6 +14,10 @@ const assets = [
   "prtr-setup-doctor.gif",
   "prtr-routing-history.gif",
   "prtr-delivery-paste.gif",
+  "x-card-loop-v062.png",
+  "x-card-compare-v062.png",
+  "show-hn-thumb-v062.png",
+  "github-social-preview-v062.png",
 ];
 
 await mkdir(targetDir, { recursive: true });

@@ -40,25 +40,11 @@ const loopSteps = [
 
 const demos = [
   {
-    title: "Setup and doctor",
-    description: "Configure DeepL, verify delivery capabilities, and confirm that the first-run environment is healthy before you trust the loop.",
-    note: "You are seeing setup store the baseline config and doctor confirm the routing surface is ready.",
-    image: `${basePath}media/prtr-setup-doctor.gif`,
-    alt: "Animated demonstration of prtr setup and doctor commands",
-  },
-  {
-    title: "Routing and history",
-    description: "Send multilingual prompts, watch routing decisions stay visible, and reuse recent work without losing the original intent.",
-    note: "You are seeing prompt routing, history recall, and app-aware iteration staying inside one repeatable flow.",
+    title: "One proof loop",
+    description: "Start in Korean, feed in test output, compare another app, and hand the answer to the next action without rebuilding context.",
+    note: "This is the one scene the whole product story should keep repeating across the README, social cards, release posts, and docs.",
     image: `${basePath}media/prtr-routing-history.gif`,
-    alt: "Animated demonstration of multilingual routing and history commands",
-  },
-  {
-    title: "Delivery and paste",
-    description: "Launch the target app, copy the final prompt, and hand it off to the next step with as little friction as possible.",
-    note: "You are seeing the handoff layer where prompt shaping becomes an app-ready action instead of a clipboard chore.",
-    image: `${basePath}media/prtr-delivery-paste.gif`,
-    alt: "Animated demonstration of prtr delivery and paste flow",
+    alt: "Animated demonstration of the prtr go, swap, and take workflow",
   },
 ];
 
@@ -87,23 +73,23 @@ const timeline = [
 
 const routingPoints = [
   {
-    label: "Multilingual in, English out",
-    text: "Write in Korean, Japanese, German, or your own mixed shorthand. prtr translates when needed and keeps the AI-facing output clean.",
+    label: "Intent plus evidence",
+    text: "prtr is strongest when the request is paired with logs, stack traces, or repo context so the next AI action starts from concrete proof instead of a blank box.",
   },
   {
-    label: "Target, role, and template awareness",
-    text: "The prompt is shaped for the destination app instead of being shoved into a one-size-fits-all wrapper.",
+    label: "App-aware handoff",
+    text: "The prompt is re-shaped for Claude, Codex, or Gemini instead of pretending every app wants the same wrapper.",
   },
   {
-    label: "Learn and inspect stay close",
-    text: "You can stabilize terms for future runs and still inspect the raw composition path whenever the routing needs to be explained.",
+    label: "Loop, not one-shot prompting",
+    text: "swap, take, learn, and inspect stay close so the answer becomes the next step instead of another dead-end prompt tab.",
   },
 ];
 ---
 
 <BaseLayout
   title="Repeatable AI Work Loop"
-  description="prtr is a multilingual prompt router for Claude, Codex, and Gemini that turns one-off prompting into a repeatable AI work loop."
+  description="prtr is the command layer for AI work. Turn logs, diffs, and intent into the next AI action across Claude, Codex, and Gemini."
 >
   <main class="page-shell">
     <header class="topbar">
@@ -113,7 +99,7 @@ const routingPoints = [
       </a>
       <nav class="topnav" aria-label="Primary">
         <a href="#loop">Core loop</a>
-        <a href="#demos">GIF demos</a>
+        <a href="#demos">Proof demo</a>
         <a href={`${basePath}docs/`}>Docs</a>
         <a href="#timeline">Timeline</a>
       </nav>
@@ -121,22 +107,22 @@ const routingPoints = [
 
     <section class="hero">
       <div class="hero-copy">
-        <p class="eyebrow">The multilingual prompt router for repeatable AI work.</p>
-        <h1>Think in your language. Move the whole loop forward.</h1>
+        <p class="eyebrow">The command layer for AI work.</p>
+        <h1>Turn intent and evidence into the next AI action.</h1>
         <p class="hero-text">
-          prtr is a multilingual prompt router for Claude, Codex, and Gemini. It turns raw intent into an
-          app-aware prompt, then keeps the next step cheaper with history, take, learn, and inspect.
+          prtr turns logs, diffs, and intent into the next AI action across Claude, Codex, and Gemini. The
+          first prompt matters, but the real product is the loop after it: go, swap, take, learn, and inspect.
         </p>
         <div class="hero-actions">
-          <a class="button button-primary" href="https://github.com/helloprtr/poly-prompt#quick-start">Install prtr</a>
+          <a class="button button-primary" href="https://github.com/helloprtr/poly-prompt#try-it-in-60-seconds">Try the 60s path</a>
           <a class="button button-secondary" href={`${basePath}docs/`}>Open docs hub</a>
           <a class="button button-tertiary" href="https://github.com/helloprtr/poly-prompt">Read the README</a>
           <a class="button button-ghost" href="https://github.com/helloprtr/poly-prompt/releases">See releases</a>
         </div>
         <ul class="signal-strip" aria-label="Product signals">
-          <li>Korean in, English out</li>
-          <li>Launch plus paste delivery</li>
-          <li>History, learn, and inspect built in</li>
+          <li>Logs plus intent in</li>
+          <li>Claude, Codex, Gemini out</li>
+          <li>swap, take, learn built in</li>
         </ul>
       </div>
 
@@ -149,24 +135,22 @@ const routingPoints = [
             <span class="panel-title">repeatable-work-loop.sh</span>
           </div>
           <div class="panel-body">
-            <p class="panel-caption">From multilingual intent to routed prompt to next action.</p>
+            <p class="panel-caption">One loop. One command layer. One next action.</p>
             <pre><code>npm test 2&gt;&amp;1 | prtr go fix "왜 깨지는지 정확한 원인만 찾아줘"
 prtr swap gemini
 prtr take patch
-prtr again --edit
-prtr learn
-prtr inspect --json "show the route"</code></pre>
+prtr learn</code></pre>
           </div>
         </div>
 
         <div class="mini-grid" aria-hidden="true">
           <div class="mini-card">
-            <strong>Route</strong>
-            <span>translate + shape + send</span>
+            <strong>Proof</strong>
+            <span>logs + intent + route</span>
           </div>
           <div class="mini-card">
             <strong>Loop</strong>
-            <span>swap + take + again</span>
+            <span>swap + take + compare</span>
           </div>
           <div class="mini-card">
             <strong>Memory</strong>
@@ -200,10 +184,10 @@ prtr inspect --json "show the route"</code></pre>
     <section class="section" id="demos">
       <div class="section-heading">
         <p class="eyebrow">See it work</p>
-        <h2>Three GIFs that show the product proof</h2>
+        <h2>One proof loop that every launch surface should reuse</h2>
         <p>
-          These flows are intentionally close to the daily path: configure once, route fast, then deliver
-          into the app that matches the task.
+          prtr does not need three unrelated demos on the first screen. The clearest story is one workflow:
+          logs into go, app comparison through swap, and the next action through take.
         </p>
       </div>
 
@@ -290,10 +274,10 @@ prtr inspect --json "show the route"</code></pre>
     <section class="section cta-panel">
       <div class="cta-copy">
         <p class="eyebrow">Start here</p>
-        <h2>Set it up once, then use the loop for real work</h2>
+        <h2>Try it now, then unlock multilingual routing later</h2>
         <p>
-          Start with setup and doctor, send your first prompt with go, and keep the same thread of work
-          alive through swap, take, again, learn, and inspect.
+          Start with the safe preview and the English fast path. Use setup and doctor when you are ready to
+          turn multilingual routing and delivery automation on for daily use.
         </p>
       </div>
       <div class="panel">
@@ -306,9 +290,10 @@ prtr inspect --json "show the route"</code></pre>
         <div class="panel-body">
           <pre><code>brew tap helloprtr/homebrew-tap
 brew install prtr
+prtr demo
+prtr go "explain this error" --dry-run
 prtr setup
-prtr doctor
-prtr go "이 함수 왜 느린지 설명해줘"</code></pre>
+prtr doctor</code></pre>
         </div>
       </div>
     </section>
