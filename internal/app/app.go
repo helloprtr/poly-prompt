@@ -1269,10 +1269,8 @@ func (a *App) prepareRun(ctx context.Context, opts runOptions, text, shortcutNam
 		return resolvedRun{}, fmt.Errorf("unknown target %q (available: %s)", target, strings.Join(config.AvailableTargets(cfg), ", "))
 	}
 	if opts.launch || opts.paste || strings.TrimSpace(opts.submitMode) != "" {
-		switch target {
-		case "claude", "codex", "gemini":
-		default:
-			return resolvedRun{}, fmt.Errorf("launch, paste, and submit only support claude, codex, and gemini targets")
+		if _, hasLauncher := cfg.Launchers[target]; !hasLauncher {
+			return resolvedRun{}, fmt.Errorf("target %q does not have a launcher configured; launch, paste, and submit require a [launchers.%s] config entry", target, target)
 		}
 	}
 
