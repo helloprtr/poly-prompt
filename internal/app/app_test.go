@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -1540,6 +1541,9 @@ func TestExecutePasteUsesAutomator(t *testing.T) {
 
 func TestExecuteSubmitConfirmUsesConfirmerAndAutomator(t *testing.T) {
 	t.Parallel()
+	if runtime.GOOS != "darwin" {
+		t.Skip("--submit=confirm is macOS-only")
+	}
 
 	cfg := testConfig()
 	translator := &stubTranslator{output: "Translated prompt"}
