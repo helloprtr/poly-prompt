@@ -1,0 +1,58 @@
+name: Feature request
+description: Propose a workflow improvement or new capability.
+title: "[feature] "
+labels:
+  - enhancement
+  - needs-triage
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Feature requests work best when they describe the workflow pain clearly.
+        If you only have a rough idea, GitHub Discussions may be a better place to start.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you submit
+      options:
+        - label: I searched existing issues and discussions first.
+          required: true
+        - label: I can describe the user problem, not just a solution idea.
+          required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What workflow problem are you trying to solve?
+      placeholder: Describe the friction, repeated manual step, or confusing behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      placeholder: Describe the behavior you want and how it would help.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      placeholder: Other commands, tools, or workarounds you already tried.
+  - type: textarea
+    id: success
+    attributes:
+      label: What would success look like?
+      placeholder: Short examples, acceptance criteria, or demo commands are helpful.
+    validations:
+      required: true
+  - type: dropdown
+    id: contribution
+    attributes:
+      label: Are you planning to work on this?
+      options:
+        - I can help with implementation
+        - I can help test
+        - I am sharing the idea only
+    validations:
+      required: true
+

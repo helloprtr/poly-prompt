@@ -23,6 +23,30 @@ const guides = [
     keywords: ["usage", "commands", "go", "swap", "take", "again", "learn", "inspect"],
   },
   {
+    eyebrow: "Full manual (English)",
+    title: "User Guide",
+    text: "Complete walkthrough: installation, the core loop, take --deep pipeline, LLM provider formatting, config, history, and troubleshooting.",
+    href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/guide.md",
+    linkLabel: "Read docs/guide.md",
+    keywords: ["guide", "manual", "deep", "llm", "take", "patch", "pipeline", "config"],
+  },
+  {
+    eyebrow: "Full manual (한국어)",
+    title: "사용 설명서",
+    text: "전체 사용 설명서: 설치부터 take --deep 파이프라인, LLM 프로바이더 설정, 히스토리, 문제 해결까지.",
+    href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/guide.ko.md",
+    linkLabel: "docs/guide.ko.md 읽기",
+    keywords: ["guide", "korean", "한국어", "설명서", "deep", "llm"],
+  },
+  {
+    eyebrow: "Command reference",
+    title: "Command Reference",
+    text: "Complete flag tables for every command: go, swap, take, learn, inspect, setup, doctor, history.",
+    href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/reference.md",
+    linkLabel: "Read docs/reference.md",
+    keywords: ["reference", "flags", "commands", "options", "take", "deep", "llm"],
+  },
+  {
     eyebrow: "Router story",
     title: "Workflow routing guide",
     text: "Setup, doctor, routing mechanics, targets, roles, templates, shortcuts, history, delivery modes, and troubleshooting.",
@@ -113,6 +137,8 @@ const coreLoop = [
   "again replays the recent flow.",
   "learn stabilizes project vocabulary.",
   "inspect reveals how the route was composed.",
+  "take --deep runs the five-worker patch pipeline.",
+  "take --llm=claude optimizes the prompt for Claude XML format.",
 ];
 
 const finderItems = [
@@ -142,6 +168,9 @@ const quickQueries = [
   "paste",
   "troubleshooting",
   "releases",
+  "deep",
+  "llm",
+  "korean",
 ];
 
 const navSections = [
@@ -167,6 +196,7 @@ const navSections = [
         <a href={`${basePath}`}>Home</a>
         <a href="#guides">Guides</a>
         <a href="#references">References</a>
+        <a href={`${basePath}docs-ko/`}>한국어</a>
         <a href="https://github.com/helloprtr/poly-prompt">GitHub</a>
       </nav>
     </header>

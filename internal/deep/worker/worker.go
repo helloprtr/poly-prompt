@@ -49,10 +49,10 @@ type State struct {
 	Files []string // file refs extracted from the source material
 
 	// Populated progressively (one writer per field, set before graph moves on).
-	Plan   *deepplan.WorkPlan   // written by planner
-	Patch  *deepschema.PatchDraft // written by patcher
-	Risks  *deepschema.RiskReport // written by critic  (may be nil on soft failure)
-	Tests  *deepschema.TestPlan   // written by tester  (may be nil on soft failure)
+	Plan   *deepplan.WorkPlan      // written by planner
+	Patch  *deepschema.PatchDraft  // written by patcher
+	Risks  *deepschema.RiskReport  // written by critic  (may be nil on soft failure)
+	Tests  *deepschema.TestPlan    // written by tester  (may be nil on soft failure)
 	Bundle *deepschema.PatchBundle // written by reconciler
 
 	// Accumulates messages from soft-blocker failures.

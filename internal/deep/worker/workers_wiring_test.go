@@ -229,3 +229,41 @@ func TestSummarizeExtractsFirstMeaningfulSentence(t *testing.T) {
 		}
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Task 7 — criticWorker detects source-specific risks
+// ---------------------------------------------------------------------------
+
+func TestCriticDetectsAuthRisk(t *testing.T) {
+	risks := detectSourceRisks("Fix the JWT token validation to reject expired tokens", []string{"internal/auth/auth.go"})
+	found := false
+	for _, r := range risks {
+		if strings.Contains(r.Title, "Auth") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("detectSourceRisks did not detect auth risk; got: %v", risks)
+	}
+}
+
+func TestCriticDetectsNilRisk(t *testing.T) {
+	cases := detectSourceRisks("Fix nil pointer panic in handler", nil)
+	// Without specific keyword → should produce Behavior Drift fallback
+	if len(cases) == 0 {
+		t.Error("detectSourceRisks returned empty slice")
+	}
+}
+
+func TestCriticFallbackBehaviorDrift(t *testing.T) {
+	risks := detectSourceRisks("improve the documentation", nil)
+	found := false
+	for _, r := range risks {
+		if strings.Contains(r.Title, "Behavior Drift") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("detectSourceRisks should fall back to Behavior Drift; got: %v", risks)
+	}
+}

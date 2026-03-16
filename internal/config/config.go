@@ -195,6 +195,7 @@ type Config struct {
 	DefaultTarget         string
 	DefaultRole           string
 	DefaultTemplatePreset string
+	LLMProvider           string // "claude", "gemini", "codex", or "" for rule-based
 	Targets               map[string]TargetConfig
 	TemplatePresets       map[string]TemplatePresetConfig
 	Roles                 map[string]RoleConfig
@@ -279,6 +280,7 @@ type fileConfig struct {
 	DefaultTarget         string                          `toml:"default_target"`
 	DefaultRole           string                          `toml:"default_role"`
 	DefaultTemplatePreset string                          `toml:"default_template_preset"`
+	LLMProvider           string                          `toml:"llm_provider"`
 	Targets               map[string]TargetConfig         `toml:"targets"`
 	TemplatePresets       map[string]TemplatePresetConfig `toml:"template_presets"`
 	Roles                 map[string]fileRoleConfig       `toml:"roles"`
@@ -495,6 +497,18 @@ func ResolveTemplatePreset(cliPreset string, cfg Config, target TargetConfig) st
 	return strings.TrimSpace(target.DefaultTemplatePreset)
 }
 
+// ResolveLLMProvider resolves the LLM provider with priority:
+// CLI flag > config llm_provider > PRTR_LLM_PROVIDER env var > "".
+func ResolveLLMProvider(cliProvider string, cfg Config, envProvider string) string {
+	if p := strings.ToLower(strings.TrimSpace(cliProvider)); p != "" {
+		return p
+	}
+	if p := strings.ToLower(strings.TrimSpace(cfg.LLMProvider)); p != "" {
+		return p
+	}
+	return strings.ToLower(strings.TrimSpace(envProvider))
+}
+
 func ResolveAPIKey(envAPIKey string, cfg Config) (string, string) {
 	if key := strings.TrimSpace(envAPIKey); key != "" {
 		return key, "environment"
@@ -565,6 +579,10 @@ func applyFileConfig(cfg *Config, raw fileConfig, source string, includeAPIKey b
 	if value := normalizeTargetLanguage(raw.TranslationTargetLang); value != "" {
 		cfg.TranslationTargetLang = value
 		cfg.TranslationTarget = source
+	}
+
+	if provider := strings.ToLower(strings.TrimSpace(raw.LLMProvider)); provider != "" {
+		cfg.LLMProvider = provider
 	}
 
 	if target := strings.TrimSpace(raw.DefaultTarget); target != "" {

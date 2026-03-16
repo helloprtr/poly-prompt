@@ -4,6 +4,8 @@
 
 Turn logs, diffs, and intent into the next AI action across Claude, Codex, and Gemini.
 
+> For the complete user manual, see [docs/guide.md](docs/guide.md) (English) or [docs/guide.ko.md](docs/guide.ko.md) (한국어).
+
 This guide focuses on the current public surface:
 
 - `prtr start`
@@ -192,8 +194,80 @@ Supported actions:
 - `test`
 - `commit`
 - `summary`
+- `clarify`
+- `issue`
+- `plan`
+- `debug`
+- `refactor`
 
 `take` always reads from the clipboard, generates a fresh English request for the chosen action, then sends or previews it with the same app-aware flow as `go`.
+
+### Deep analysis pipeline: `--deep` / `--dip`
+
+Pass `--deep` (or the shorthand `--dip`) to activate the deep analysis pipeline. Instead of a single prompt pass, five workers run in sequence:
+
+```
+planner → patcher → critic → tester → reconciler
+```
+
+Each worker handles a focused stage: the planner scopes the task, the patcher generates changes, the critic reviews them, the tester identifies coverage gaps, and the reconciler consolidates the final output.
+
+Use `--deep` for complex changes, refactors, and bug fixes where a single-pass answer is not enough:
+
+```bash
+prtr take patch --deep
+prtr take debug --deep
+prtr take refactor --deep
+```
+
+`--dip` is an alias for `--deep`:
+
+```bash
+prtr take patch --dip
+```
+
+### Provider-optimized prompts: `--llm`
+
+Pass `--llm=<provider>` to generate a delivery prompt formatted for the target provider. Each provider has a preferred structure:
+
+| Provider | Format |
+|----------|--------|
+| `claude` | XML tags (`<task>`, `<context>`, etc.) |
+| `gemini` | Markdown headers (`##`, `###`, etc.) |
+| `codex`  | Numbered list |
+
+```bash
+prtr take patch --llm=claude
+prtr take patch --llm=gemini
+prtr take patch --llm=codex
+```
+
+`--llm` and `--deep` compose:
+
+```bash
+prtr take patch --deep --llm=claude
+prtr take patch --dip --llm=claude
+prtr take debug --deep --llm=gemini
+prtr take refactor --deep
+```
+
+### Persistent LLM provider
+
+Set a default provider so you do not have to pass `--llm` every time:
+
+```toml
+# ~/.config/prtr/config.toml
+llm_provider = "claude"
+llm_api_key  = "sk-ant-..."
+```
+
+Or use the environment variable:
+
+```bash
+export PRTR_LLM_PROVIDER=claude
+```
+
+The environment variable takes precedence over the config file.
 
 ## 5. Teach repo terms with `learn`
 
@@ -345,7 +419,7 @@ Open the interactive editor on the legacy path:
 prtr -i "이 프롬프트를 조금 다듬고 싶어"
 ```
 
-## 7. History as local prompt memory
+## 9. History as local prompt memory
 
 List recent runs:
 
@@ -386,7 +460,7 @@ Stored metadata includes:
 - delivery mode
 - pasted/submitted status
 
-## 8. Profiles, templates, and project-local config
+## 10. Profiles, templates, and project-local config
 
 Inspect reusable templates:
 
@@ -419,7 +493,7 @@ template_preset = "gemini-stepwise"
 context = "Focus on mitigation, rollback, and customer impact."
 ```
 
-## 9. Troubleshooting
+## 11. Troubleshooting
 
 Missing DeepL key:
 
@@ -447,3 +521,10 @@ Unexpected translation behavior:
 - inspect with `prtr inspect --diff`
 - use `--translation-mode force`
 - or use `--translation-mode skip`
+
+LLM provider or API key errors:
+
+- check `~/.config/prtr/config.toml` for `llm_provider` and `llm_api_key`
+- confirm the provider name is one of `claude`, `gemini`, or `codex`
+- check the `PRTR_LLM_PROVIDER` and `PRTR_LLM_API_KEY` environment variables
+- environment variables take precedence over the config file
