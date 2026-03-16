@@ -27,6 +27,7 @@ const (
 	MemorySuggested   Type = "memory.update.suggested"
 	RunCompleted      Type = "run.completed"
 	RunFailed         Type = "run.failed"
+	LLMEnhanceFailed  Type = "llm.enhance.failed"
 )
 
 // Event is a single structured entry appended to a run's events.jsonl log.

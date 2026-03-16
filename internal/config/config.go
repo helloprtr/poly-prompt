@@ -211,6 +211,8 @@ type Config struct {
 	TranslationSource     string
 	TranslationTarget     string
 	APIKeySource          string
+	LLMProvider           string
+	LLMAPIKey             string
 }
 
 type TargetConfig struct {
@@ -279,6 +281,8 @@ type fileConfig struct {
 	DefaultTarget         string                          `toml:"default_target"`
 	DefaultRole           string                          `toml:"default_role"`
 	DefaultTemplatePreset string                          `toml:"default_template_preset"`
+	LLMProvider           string                          `toml:"llm_provider"`
+	LLMAPIKey             string                          `toml:"llm_api_key"`
 	Targets               map[string]TargetConfig         `toml:"targets"`
 	TemplatePresets       map[string]TemplatePresetConfig `toml:"template_presets"`
 	Roles                 map[string]fileRoleConfig       `toml:"roles"`
@@ -340,6 +344,13 @@ func Load() (Config, error) {
 		if err := applyFileConfig(&cfg, raw, "project config", false); err != nil {
 			return Config{}, err
 		}
+	}
+
+	if v := os.Getenv("PRTR_LLM_PROVIDER"); v != "" {
+		cfg.LLMProvider = v
+	}
+	if v := os.Getenv("PRTR_LLM_KEY"); v != "" {
+		cfg.LLMAPIKey = v
 	}
 
 	return cfg, nil
@@ -565,6 +576,13 @@ func applyFileConfig(cfg *Config, raw fileConfig, source string, includeAPIKey b
 	if value := normalizeTargetLanguage(raw.TranslationTargetLang); value != "" {
 		cfg.TranslationTargetLang = value
 		cfg.TranslationTarget = source
+	}
+
+	if v := strings.TrimSpace(raw.LLMProvider); v != "" {
+		cfg.LLMProvider = v
+	}
+	if v := strings.TrimSpace(raw.LLMAPIKey); v != "" {
+		cfg.LLMAPIKey = v
 	}
 
 	if target := strings.TrimSpace(raw.DefaultTarget); target != "" {

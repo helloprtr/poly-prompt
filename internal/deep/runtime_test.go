@@ -4,13 +4,19 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	deepevent "github.com/helloprtr/poly-prompt/internal/deep/event"
+	"github.com/helloprtr/poly-prompt/internal/deep/llm"
 	deepplan "github.com/helloprtr/poly-prompt/internal/deep/plan"
+	deepschema "github.com/helloprtr/poly-prompt/internal/deep/schema"
+	"github.com/helloprtr/poly-prompt/internal/deep/worker"
 )
 
 // ---------------------------------------------------------------------------
@@ -375,5 +381,165 @@ func TestEventsJSONLWorkerSet(t *testing.T) {
 		if !completedWorkers[w] {
 			t.Errorf("worker.completed not found for %q", w)
 		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// LLM enhancer wiring tests
+// ---------------------------------------------------------------------------
+
+// mockEnhancer is a test-only Enhancer implementation that returns a fixed string.
+type mockEnhancer struct {
+	result string
+	err    error
+}
+
+func (m *mockEnhancer) Provider() string { return "mock" }
+func (m *mockEnhancer) Enhance(_ context.Context, _ string, _ deepschema.PatchBundle, _ string) (string, error) {
+	return m.result, m.err
+}
+
+// TestLLMEnhancerCalledWhenProviderSet verifies that when an LLM provider and
+// API key are configured, the mock enhancer's output is used as the DeliveryPrompt.
+func TestLLMEnhancerCalledWhenProviderSet(t *testing.T) {
+	t.Parallel()
+
+	const wantPrompt = "LLM-enhanced delivery prompt from mock"
+
+	mockFactory := func(provider, apiKey string) (llm.Enhancer, error) {
+		return &mockEnhancer{result: wantPrompt}, nil
+	}
+
+	result, err := executePatchRunWithGraph(
+		context.Background(),
+		Options{
+			Action:      "patch",
+			Source:      "fix login bug in internal/auth/auth.go",
+			SourceKind:  "clipboard",
+			TargetApp:   "codex",
+			RepoRoot:    t.TempDir(),
+			LLMProvider: "claude",
+			LLMAPIKey:   "test-key",
+		},
+		worker.NewPatchGraph,
+		mockFactory,
+	)
+	if err != nil {
+		t.Fatalf("executePatchRunWithGraph() error = %v", err)
+	}
+	if result.DeliveryPrompt != wantPrompt {
+		t.Errorf("DeliveryPrompt = %q, want %q", result.DeliveryPrompt, wantPrompt)
+	}
+}
+
+// TestLLMEnhancerFallsBackOnError verifies that when the mock enhancer returns
+// an error, ExecutePatchRun still succeeds and returns a non-empty rule-based prompt.
+func TestLLMEnhancerFallsBackOnError(t *testing.T) {
+	t.Parallel()
+
+	mockFactory := func(provider, apiKey string) (llm.Enhancer, error) {
+		return &mockEnhancer{err: fmt.Errorf("mock LLM error")}, nil
+	}
+
+	result, err := executePatchRunWithGraph(
+		context.Background(),
+		Options{
+			Action:      "patch",
+			Source:      "fix login bug in internal/auth/auth.go",
+			SourceKind:  "clipboard",
+			RepoRoot:    t.TempDir(),
+			LLMProvider: "claude",
+			LLMAPIKey:   "test-key",
+		},
+		worker.NewPatchGraph,
+		mockFactory,
+	)
+	if err != nil {
+		t.Fatalf("executePatchRunWithGraph() should not error on LLM failure, got: %v", err)
+	}
+	if result.DeliveryPrompt == "" {
+		t.Error("DeliveryPrompt should be non-empty (rule-based fallback) when LLM errors")
+	}
+}
+
+// TestLLMEnhancerSkippedWhenNoAPIKey verifies that when LLMProvider is set but
+// LLMAPIKey is empty, the enhancement block is skipped and a rule-based prompt is returned.
+func TestLLMEnhancerSkippedWhenNoAPIKey(t *testing.T) {
+	t.Parallel()
+
+	factoryCalled := false
+	mockFactory := func(provider, apiKey string) (llm.Enhancer, error) {
+		factoryCalled = true
+		return &mockEnhancer{result: "should not be used"}, nil
+	}
+
+	result, err := executePatchRunWithGraph(
+		context.Background(),
+		Options{
+			Action:      "patch",
+			Source:      "fix login bug in internal/auth/auth.go",
+			SourceKind:  "clipboard",
+			RepoRoot:    t.TempDir(),
+			LLMProvider: "claude",
+			LLMAPIKey:   "", // empty — enhancement should be skipped
+		},
+		worker.NewPatchGraph,
+		mockFactory,
+	)
+	if err != nil {
+		t.Fatalf("executePatchRunWithGraph() error = %v", err)
+	}
+	if factoryCalled {
+		t.Error("llmFactory should not be called when LLMAPIKey is empty")
+	}
+	if result.DeliveryPrompt == "" {
+		t.Error("DeliveryPrompt should be non-empty (rule-based) when LLM is skipped")
+	}
+}
+
+// TestLLMEnhancerWithHTTPMockServer verifies that the claude enhancer (via the
+// real llm.New factory) calls the LLM HTTP endpoint and uses its response as the
+// delivery prompt.  The test spins up a local httptest server and injects a custom
+// factory that builds a claudeEnhancer pointed at that server.
+//
+// Because claudeEnhancer.baseURL is unexported, we use a thin wrapper factory
+// that wraps llm.New and re-wires the HTTP call via a test-server-aware enhancer.
+func TestLLMEnhancerWithHTTPMockServer(t *testing.T) {
+	t.Parallel()
+
+	const wantText = "Enhanced by mock HTTP server"
+
+	// Build a mock HTTP server that returns a valid Claude API response.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		resp := fmt.Sprintf(`{"content":[{"type":"text","text":%q}]}`, wantText)
+		_, _ = w.Write([]byte(resp))
+	}))
+	defer srv.Close()
+
+	// Inject a factory that returns an enhancer targeting the test server.
+	mockFactory := func(provider, apiKey string) (llm.Enhancer, error) {
+		return llm.NewWithBaseURL(provider, apiKey, srv.URL)
+	}
+
+	result, err := executePatchRunWithGraph(
+		context.Background(),
+		Options{
+			Action:      "patch",
+			Source:      "fix login bug in internal/auth/auth.go",
+			SourceKind:  "clipboard",
+			RepoRoot:    t.TempDir(),
+			LLMProvider: "claude",
+			LLMAPIKey:   "test-key",
+		},
+		worker.NewPatchGraph,
+		mockFactory,
+	)
+	if err != nil {
+		t.Fatalf("executePatchRunWithGraph() error = %v", err)
+	}
+	if result.DeliveryPrompt != wantText {
+		t.Errorf("DeliveryPrompt = %q, want %q", result.DeliveryPrompt, wantText)
 	}
 }

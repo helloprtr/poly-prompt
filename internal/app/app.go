@@ -140,11 +140,13 @@ type replayCommandOptions struct {
 }
 
 type takeCommandOptions struct {
-	action string
-	app    string
-	edit   bool
-	dryRun bool
-	deep   bool
+	action      string
+	app         string
+	edit        bool
+	dryRun      bool
+	deep        bool
+	llm         bool
+	llmProvider string
 }
 
 type learnCommandOptions struct {
@@ -1126,6 +1128,10 @@ func (a *App) runTake(ctx context.Context, args []string) error {
 		if command.action != "patch" {
 			return fmt.Errorf("deep execution only supports `take patch` right now")
 		}
+		deepCfg, err := a.configLoader()
+		if err != nil {
+			return err
+		}
 		repoRoot, _ := a.resolveRepoRoot()
 		repoSummary := repoctx.Summary{}
 		if a.repoContext != nil {
@@ -1152,6 +1158,8 @@ func (a *App) runTake(ctx context.Context, args []string) error {
 			ProtectedTerms:  protectedTerms,
 			HistoryEntry:    historyRef,
 			RepoSummary:     repoSummary,
+			LLMProvider:     resolvedLLMProvider(command, deepCfg),
+			LLMAPIKey:       resolvedLLMAPIKey(command, deepCfg),
 			Progress: func(progress deep.Progress) {
 				_, _ = fmt.Fprintf(a.stderr, "   step: %s (%d/%d)\n", progress.Step, progress.Index, progress.Total)
 			},
@@ -2041,8 +2049,13 @@ func parseTakeCommand(args []string) (takeCommandOptions, error) {
 			command.edit = true
 		case arg == "--dry-run":
 			command.dryRun = true
-		case arg == "--deep":
+		case arg == "--dip", arg == "--deep":
 			command.deep = true
+		case arg == "--llm":
+			command.llm = true
+		case strings.HasPrefix(arg, "--llm="):
+			command.llm = true
+			command.llmProvider = strings.TrimPrefix(arg, "--llm=")
 		case arg == "--to" || arg == "--app" || arg == "--target" || arg == "-t":
 			i++
 			if i >= len(args) {
@@ -2071,10 +2084,7 @@ func parseTakeCommand(args []string) (takeCommandOptions, error) {
 		return takeCommandOptions{}, usageError{message: fmt.Sprintf("unknown take action %q (available: patch, test, commit, summary, clarify, issue, plan)", command.action), helpText: takeHelpText()}
 	}
 	if command.deep && command.action != "patch" {
-		return takeCommandOptions{}, usageError{message: "deep execution currently supports only `take patch --deep`", helpText: takeHelpText()}
-	}
-	if command.deep && command.action != "patch" {
-		return takeCommandOptions{}, usageError{message: "deep execution currently supports only `take patch --deep`", helpText: takeHelpText()}
+		return takeCommandOptions{}, usageError{message: "deep execution currently supports only `take patch --dip`", helpText: takeHelpText()}
 	}
 
 	return command, nil
@@ -2868,7 +2878,7 @@ func takeHelpText() string {
 		"  - deep: build a typed execution run with artifacts, plan, and progress",
 		"",
 		"Usage:",
-		"  prtr take <action> [--deep] [flags]",
+		"  prtr take <action> [--dip] [flags]",
 		"",
 		"Actions:",
 		"  patch     Turn the answer into an implementation prompt",
@@ -2881,7 +2891,7 @@ func takeHelpText() string {
 		"",
 		"Classic examples:",
 		"  prtr take patch",
-		"  prtr take patch --deep --dry-run",
+		"  prtr take patch --dip --dry-run",
 		"  prtr take test --to codex",
 		"  prtr take commit --dry-run",
 		"  prtr take summary --edit",
@@ -2889,13 +2899,18 @@ func takeHelpText() string {
 		"  prtr take plan",
 		"",
 		"Deep execution engine examples:",
-		"  prtr take patch --deep",
-		"  prtr take patch --deep --dry-run   # write artifacts; skip opening app",
-		"  prtr take patch --deep --to claude # route delivery to Claude",
+		"  prtr take patch --dip",
+		"  prtr take patch --dip --dry-run    # write artifacts; skip opening app",
+		"  prtr take patch --dip --to claude  # route delivery to Claude",
+		"  prtr take patch --dip --llm        # enable LLM enhancement (uses config)",
+		"  prtr take patch --dip --llm=claude # specify LLM provider",
 		"",
 		"Flags:",
 		"      --to <app>        Choose the app: claude | codex | gemini",
-		"      --deep           Run the internal execution engine for `take patch`",
+		"      --dip            Run the internal execution engine for `take patch`",
+		"      --deep           Alias for --dip (deprecated)",
+		"      --llm            Enable LLM enhancement (provider from config or PRTR_LLM_PROVIDER)",
+		"      --llm=<provider> Enable LLM enhancement with explicit provider",
 		"      --edit            Review and edit before sending",
 		"      --dry-run         Show the final prompt without opening any app",
 		"                       Deep mode still writes plan and artifact files locally",
@@ -3000,4 +3015,21 @@ func takePrompt(action, clipboardText string) string {
 		"Source material:",
 		clipboardText,
 	}, "\n")
+}
+
+func resolvedLLMProvider(cmd takeCommandOptions, cfg config.Config) string {
+	if cmd.llmProvider != "" {
+		return cmd.llmProvider
+	}
+	if cmd.llm {
+		return cfg.LLMProvider
+	}
+	return ""
+}
+
+func resolvedLLMAPIKey(cmd takeCommandOptions, cfg config.Config) string {
+	if cmd.llm || cmd.llmProvider != "" {
+		return cfg.LLMAPIKey
+	}
+	return ""
 }

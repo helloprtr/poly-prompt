@@ -3,7 +3,10 @@ package app
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1211,7 +1214,7 @@ func TestExecuteTakeDeepRejectsUnsupportedAction(t *testing.T) {
 	if err == nil {
 		t.Fatal("Execute() expected an error, got nil")
 	}
-	if !strings.Contains(err.Error(), "deep execution currently supports only `take patch --deep`") {
+	if !strings.Contains(err.Error(), "deep execution currently supports only `take patch --dip`") {
 		t.Fatalf("error = %v", err)
 	}
 }
@@ -1935,5 +1938,179 @@ func TestExecuteTakeDeepHistoryLinkage(t *testing.T) {
 	manifestPath := filepath.Join(entry.ArtifactRoot, "manifest.json")
 	if _, err := os.Stat(manifestPath); err != nil {
 		t.Errorf("manifest.json not found at %s: %v", manifestPath, err)
+	}
+}
+
+// TestExecuteTakeDipAliasWorksLikeDeep verifies that --dip is an accepted
+// alias for --deep and produces the same deep execution path.
+func TestExecuteTakeDipAliasWorksLikeDeep(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	store := history.New(filepath.Join(t.TempDir(), "history.json"))
+	app := newDeepTestApp(t, testConfig(), &stubTranslator{}, &stubClipboard{read: "Fix the nil pointer in handlers/user.go"}, &stubEditor{}, store, repoRoot)
+
+	if err := app.Execute(context.Background(), []string{"take", "patch", "--dip", "--dry-run"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute() with --dip error = %v", err)
+	}
+
+	entry, err := store.Latest()
+	if err != nil {
+		t.Fatalf("Latest() error = %v", err)
+	}
+	if entry.Engine != "deep" {
+		t.Errorf("entry.Engine = %q, want deep", entry.Engine)
+	}
+	if entry.RunID == "" {
+		t.Error("entry.RunID is empty")
+	}
+}
+
+// TestExecuteTakeDeepBackwardCompatStillWorks verifies that --deep still works
+// as a deprecated alias for --dip.
+func TestExecuteTakeDeepBackwardCompatStillWorks(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	store := history.New(filepath.Join(t.TempDir(), "history.json"))
+	app := newDeepTestApp(t, testConfig(), &stubTranslator{}, &stubClipboard{read: "Fix the nil pointer in handlers/user.go"}, &stubEditor{}, store, repoRoot)
+
+	if err := app.Execute(context.Background(), []string{"take", "patch", "--deep", "--dry-run"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute() with --deep error = %v", err)
+	}
+
+	entry, err := store.Latest()
+	if err != nil {
+		t.Fatalf("Latest() error = %v", err)
+	}
+	if entry.Engine != "deep" {
+		t.Errorf("entry.Engine = %q, want deep", entry.Engine)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Server /exec/deep endpoint tests
+// ---------------------------------------------------------------------------
+
+// TestServerDeepExecRequestMissingSource verifies that POST /exec/deep with
+// an empty source field returns 400 Bad Request.
+func TestServerDeepExecRequestMissingSource(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	store := history.New(filepath.Join(t.TempDir(), "history.json"))
+	app := newDeepTestApp(t, testConfig(), &stubTranslator{}, &stubClipboard{}, &stubEditor{}, store, repoRoot)
+
+	body, _ := json.Marshal(serverDeepExecRequest{Source: ""})
+	req := httptest.NewRequest(http.MethodPost, "/exec/deep", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	app.serverMux(context.Background()).ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
+	}
+}
+
+// TestServerDeepExecRequestLLMFieldsPassThrough verifies that when
+// llm_provider and llm_api_key are provided, the response includes
+// llm_used: true.
+func TestServerDeepExecRequestLLMFieldsPassThrough(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	store := history.New(filepath.Join(t.TempDir(), "history.json"))
+	app := newDeepTestApp(t, testConfig(), &stubTranslator{}, &stubClipboard{}, &stubEditor{}, store, repoRoot)
+
+	body, _ := json.Marshal(serverDeepExecRequest{
+		Source:      "Fix the nil pointer in internal/auth/auth.go",
+		LLMProvider: "claude",
+		LLMAPIKey:   "sk-test-key",
+		Approved:    true,
+	})
+	req := httptest.NewRequest(http.MethodPost, "/exec/deep", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	app.serverMux(context.Background()).ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", w.Code, w.Body.String())
+	}
+	var resp serverDeepExecResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if !resp.LLMRequested {
+		t.Errorf("LLMRequested = false, want true when llm_provider and llm_api_key are set")
+	}
+	if resp.RunID == "" {
+		t.Error("RunID is empty")
+	}
+}
+
+// TestServerDeepExecRequestNoLLMFields verifies that when llm_provider and
+// llm_api_key are absent, llm_requested is false (omitted from JSON).
+func TestServerDeepExecRequestNoLLMFields(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	store := history.New(filepath.Join(t.TempDir(), "history.json"))
+	app := newDeepTestApp(t, testConfig(), &stubTranslator{}, &stubClipboard{}, &stubEditor{}, store, repoRoot)
+
+	body, _ := json.Marshal(serverDeepExecRequest{
+		Source:   "Fix the nil pointer in internal/auth/auth.go",
+		Approved: true,
+	})
+	req := httptest.NewRequest(http.MethodPost, "/exec/deep", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	app.serverMux(context.Background()).ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", w.Code, w.Body.String())
+	}
+	var resp serverDeepExecResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.LLMRequested {
+		t.Errorf("LLMRequested = true, want false when llm_provider/llm_api_key are not set")
+	}
+}
+
+// TestServerDeepExecRequestNotApproved verifies that without approval the
+// server returns 202 Accepted with approval_required: true.
+func TestServerDeepExecRequestNotApproved(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	store := history.New(filepath.Join(t.TempDir(), "history.json"))
+	app := newDeepTestApp(t, testConfig(), &stubTranslator{}, &stubClipboard{}, &stubEditor{}, store, repoRoot)
+
+	body, _ := json.Marshal(serverDeepExecRequest{
+		Source:   "Fix the nil pointer in internal/auth/auth.go",
+		Approved: false,
+	})
+	req := httptest.NewRequest(http.MethodPost, "/exec/deep", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	app.serverMux(context.Background()).ServeHTTP(w, req)
+
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202; body = %s", w.Code, w.Body.String())
+	}
+	var resp serverDeepExecResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if !resp.ApprovalRequired {
+		t.Error("ApprovalRequired = false, want true")
+	}
+	if resp.Approved {
+		t.Error("Approved = true, want false")
 	}
 }
