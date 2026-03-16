@@ -6,6 +6,18 @@ All notable product-facing changes to `prtr` are documented in this file.
 
 No unreleased entries yet.
 
+## v0.6.1 - 2026-03-16
+
+### Highlights
+
+- Hardened the GitHub release workflow around Node 24 compatible action versions.
+- Replaced the GoReleaser GitHub Action step with a pinned GoReleaser CLI install and direct release execution.
+- Kept the `v0.6.0` public surface and artifacts intact while making the next release tag safer to ship.
+
+### Why This Release Matters
+
+`v0.6.1` is a release-operations safety cut. It does not change the public product loop, but it removes avoidable release warnings, pins the GoReleaser version, and makes future GitHub Releases more predictable.
+
 ## v0.6.0 - 2026-03-16
 
 ### Highlights

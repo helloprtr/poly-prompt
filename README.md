@@ -241,8 +241,9 @@ These commands are part of the roadmap. They are not implemented in the current 
 
 If you need short PR or announcement copy, use the full versioned set in [docs/RELEASE_MESSAGES.md](docs/RELEASE_MESSAGES.md).
 
-Current public release: `v0.6.0`
+Current public release: `v0.6.1`
 
+- `v0.6.1`: release automation is hardened around Node 24 compatible actions and a pinned GoReleaser CLI path.
 - `v0.6.0`: `go` now suggests stronger next steps, `learn` updates both termbook and repo memory by default, and the release ships demo assets plus launch checklists.
 - `v0.5.1`: README, docs, site, and CLI help were unified around the public `go -> swap -> take -> learn` loop.
 - `v0.4.1`: `prtr start` became the beginner-first entry and `setup` moved to the advanced compatibility path.

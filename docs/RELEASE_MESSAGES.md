@@ -2,6 +2,14 @@
 
 Short PR and announcement copy for the current release train.
 
+## v0.6.1
+
+**PR title**
+`ci: harden release workflow for v0.6.1`
+
+**Announcement**
+`v0.6.1` hardens the release path around Node 24 compatible GitHub Actions, replaces the GoReleaser action with a pinned GoReleaser CLI install, and makes future release tags safer to ship.
+
 ## v0.5.1
 
 **PR title**

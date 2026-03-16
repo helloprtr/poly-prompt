@@ -73,6 +73,11 @@ const demos = [
 
 const timeline = [
   {
+    version: "v0.6.1",
+    title: "Release workflow hardening",
+    body: "The release pipeline now uses Node 24 compatible action versions and a pinned GoReleaser CLI install so future tags ship with fewer warnings and less release risk.",
+  },
+  {
     version: "v0.6.0",
     title: "Continuity upgrades",
     body: "Mode-aware next-step suggestions after `go`, stronger answer-to-action positioning for `take`, repo memory updates built into `learn`, and launch-ready demo assets for the public loop.",
@@ -110,6 +115,11 @@ const timeline = [
 ];
 
 const releaseMessages = [
+  {
+    version: "v0.6.1",
+    pr: "ci: harden release workflow for v0.6.1",
+    announcement: "`v0.6.1` hardens the release path around Node 24 compatible GitHub Actions, replaces the GoReleaser action with a pinned GoReleaser CLI install, and makes future release tags safer to ship.",
+  },
   {
     version: "v0.6.0",
     pr: "feat: strengthen take/learn continuity around the next action",
