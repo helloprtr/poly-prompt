@@ -1620,6 +1620,9 @@ func (a *App) prepareRun(ctx context.Context, opts runOptions, text, shortcutNam
 		ProtectedTerms: opts.protectedTerms,
 	}, translate.Mode(blankDefault(opts.translationMode, string(translate.ModeAuto))))
 	if err != nil {
+		if errors.Is(err, translate.ErrMissingAPIKey) {
+			return resolvedRun{}, fmt.Errorf("translation requires a DeepL key for this request. You can try prtr now without a key with `prtr demo` or `prtr go \"explain this error\" --dry-run`, then run `prtr setup` when you want multilingual routing: %w", err)
+		}
 		return resolvedRun{}, err
 	}
 
@@ -1865,6 +1868,13 @@ func (a *App) appendDeepEvent(path string, event deep.Event) error {
 		return nil
 	}
 	return deep.AppendEvent(path, event)
+}
+
+func (a *App) diagnoseClipboard() error {
+	if diagnoser, ok := a.clipboard.(clipboard.Diagnoser); ok {
+		return diagnoser.Diagnose()
+	}
+	return nil
 }
 
 func (a *App) diagnoseClipboard() error {
