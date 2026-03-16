@@ -1,0 +1,8 @@
+{
+  "name": "prtr-v0-6-1-eval-fixture",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test"
+  }
+}
