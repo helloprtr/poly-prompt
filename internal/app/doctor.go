@@ -182,7 +182,11 @@ func (a *App) buildDoctorReport(ctx context.Context, cfg config.Config) doctorRe
 			report.Checks = append(report.Checks, doctorCheck{Severity: doctorBlocking, Label: "launcher " + targetName, Err: errors.New("launcher is not configured")})
 			continue
 		}
-		req := launcher.Request{Command: launcherCfg.Command, Args: launcherCfg.Args}
+		req := launcher.Request{
+			Command:     launcherCfg.Command,
+			Args:        launcherCfg.Args,
+			TerminalApp: preferredTerminalApp(a.lookupEnv),
+		}
 		detail := launcherCfg.Command
 		if description, err := a.launcher.Describe(req); err == nil && strings.TrimSpace(description) != "" {
 			detail = fmt.Sprintf("%s via %s", launcherCfg.Command, description)
@@ -202,7 +206,7 @@ func (a *App) buildDoctorReport(ctx context.Context, cfg config.Config) doctorRe
 		}
 		autoReq := automation.Request{
 			Target:      targetName,
-			TerminalApp: "Terminal",
+			TerminalApp: preferredTerminalApp(a.lookupEnv),
 			PasteDelay:  time.Duration(maxInt(0, launcherCfg.PasteDelayMS)) * time.Millisecond,
 			SubmitMode:  automation.SubmitMode(blankDefault(launcherCfg.SubmitMode, string(automation.SubmitManual))),
 		}
@@ -238,7 +242,7 @@ func (a *App) buildPlatformMatrix(cfg config.Config) []doctorCheck {
 
 	if a.launcher == nil {
 		checks = append(checks, doctorCheck{Severity: doctorBlocking, Label: "launcher surface", Err: errors.New("launcher is not configured")})
-	} else if req, ok := firstLauncherRequest(cfg); ok {
+	} else if req, ok := firstLauncherRequest(cfg, a.lookupEnv); ok {
 		detail := req.Command
 		if description, err := a.launcher.Describe(req); err == nil && strings.TrimSpace(description) != "" {
 			detail = description
@@ -252,7 +256,7 @@ func (a *App) buildPlatformMatrix(cfg config.Config) []doctorCheck {
 
 	if a.automator == nil {
 		checks = append(checks, doctorCheck{Severity: doctorBlocking, Label: "paste surface", Err: errors.New("automator is not configured")})
-	} else if req, ok := firstAutomationRequest(cfg); ok {
+	} else if req, ok := firstAutomationRequest(cfg, a.lookupEnv); ok {
 		detail := "manual"
 		if description, err := a.automator.Describe(req); err == nil && strings.TrimSpace(description) != "" {
 			detail = description
@@ -268,18 +272,22 @@ func (a *App) buildPlatformMatrix(cfg config.Config) []doctorCheck {
 	return checks
 }
 
-func firstLauncherRequest(cfg config.Config) (launcher.Request, bool) {
+func firstLauncherRequest(cfg config.Config, lookupEnv LookupEnv) (launcher.Request, bool) {
 	for _, target := range []string{"claude", "codex", "gemini"} {
 		launcherCfg := cfg.Launchers[target]
 		if strings.TrimSpace(launcherCfg.Command) == "" {
 			continue
 		}
-		return launcher.Request{Command: launcherCfg.Command, Args: launcherCfg.Args}, true
+		return launcher.Request{
+			Command:     launcherCfg.Command,
+			Args:        launcherCfg.Args,
+			TerminalApp: preferredTerminalApp(lookupEnv),
+		}, true
 	}
 	return launcher.Request{}, false
 }
 
-func firstAutomationRequest(cfg config.Config) (automation.Request, bool) {
+func firstAutomationRequest(cfg config.Config, lookupEnv LookupEnv) (automation.Request, bool) {
 	for _, target := range []string{"claude", "codex", "gemini"} {
 		launcherCfg := cfg.Launchers[target]
 		if strings.TrimSpace(launcherCfg.Command) == "" {
@@ -287,7 +295,7 @@ func firstAutomationRequest(cfg config.Config) (automation.Request, bool) {
 		}
 		return automation.Request{
 			Target:      target,
-			TerminalApp: "Terminal",
+			TerminalApp: preferredTerminalApp(lookupEnv),
 			PasteDelay:  time.Duration(maxInt(0, launcherCfg.PasteDelayMS)) * time.Millisecond,
 			SubmitMode:  automation.SubmitMode(blankDefault(launcherCfg.SubmitMode, string(automation.SubmitManual))),
 		}, true

@@ -1699,8 +1699,9 @@ func (a *App) applyDelivery(ctx context.Context, opts runOptions, run *resolvedR
 			return fmt.Errorf("launcher is not configured for target %q", run.targetName)
 		}
 		if err := a.launcher.Launch(ctx, launcher.Request{
-			Command: launcherCfg.Command,
-			Args:    launcherCfg.Args,
+			Command:     launcherCfg.Command,
+			Args:        launcherCfg.Args,
+			TerminalApp: preferredTerminalApp(a.lookupEnv),
 		}); err != nil {
 			run.launchedTarget = run.targetName
 			return err
@@ -1718,7 +1719,7 @@ func (a *App) applyDelivery(ctx context.Context, opts runOptions, run *resolvedR
 		}
 		autoReq := automation.Request{
 			Target:           run.targetName,
-			TerminalApp:      "Terminal",
+			TerminalApp:      preferredTerminalApp(a.lookupEnv),
 			PasteDelay:       time.Duration(maxInt(0, launcherCfg.PasteDelayMS)) * time.Millisecond,
 			RequireClipboard: true,
 			SubmitMode:       automation.SubmitMode(run.submitMode),
@@ -1746,7 +1747,7 @@ func (a *App) applyDelivery(ctx context.Context, opts runOptions, run *resolvedR
 			}
 			if err := a.automator.Submit(ctx, automation.Request{
 				Target:      run.targetName,
-				TerminalApp: "Terminal",
+				TerminalApp: preferredTerminalApp(a.lookupEnv),
 				SubmitMode:  automation.SubmitConfirm,
 			}); err != nil {
 				return err

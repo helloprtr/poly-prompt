@@ -63,6 +63,29 @@ func TestMacOSAutomatorPasteBuildsScript(t *testing.T) {
 	}
 }
 
+func TestMacOSAutomatorDiagnoseITerm(t *testing.T) {
+	t.Parallel()
+
+	automator := NewForTesting("darwin", func(name string) (string, error) {
+		if name == "osascript" {
+			return "/usr/bin/osascript", nil
+		}
+		return "", exec.ErrNotFound
+	}, func(_ context.Context, script string) (string, error) {
+		if strings.Contains(script, "UI elements enabled") {
+			return "true", nil
+		}
+		if strings.Contains(script, `tell application "iTerm" to get name`) {
+			return "iTerm", nil
+		}
+		return "", nil
+	})
+
+	if err := automator.Diagnose(Request{TerminalApp: "iTerm"}); err != nil {
+		t.Fatalf("Diagnose() error = %v", err)
+	}
+}
+
 func TestMacOSAutomatorSubmitRejectsUnsupportedMode(t *testing.T) {
 	t.Parallel()
 

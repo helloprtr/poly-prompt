@@ -51,6 +51,45 @@ func TestTerminalLauncherLaunchBuildsAppleScript(t *testing.T) {
 	}
 }
 
+func TestTerminalLauncherLaunchUsesITermOnDarwin(t *testing.T) {
+	t.Parallel()
+
+	var script string
+	launcher := NewForTesting("darwin", func(name string) (string, error) {
+		return "/usr/local/bin/" + name, nil
+	}, func(_ context.Context, value string) error {
+		script = value
+		return nil
+	}, func(context.Context, string, ...string) error { return nil })
+
+	if err := launcher.Launch(context.Background(), Request{Command: "codex", Args: []string{"chat"}, TerminalApp: "iTerm"}); err != nil {
+		t.Fatalf("Launch() error = %v", err)
+	}
+
+	if !strings.Contains(script, `tell application id "com.googlecode.iterm2"`) {
+		t.Fatalf("script = %q", script)
+	}
+	if !strings.Contains(script, `create window with default profile command`) {
+		t.Fatalf("script = %q", script)
+	}
+}
+
+func TestTerminalLauncherDescribeDarwinITerm(t *testing.T) {
+	t.Parallel()
+
+	launcher := NewForTesting("darwin", func(name string) (string, error) {
+		return "/usr/local/bin/" + name, nil
+	}, func(context.Context, string) error { return nil }, func(context.Context, string, ...string) error { return nil })
+
+	description, err := launcher.Describe(Request{Command: "codex", TerminalApp: "iTerm"})
+	if err != nil {
+		t.Fatalf("Describe() error = %v", err)
+	}
+	if description != "iTerm.app" {
+		t.Fatalf("description = %q", description)
+	}
+}
+
 func TestTerminalLauncherLaunchUsesLinuxTerminal(t *testing.T) {
 	t.Parallel()
 

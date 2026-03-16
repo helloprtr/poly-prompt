@@ -19,7 +19,7 @@ func currentGOOS() string {
 func detectPlatformSurface(goos string, lookupEnv LookupEnv) platformSurface {
 	switch goos {
 	case "darwin":
-		return platformSurface{Label: "macOS + Terminal.app", Supported: true}
+		return platformSurface{Label: "macOS + " + preferredTerminalDisplayName(lookupEnv), Supported: true}
 	case "linux":
 		if value, ok := lookupEnv("WAYLAND_DISPLAY"); ok && strings.TrimSpace(value) != "" {
 			return platformSurface{Label: "Linux + Wayland", Supported: true}

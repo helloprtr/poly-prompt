@@ -12,8 +12,9 @@ import (
 var ErrUnsupportedPlatform = errors.New("launcher is unsupported on this platform")
 
 type Request struct {
-	Command string
-	Args    []string
+	Command     string
+	Args        []string
+	TerminalApp string
 }
 
 type Launcher interface {
@@ -75,7 +76,7 @@ func (l *TerminalLauncher) Describe(req Request) (string, error) {
 
 	switch l.goos {
 	case "darwin":
-		return "Terminal.app", nil
+		return darwinTerminalDisplayName(req.TerminalApp), nil
 	case "linux":
 		backend, err := l.selectLinuxBackend()
 		if err != nil {
@@ -103,6 +104,23 @@ func (l *TerminalLauncher) Launch(ctx context.Context, req Request) error {
 		commandLine := shellQuote(req.Command)
 		for _, arg := range req.Args {
 			commandLine += " " + shellQuote(arg)
+		}
+		if darwinTerminalAppName(req.TerminalApp) == "iTerm" {
+			script := fmt.Sprintf(`tell application id "com.googlecode.iterm2"
+activate
+try
+	create window with default profile command %q
+on error
+	tell current window
+		create tab with default profile command %q
+	end tell
+end try
+end tell`, commandLine, commandLine)
+
+			if err := l.runApple(ctx, script); err != nil {
+				return fmt.Errorf("launch target command: %w", err)
+			}
+			return nil
 		}
 		script := fmt.Sprintf(`tell application "Terminal"
 activate
@@ -161,4 +179,19 @@ func shellQuote(value string) string {
 		return "''"
 	}
 	return "'" + strings.ReplaceAll(value, "'", `'"'"'`) + "'"
+}
+
+func darwinTerminalAppName(value string) string {
+	lower := strings.ToLower(strings.TrimSpace(value))
+	if strings.Contains(lower, "iterm") {
+		return "iTerm"
+	}
+	return "Terminal"
+}
+
+func darwinTerminalDisplayName(value string) string {
+	if darwinTerminalAppName(value) == "iTerm" {
+		return "iTerm.app"
+	}
+	return "Terminal.app"
 }
