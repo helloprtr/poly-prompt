@@ -694,17 +694,12 @@ func TestSystemS5_UnsupportedDeepActionFriendlyError(t *testing.T) {
 		{
 			name:    "take_summary_deep",
 			args:    []string{"take", "summary", "--deep", "--dry-run"},
-			wantMsg: "take patch --dip",
-		},
-		{
-			name:    "take_test_deep",
-			args:    []string{"take", "test", "--deep", "--dry-run"},
-			wantMsg: "take patch --dip",
+			wantMsg: "deep execution supports",
 		},
 		{
 			name:    "take_commit_deep",
 			args:    []string{"take", "commit", "--deep", "--dry-run"},
-			wantMsg: "take patch --dip",
+			wantMsg: "deep execution supports",
 		},
 	}
 

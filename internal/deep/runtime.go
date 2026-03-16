@@ -101,8 +101,11 @@ func executePatchRunWithGraph(
 	graphFactory func() *worker.Graph,
 	llmFactory func(provider, apiKey string) (llm.Enhancer, error),
 ) (Result, error) {
-	if strings.TrimSpace(opts.Action) != "patch" {
-		return Result{}, fmt.Errorf("deep execution only supports patch right now")
+	switch strings.TrimSpace(opts.Action) {
+	case "patch", "test", "debug", "refactor":
+		// supported
+	default:
+		return Result{}, fmt.Errorf("deep execution supports: patch, test, debug, refactor; got %q", opts.Action)
 	}
 
 	now := time.Now().UTC()
@@ -286,7 +289,8 @@ func executePatchRunWithGraph(
 		return Result{}, err
 	}
 
-	deliveryPrompt := buildDeliveryPrompt(run.Plan, bundle, opts.Source)
+	deliveryPrompt := buildDeliveryPrompt(run.Plan, bundle, opts.Source, opts.LLMProvider)
+	llmEnhanced := false
 	if opts.LLMProvider != "" && opts.LLMAPIKey != "" {
 		enhancer, err := llmFactory(opts.LLMProvider, opts.LLMAPIKey)
 		if err != nil {
@@ -301,13 +305,17 @@ func executePatchRunWithGraph(
 			})
 		} else {
 			deliveryPrompt = enriched
+			llmEnhanced = true
 		}
+	} else if opts.LLMProvider != "" {
+		llmEnhanced = true
 	}
 
 	return Result{
 		Run:            run,
 		Bundle:         bundle,
 		DeliveryPrompt: deliveryPrompt,
+		LLMEnhanced:    llmEnhanced,
 	}, nil
 }
 

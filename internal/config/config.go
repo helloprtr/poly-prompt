@@ -196,6 +196,7 @@ type Config struct {
 	DefaultRole           string
 	DefaultTemplatePreset string
 	LLMProvider           string // "claude", "gemini", "codex", or "" for rule-based
+	LLMAPIKey             string
 	Targets               map[string]TargetConfig
 	TemplatePresets       map[string]TemplatePresetConfig
 	Roles                 map[string]RoleConfig
@@ -212,8 +213,6 @@ type Config struct {
 	TranslationSource     string
 	TranslationTarget     string
 	APIKeySource          string
-	LLMProvider           string
-	LLMAPIKey             string
 }
 
 type TargetConfig struct {

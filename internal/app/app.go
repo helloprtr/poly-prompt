@@ -1125,9 +1125,6 @@ func (a *App) runTake(ctx context.Context, args []string) error {
 	}
 
 	if command.deep {
-		if command.action != "patch" {
-			return fmt.Errorf("deep execution only supports `take patch` right now")
-		}
 		deepCfg, err := a.configLoader()
 		if err != nil {
 			return err
@@ -2096,8 +2093,8 @@ func parseTakeCommand(args []string) (takeCommandOptions, error) {
 	if !isSupportedTakeAction(command.action) {
 		return takeCommandOptions{}, usageError{message: fmt.Sprintf("unknown take action %q (available: patch, test, commit, summary, clarify, issue, plan, debug, refactor)", command.action), helpText: takeHelpText()}
 	}
-	if command.deep && command.action != "patch" {
-		return takeCommandOptions{}, usageError{message: "deep execution currently supports only `take patch --dip`", helpText: takeHelpText()}
+	if command.deep && !isSupportedDeepAction(command.action) {
+		return takeCommandOptions{}, usageError{message: fmt.Sprintf("deep execution supports: patch, test, debug, refactor; got %q", command.action), helpText: takeHelpText()}
 	}
 
 	return command, nil
