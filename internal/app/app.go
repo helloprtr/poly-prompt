@@ -1362,11 +1362,16 @@ func (a *App) executePrompt(ctx context.Context, opts runOptions, text, shortcut
 	if opts.launch && resolved.launched {
 		_, _ = fmt.Fprintf(a.stderr, "opened %s CLI session\n", resolved.targetName)
 	}
+	if opts.launch && resolved.launched && !opts.paste {
+		_, _ = fmt.Fprintf(a.stderr, "prompt is on the clipboard; paste it into %s when ready\n", resolved.targetName)
+	}
 	if opts.paste && resolved.pasted {
 		_, _ = fmt.Fprintf(a.stderr, "pasted prompt into %s terminal session\n", resolved.targetName)
 	}
 	if resolved.submitted {
 		_, _ = fmt.Fprintf(a.stderr, "submitted prompt to %s\n", resolved.targetName)
+	} else if opts.paste && resolved.pasted {
+		_, _ = fmt.Fprintf(a.stderr, "review the prompt in %s, then press Enter manually to submit\n", resolved.targetName)
 	}
 
 	return nil
@@ -1785,6 +1790,9 @@ func (a *App) writeCompactStatus(opts runOptions, run resolvedRun) {
 	for _, suggestion := range compactStatusSuggestions(opts) {
 		_, _ = fmt.Fprintf(a.stderr, "   next: %s\n", suggestion)
 	}
+	for _, note := range a.compactHandoffNotes(opts, run) {
+		_, _ = fmt.Fprintf(a.stderr, "   %s\n", note)
+	}
 }
 
 func compactStatusSuggestions(opts runOptions) []string {
@@ -1801,6 +1809,27 @@ func compactStatusSuggestions(opts runOptions) []string {
 			return []string{"prtr take plan", "prtr take patch"}
 		default:
 			return []string{"prtr swap <other-app>", "prtr take summary"}
+		}
+	default:
+		return nil
+	}
+}
+
+func (a *App) compactHandoffNotes(opts runOptions, run resolvedRun) []string {
+	terminalName := preferredTerminalDisplayName(a.lookupEnv)
+
+	switch {
+	case opts.launch && opts.paste && run.pasted:
+		lines := []string{
+			fmt.Sprintf("handoff: opened %s in %s and pasted the compiled prompt", run.targetName, terminalName),
+		}
+		if !run.submitted {
+			lines = append(lines, "send: review the prompt in the target app, then press Enter manually")
+		}
+		return lines
+	case opts.launch && run.launched:
+		return []string{
+			fmt.Sprintf("handoff: opened %s in %s; paste stays manual from the clipboard", run.targetName, terminalName),
 		}
 	default:
 		return nil

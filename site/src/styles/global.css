@@ -706,6 +706,11 @@ pre {
   font-weight: 600;
 }
 
+.doc-actions {
+  display: grid;
+  gap: 10px;
+}
+
 .doc-link:hover,
 .doc-link:focus-visible {
   color: var(--warm);

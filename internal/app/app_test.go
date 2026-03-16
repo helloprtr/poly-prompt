@@ -1534,6 +1534,9 @@ func TestExecuteDoctorReportsFailures(t *testing.T) {
 	if !strings.Contains(stdout.String(), "Platform matrix") {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
+	if !strings.Contains(stdout.String(), "Open-copy flow") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
 }
 
 func TestExecuteDoctorFixCreatesStarterConfig(t *testing.T) {
@@ -1566,6 +1569,96 @@ func TestExecuteDoctorFixCreatesStarterConfig(t *testing.T) {
 	}
 	if _, statErr := os.Stat(filepath.Join(tempDir, "prtr", "config.toml")); statErr != nil {
 		t.Fatalf("config stat error = %v", statErr)
+	}
+}
+
+func TestExecutePlatformShowsHandoffGuide(t *testing.T) {
+	t.Parallel()
+
+	app := New(Dependencies{
+		Version:         "test",
+		Stdout:          &bytes.Buffer{},
+		Stderr:          &bytes.Buffer{},
+		Translator:      &stubTranslator{},
+		Clipboard:       &stubClipboard{},
+		Editor:          &stubEditor{},
+		Launcher:        &stubLauncher{desc: "iTerm.app"},
+		Automator:       &stubAutomator{desc: "macOS via osascript"},
+		SubmitConfirmer: &stubConfirmer{},
+		ConfigLoader: func() (config.Config, error) {
+			return testConfig(), nil
+		},
+		ConfigInit: func() (string, error) { return "", nil },
+		LookupEnv: func(key string) (string, bool) {
+			if key == "TERM_PROGRAM" {
+				return "iTerm.app", true
+			}
+			return "", false
+		},
+		HistoryStore: history.New(filepath.Join(t.TempDir(), "history.json")),
+	})
+	stdout, _ := buffersFromApp(app)
+
+	if err := app.Execute(context.Background(), []string{"platform"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "Open-copy flow") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "READY now: prtr can open iTerm.app and paste the compiled prompt automatically.") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "press Enter manually to submit") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
+func TestExecuteGoReportsManualSubmitHintAfterPaste(t *testing.T) {
+	t.Parallel()
+
+	translator := &stubTranslator{output: "translated"}
+	app := New(Dependencies{
+		Version:         "test",
+		Stdout:          &bytes.Buffer{},
+		Stderr:          &bytes.Buffer{},
+		Translator:      translator,
+		Clipboard:       &stubClipboard{},
+		Editor:          &stubEditor{},
+		Launcher:        &stubLauncher{desc: "iTerm.app"},
+		Automator:       &stubAutomator{desc: "macOS via osascript"},
+		SubmitConfirmer: &stubConfirmer{},
+		ConfigLoader: func() (config.Config, error) {
+			return testConfig(), nil
+		},
+		ConfigInit: func() (string, error) { return "", nil },
+		LookupEnv: func(key string) (string, bool) {
+			if key == "TERM_PROGRAM" {
+				return "iTerm.app", true
+			}
+			return "", false
+		},
+		HistoryStore: history.New(filepath.Join(t.TempDir(), "history.json")),
+		RepoContext:  &stubRepoContext{},
+		RepoRootFinder: func() (string, error) {
+			return "", termbook.ErrNotGitRepo
+		},
+		TermbookLoader: func(string) (termbook.Book, error) {
+			return termbook.Book{}, os.ErrNotExist
+		},
+		MemoryLoader: func(string) (memory.Book, error) {
+			return memory.Book{}, os.ErrNotExist
+		},
+	})
+	_, stderr := buffersFromApp(app)
+
+	if err := app.Execute(context.Background(), []string{"go", "fix", "테스트가 왜 깨지지?"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(stderr.String(), "handoff: opened codex in iTerm.app and pasted the compiled prompt") {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "send: review the prompt in the target app, then press Enter manually") {
+		t.Fatalf("stderr = %q", stderr.String())
 	}
 }
 

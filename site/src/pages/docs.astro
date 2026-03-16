@@ -5,9 +5,170 @@ const basePath = import.meta.env.BASE_URL.endsWith("/")
   ? import.meta.env.BASE_URL
   : `${import.meta.env.BASE_URL}/`;
 
+const moments = [
+  {
+    eyebrow: "Install and start",
+    title: "Set up prtr, then make the first send with confidence.",
+    body: "Use the install guide first, then move into the main usage loop without guessing which command comes next.",
+    links: [
+      { label: "Read INSTALLATION.md", href: "https://github.com/helloprtr/poly-prompt/blob/main/INSTALLATION.md" },
+      { label: "Read USAGE.md", href: "https://github.com/helloprtr/poly-prompt/blob/main/USAGE.md" },
+    ],
+  },
+  {
+    eyebrow: "Daily work",
+    title: "Stay inside go, swap, take, again, learn, and inspect.",
+    body: "This is the documentation slice for people who are already using prtr and want the loop to stay fast and predictable.",
+    links: [
+      { label: "Open README", href: "https://github.com/helloprtr/poly-prompt#readme" },
+      { label: "Read USAGE.md", href: "https://github.com/helloprtr/poly-prompt/blob/main/USAGE.md" },
+    ],
+  },
+  {
+    eyebrow: "QA and evaluation",
+    title: "Test the full loop, score it, and judge the handoff honestly.",
+    body: "Use the report, fixture, and test checklist when you want to validate speed, continuity, memory, and trust end to end.",
+    links: [
+      { label: "Read V0_6_1_TEST_GUIDE.md", href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/V0_6_1_TEST_GUIDE.md" },
+      { label: "Read V0_6_1_FIXTURE_CHECKLIST.md", href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/V0_6_1_FIXTURE_CHECKLIST.md" },
+    ],
+  },
+  {
+    eyebrow: "Release and launch",
+    title: "Ship, verify, and announce with consistent language.",
+    body: "Use the release copy and launch checklist when you need GitHub Release text, Homebrew verification, and launch operations to line up.",
+    links: [
+      { label: "Read RELEASE_MESSAGES.md", href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/RELEASE_MESSAGES.md" },
+      { label: "Read LAUNCH_CHECKLIST.md", href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/LAUNCH_CHECKLIST.md" },
+    ],
+  },
+];
+
+const loopDocs = [
+  {
+    eyebrow: "Start",
+    title: "`go` and `swap`",
+    body: "Understand the first send, model comparison, and why prtr keeps the same intent alive while switching apps.",
+    href: "https://github.com/helloprtr/poly-prompt/blob/main/USAGE.md",
+    linkLabel: "Read go / swap usage",
+    keywords: ["go", "swap", "fix", "review", "design", "ask", "comparison", "route"],
+  },
+  {
+    eyebrow: "Execute",
+    title: "`take` and `again`",
+    body: "See how copied output becomes a patch, issue, plan, test, commit, summary, or clarification prompt without restarting the workflow.",
+    href: "https://github.com/helloprtr/poly-prompt/blob/main/USAGE.md",
+    linkLabel: "Read take / again usage",
+    keywords: ["take", "again", "patch", "issue", "plan", "test", "summary"],
+  },
+  {
+    eyebrow: "Remember",
+    title: "`learn` and repo memory",
+    body: "Understand how `.prtr/termbook.toml` and `.prtr/memory.toml` get built so project wording and guidance survive future runs.",
+    href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/V0_6_1_REPORT.md",
+    linkLabel: "Read the repo-memory report",
+    keywords: ["learn", "termbook", "memory", "repo", "guidance"],
+  },
+  {
+    eyebrow: "Trust",
+    title: "`inspect`, `doctor`, and `platform`",
+    body: "Use the route and handoff surfaces to understand whether prtr can open, paste, or only preview on the current machine.",
+    href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/V0_6_1_TEST_GUIDE.md",
+    linkLabel: "Read diagnostics and test guidance",
+    keywords: ["inspect", "doctor", "platform", "open-copy", "iterm", "paste", "submit"],
+  },
+];
+
+const operatorSurfaces = [
+  {
+    command: "start",
+    detail: "Use when you want the first useful send without memorizing setup details.",
+  },
+  {
+    command: "doctor",
+    detail: "Use when you need a direct explanation of what is blocking launch, paste, or translation.",
+  },
+  {
+    command: "platform",
+    detail: "Use when you only care about open-copy readiness and want the short surface summary.",
+  },
+  {
+    command: "inspect",
+    detail: "Use when you want the route, config, and compiled prompt story made visible.",
+  },
+  {
+    command: "sync",
+    detail: "Use when you want canonical `.prtr` guidance rendered into vendor-facing files.",
+  },
+  {
+    command: "exec",
+    detail: "Use when you want the same routing pipeline without the visible open-copy handoff.",
+  },
+];
+
+const demos = [
+  {
+    title: "Input to first send",
+    text: "The first GIF explains how `go` compiles intent, repo evidence, and routing into one useful first move.",
+    image: `${basePath}media/prtr-setup-doctor.gif`,
+    alt: "Animated terminal demo showing prtr go creating the first useful prompt from a failing test.",
+  },
+  {
+    title: "Comparison without rewrite",
+    text: "The second GIF is the proof for `swap`: the same request moves to another app without rebuilding context.",
+    image: `${basePath}media/prtr-routing-history.gif`,
+    alt: "Animated terminal demo showing prtr swap comparing another AI app without rebuilding context.",
+  },
+  {
+    title: "Answer to action to memory",
+    text: "The third GIF shows `take` turning the answer into work, then `learn` saving repo vocabulary and guidance.",
+    image: `${basePath}media/prtr-delivery-paste.gif`,
+    alt: "Animated terminal demo showing prtr take patch and prtr learn saving repo memory.",
+  },
+];
+
+const references = [
+  {
+    title: "PRD v1",
+    text: "The product definition and roadmap framing behind the command-layer surface.",
+    href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/PRD_V1.md",
+    keywords: ["prd", "requirements", "strategy", "roadmap"],
+  },
+  {
+    title: "90-day backlog",
+    text: "Sprint-by-sprint priorities from activation through continuity and automation readiness.",
+    href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/BACKLOG_90_DAYS.md",
+    keywords: ["backlog", "roadmap", "sprints", "priorities"],
+  },
+  {
+    title: "v0.6.1 report",
+    text: "The full report covering what changed from v0.4.0 to v0.6.1 and what user experience matters now.",
+    href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/V0_6_1_REPORT.md",
+    keywords: ["v0.6.1", "report", "positioning", "experience", "timeline"],
+  },
+  {
+    title: "Demo assets",
+    text: "Recording scripts, captions, and asset notes for the three GIFs used across the site and launch materials.",
+    href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/DEMO_ASSETS.md",
+    keywords: ["demo", "gif", "assets", "captions", "recording"],
+  },
+  {
+    title: "Legacy router guide",
+    text: "Background router framing and troubleshooting kept available without becoming the front door.",
+    href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/MULTILINGUAL_PROMPT_ROUTER_GUIDE.md",
+    keywords: ["router", "translation", "legacy", "history", "troubleshooting"],
+  },
+  {
+    title: "Releases",
+    text: "Tagged binaries, installable archives, and GitHub release history.",
+    href: "https://github.com/helloprtr/poly-prompt/releases",
+    keywords: ["releases", "download", "binaries", "versions"],
+  },
+];
+
 const guides = [
   {
-    eyebrow: "Start here",
+    eyebrow: "Install",
     title: "Installation guide",
     text: "Platform-specific install and update steps for macOS, Linux, and Windows.",
     href: "https://github.com/helloprtr/poly-prompt/blob/main/INSTALLATION.md",
@@ -15,124 +176,52 @@ const guides = [
     keywords: ["install", "setup", "brew", "windows", "linux", "macos"],
   },
   {
-    eyebrow: "Daily use",
+    eyebrow: "Use",
     title: "Usage guide",
-    text: "Day-to-day commands, examples, and the main loop surface around go, swap, take, again, learn, and inspect.",
+    text: "Day-to-day commands, examples, and the main loop around go, swap, take, again, learn, and inspect.",
     href: "https://github.com/helloprtr/poly-prompt/blob/main/USAGE.md",
     linkLabel: "Read USAGE.md",
     keywords: ["usage", "commands", "go", "swap", "take", "again", "learn", "inspect"],
   },
   {
-    eyebrow: "Product framing",
-    title: "README",
-    text: "The main product story, current boundaries, and the fastest path from `start` to the first useful send.",
-    href: "https://github.com/helloprtr/poly-prompt#readme",
-    linkLabel: "Open README",
-    keywords: ["readme", "overview", "status", "available", "planned", "quick start", "next action"],
-  },
-  {
-    eyebrow: "Strategy",
-    title: "PRD v1",
-    text: "Product definition, goals, requirements, and release gates for the next-action command layer roadmap.",
-    href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/PRD_V1.md",
-    linkLabel: "Read PRD_V1.md",
-    keywords: ["prd", "strategy", "requirements", "doctor", "sync", "exec", "server", "fanout"],
-  },
-  {
-    eyebrow: "Strategy",
-    title: "90-day backlog",
-    text: "Sprint-by-sprint priorities from activation through continuity and automation readiness.",
-    href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/BACKLOG_90_DAYS.md",
-    linkLabel: "Read BACKLOG_90_DAYS.md",
-    keywords: ["backlog", "sprints", "roadmap", "start", "doctor", "sync", "fanout", "collect"],
-  },
-  {
-    eyebrow: "Launch copy",
-    title: "Release messages",
-    text: "Short PR titles and announcement lines through v0.6.1 so release copy stays consistent across GitHub, docs, and the site.",
-    href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/RELEASE_MESSAGES.md",
-    linkLabel: "Read RELEASE_MESSAGES.md",
-    keywords: ["release", "announcement", "pr", "launch", "messages", "v0.4.1", "v0.6.1"],
-  },
-  {
-    eyebrow: "Release review",
-    title: "v0.6.1 report",
-    text: "Detailed report covering how prtr changed from v0.4.0 to v0.6.1, what is core now, and what user experience the product delivers.",
-    href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/V0_6_1_REPORT.md",
-    linkLabel: "Read V0_6_1_REPORT.md",
-    keywords: ["v0.6.1", "report", "positioning", "experience", "timeline", "go", "swap", "take", "learn"],
-  },
-  {
-    eyebrow: "QA",
+    eyebrow: "Evaluate",
     title: "v0.6.1 test guide",
-    text: "A-Z validation checklist for installation, loop behavior, repo memory, release health, docs consistency, and failure handling.",
+    text: "A-Z validation for installation, loop behavior, repo memory, release health, docs consistency, and failure handling.",
     href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/V0_6_1_TEST_GUIDE.md",
     linkLabel: "Read V0_6_1_TEST_GUIDE.md",
-    keywords: ["v0.6.1", "test", "qa", "checklist", "doctor", "go", "swap", "take", "learn", "release"],
+    keywords: ["test", "qa", "doctor", "platform", "go", "swap", "take", "learn"],
   },
   {
-    eyebrow: "QA",
-    title: "Fixture checklist",
-    text: "Checkbox template for judging the eval fixture flow across go, swap, take, again, learn, and inspect.",
-    href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/V0_6_1_FIXTURE_CHECKLIST.md",
-    linkLabel: "Read V0_6_1_FIXTURE_CHECKLIST.md",
-    keywords: ["fixture", "checklist", "go", "swap", "take", "again", "learn", "inspect", "qa"],
+    eyebrow: "Ship",
+    title: "Launch checklist",
+    text: "Operator-facing steps for prerelease checks, tagging, Homebrew verification, site/media checks, and rollback notes.",
+    href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/LAUNCH_CHECKLIST.md",
+    linkLabel: "Read LAUNCH_CHECKLIST.md",
+    keywords: ["launch", "release", "homebrew", "verification", "rollout"],
   },
-];
-
-const references = [
-  {
-    title: "Router guide",
-    text: "Background reference for the older multilingual prompt router framing, troubleshooting, and routing internals.",
-    href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/MULTILINGUAL_PROMPT_ROUTER_GUIDE.md",
-    keywords: ["router", "translation", "doctor", "target", "role", "template", "history", "paste", "troubleshooting"],
-  },
-  {
-    title: "Demo script",
-    text: "Narrative and commands used to explain the earlier multilingual routing flow in demos and GIF captures.",
-    href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/MULTILINGUAL_PROMPT_ROUTER_DEMO_SCRIPT.md",
-    keywords: ["demo", "script", "gif", "presentation", "routing"],
-  },
-  {
-    title: "Changelog",
-    text: "Release-by-release product story from identity to repeatable workflow.",
-    href: "https://github.com/helloprtr/poly-prompt/blob/main/CHANGELOG.md",
-    keywords: ["changelog", "release", "timeline", "versions"],
-  },
-  {
-    title: "v0.6.1 eval fixture",
-    text: "Small failing Node checkout repo and setup script for hands-on testing of go, swap, take, learn, again, and inspect.",
-    href: "https://github.com/helloprtr/poly-prompt/tree/main/examples/v0_6_1_eval_fixture",
-    keywords: ["fixture", "eval", "test", "npm", "go", "swap", "take", "learn", "inspect"],
-  },
-  {
-    title: "Releases",
-    text: "Installable binaries and tagged release history on GitHub.",
-    href: "https://github.com/helloprtr/poly-prompt/releases",
-    keywords: ["releases", "download", "binaries", "versions"],
-  },
-  {
-    title: "Source",
-    text: "Browse the repository directly when you want implementation detail or current project status.",
-    href: "https://github.com/helloprtr/poly-prompt",
-    keywords: ["source", "repo", "github", "code"],
-  },
-];
-
-const coreLoop = [
-  "go sends the first request fast.",
-  "swap compares another app without rebuilding context.",
-  "take turns copied output into the next action.",
-  "again replays the recent flow.",
-  "learn stabilizes project vocabulary.",
-  "inspect reveals how the route was composed.",
 ];
 
 const finderItems = [
+  ...moments.map((moment) => ({
+    section: "Moment",
+    title: moment.title,
+    text: moment.body,
+    href: moment.links[0].href,
+    linkLabel: moment.links[0].label,
+    keywords: `${moment.eyebrow} ${moment.links.map((item) => item.label).join(" ")}`.toLowerCase(),
+  })),
   ...guides.map((guide) => ({
     section: "Guide",
     title: guide.title,
     text: guide.text,
+    href: guide.href,
+    linkLabel: guide.linkLabel,
+    keywords: guide.keywords.join(" "),
+  })),
+  ...loopDocs.map((guide) => ({
+    section: "Loop",
+    title: guide.title,
+    text: guide.body,
     href: guide.href,
     linkLabel: guide.linkLabel,
     keywords: guide.keywords.join(" "),
@@ -150,26 +239,27 @@ const finderItems = [
 const quickQueries = [
   "install",
   "go",
-  "next action",
   "doctor",
-  "sync",
-  "exec",
-  "fanout",
-  "router",
-  "releases",
+  "platform",
+  "iterm",
+  "take",
+  "learn",
+  "release",
+  "homebrew",
 ];
 
 const navSections = [
+  { id: "moments", label: "Moments" },
+  { id: "loop", label: "Loop docs" },
+  { id: "operators", label: "Operators" },
   { id: "finder", label: "Finder" },
-  { id: "guides", label: "Guides" },
-  { id: "media", label: "Media" },
   { id: "references", label: "References" },
 ];
 ---
 
 <BaseLayout
   title="Docs Hub"
-  description="Documentation hub for prtr installation, usage, strategy docs, background router references, and release history."
+  description="Docs hub for prtr setup, loop usage, diagnostics, release operations, and hands-on validation."
 >
   <main class="page-shell">
     <header class="topbar">
@@ -179,47 +269,201 @@ const navSections = [
       </a>
       <nav class="topnav" aria-label="Primary">
         <a href={`${basePath}`}>Home</a>
-        <a href="#guides">Guides</a>
-        <a href="#references">References</a>
+        <a href="#moments">Moments</a>
+        <a href="#finder">Finder</a>
         <a href="https://github.com/helloprtr/poly-prompt">GitHub</a>
       </nav>
     </header>
 
     <section class="hero hero-docs">
       <div class="hero-copy">
-        <p class="eyebrow">Docs for the next-action command layer.</p>
-        <h1>Everything around the loop, in one place.</h1>
-        <p class="hero-text">
-          Use this page as the documentation front door when you need install steps, daily command guides,
-          strategy docs, and background routing references in one place.
+        <p class="eyebrow">Docs for the next-action command layer</p>
+        <h1>Documentation that follows the loop, not the repo tree.</h1>
+        <p class="hero-text hero-lead">
+          Use this page when you want to know what to open first for setup, daily use, QA, or release work.
+          The same `go -> swap -> take -> learn` product story from the landing page is mirrored here as
+          install, operate, validate, and ship.
         </p>
         <div class="hero-actions">
-          <a class="button button-primary" href="https://github.com/helloprtr/poly-prompt/blob/main/INSTALLATION.md">Install guide</a>
-          <a class="button button-secondary" href="https://github.com/helloprtr/poly-prompt/blob/main/USAGE.md">Usage guide</a>
-          <a class="button button-tertiary" href="https://github.com/helloprtr/poly-prompt/blob/main/docs/PRD_V1.md">PRD</a>
-          <a class="button button-ghost" href={`${basePath}`}>Back to home</a>
+          <a class="button button-primary" href="#moments">Choose your moment</a>
+          <a class="button button-secondary" href="#loop">See loop docs</a>
+          <a class="button button-tertiary" href="#finder">Search the hub</a>
+          <a class="button button-ghost" href="https://github.com/helloprtr/poly-prompt#readme">Open README</a>
+        </div>
+        <div class="hero-tags" aria-label="Docs promises">
+          <span>Setup without digging</span>
+          <span>Loop-first navigation</span>
+          <span>Operator-friendly releases</span>
+          <span>Real QA artifacts</span>
         </div>
       </div>
 
-      <div class="panel">
-        <div class="panel-header">
-          <span class="panel-dot"></span>
-          <span class="panel-dot"></span>
-          <span class="panel-dot"></span>
-          <span class="panel-title">docs-map.md</span>
-        </div>
-        <div class="panel-body">
-          <p class="panel-caption">From start to first send to the next action.</p>
-          <ul class="doc-bullets">
-            {coreLoop.map((item) => (
-              <li>{item}</li>
-            ))}
-          </ul>
+      <div class="hero-aside">
+        <article class="hero-story">
+          <p class="eyebrow">Read this page like this</p>
+          <h2>Pick the moment you are in, then follow the matching documents.</h2>
+          <p>
+            New users should not start in the roadmap. Release operators should not have to dig through the
+            usage guide. This hub groups docs by the job you are trying to finish.
+          </p>
+        </article>
+
+        <div class="hero-route">
+          <div class="route-step">
+            <strong>1. Install</strong>
+            <span>Get the binary or brew setup right, then confirm the first usable surface.</span>
+          </div>
+          <div class="route-step">
+            <strong>2. Operate</strong>
+            <span>Stay inside `go`, `swap`, `take`, `again`, `learn`, and `inspect` without losing the thread.</span>
+          </div>
+          <div class="route-step">
+            <strong>3. Validate</strong>
+            <span>Use the fixture, test guide, and diagnostics docs to judge speed, trust, and continuity honestly.</span>
+          </div>
+          <div class="route-step">
+            <strong>4. Ship</strong>
+            <span>Use release copy and the launch checklist when you need GitHub, Homebrew, and the site to line up.</span>
+          </div>
         </div>
       </div>
     </section>
 
     <section class="section section-tight">
+      <div class="command-ribbon">
+        <div class="command-ribbon-head">
+          <span class="timeline-version">Docs order</span>
+          <p>Read in this order if you want the shortest path from install to launch confidence.</p>
+        </div>
+        <pre><code>INSTALLATION.md
+USAGE.md
+V0_6_1_TEST_GUIDE.md
+RELEASE_MESSAGES.md
+LAUNCH_CHECKLIST.md</code></pre>
+      </div>
+    </section>
+
+    <section class="section" id="moments">
+      <div class="section-heading">
+        <p class="eyebrow">Choose your moment</p>
+        <h2>Open the right document based on the job in front of you</h2>
+        <p>
+          This section is the fast path when you do not care about the whole repo. Just pick the current moment
+          and start from the recommended documents.
+        </p>
+      </div>
+
+      <div class="status-grid">
+        {moments.map((moment) => (
+          <article class="status-card">
+            <p class="eyebrow">{moment.eyebrow}</p>
+            <h3>{moment.title}</h3>
+            <p>{moment.body}</p>
+            <div class="doc-actions">
+              {moment.links.map((item) => (
+                <a class="doc-link" href={item.href}>{item.label}</a>
+              ))}
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+
+    <section class="section" id="loop">
+      <div class="section-heading">
+        <p class="eyebrow">Loop docs</p>
+        <h2>Read the docs in the same order as the product loop</h2>
+        <p>
+          The product is not a flat command list. The docs should not be one either. These cards keep the loop
+          visible so `go`, `swap`, `take`, `again`, `learn`, and `inspect` still feel like one surface.
+        </p>
+      </div>
+
+      <div class="docs-grid">
+        {loopDocs.map((guide) => (
+          <article class="doc-card">
+            <p class="eyebrow">{guide.eyebrow}</p>
+            <h3>{guide.title}</h3>
+            <p>{guide.body}</p>
+            <a class="doc-link" href={guide.href}>{guide.linkLabel}</a>
+          </article>
+        ))}
+      </div>
+    </section>
+
+    <section class="section" id="operators">
+      <div class="section-heading">
+        <p class="eyebrow">Operator surfaces</p>
+        <h2>Use these when you need setup, diagnostics, visibility, or non-default delivery</h2>
+        <p>
+          The core loop lives on top, but these commands matter whenever you need to understand the current
+          machine, fix a broken handoff, or route the same pipeline through a different surface.
+        </p>
+      </div>
+
+      <div class="support-grid-list">
+        {operatorSurfaces.map((item) => (
+          <article class="support-card">
+            <span class="command-tag">{item.command}</span>
+            <p>{item.detail}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+
+    <section class="section two-column" id="media">
+      <div class="section-heading">
+        <p class="eyebrow">Media and proof</p>
+        <h2>The same proof assets from the landing page, placed in the docs flow</h2>
+        <p>
+          The marketing page explains the product. The docs hub helps people verify that the story is backed by
+          real setup behavior, visible comparison, and answer-to-action continuity.
+        </p>
+      </div>
+
+      <div class="routing-list">
+        <article class="routing-card">
+          <h3>`go` is not just translation</h3>
+          <p>The first send should already look like work: repo context, logs, route choice, and mode are visible.</p>
+        </article>
+        <article class="routing-card">
+          <h3>`swap` keeps comparison cheap</h3>
+          <p>The request is not rebuilt from scratch. That is the difference between a one-shot helper and a reusable loop.</p>
+        </article>
+        <article class="routing-card">
+          <h3>`take` plus `learn` create continuity</h3>
+          <p>The answer becomes the next action, then repo guidance survives into future runs instead of vanishing.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="demo-stack">
+        {demos.map((demo) => (
+          <article class="demo-card">
+            <figure class="demo-figure">
+              <img src={demo.image} alt={demo.alt} loading="lazy" />
+            </figure>
+            <div class="demo-copy">
+              <p class="eyebrow">Workflow proof</p>
+              <h3>{demo.title}</h3>
+              <p>{demo.text}</p>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+
+    <section class="section" id="finder">
+      <div class="section-heading">
+        <p class="eyebrow">Quick finder</p>
+        <h2>Search by command, platform problem, release task, or document name</h2>
+        <p>
+          Type what you are trying to do, or tap a quick query. The hub filters instantly so it behaves more
+          like a lightweight command palette than a static docs list.
+        </p>
+      </div>
+
       <div class="dock-shell">
         <nav class="dock-links" aria-label="Docs categories">
           {navSections.map((section) => (
@@ -234,17 +478,6 @@ const navSections = [
           ))}
         </div>
       </div>
-    </section>
-
-    <section class="section" id="finder">
-      <div class="section-heading">
-        <p class="eyebrow">Quick finder</p>
-        <h2>Search the docs hub by task, command, or workflow word</h2>
-        <p>
-          Type what you are trying to do, or use a quick query. The cards below filter instantly so the
-          docs hub feels closer to a command palette than a static link list.
-        </p>
-      </div>
 
       <div class="finder-shell">
         <label class="finder-label" for="docs-search">Search docs</label>
@@ -252,9 +485,9 @@ const navSections = [
           id="docs-search"
           class="finder-input"
           type="search"
-          placeholder="Try install, next action, doctor, sync, exec, fanout..."
+          placeholder="Try doctor, platform, iterm, release, homebrew, learn..."
         />
-        <p class="finder-note">Shared links preserve the current search in the `?q=` URL query.</p>
+        <p class="finder-note">Shared links keep the current search in the `?q=` URL query.</p>
         <div class="finder-chips" aria-label="Quick queries">
           {quickQueries.map((query) => (
             <button class="finder-chip" type="button" data-query={query}>
@@ -279,59 +512,13 @@ const navSections = [
       </div>
     </section>
 
-    <section class="section" id="guides">
-      <div class="section-heading">
-        <p class="eyebrow">Guides</p>
-        <h2>Start, learn, and plan without digging</h2>
-        <p>
-          These are the documents most people need first when moving from evaluation into regular use.
-        </p>
-      </div>
-
-      <div class="docs-grid">
-        {guides.map((guide) => (
-          <article class="doc-card">
-            <p class="eyebrow">{guide.eyebrow}</p>
-            <h3>{guide.title}</h3>
-            <p>{guide.text}</p>
-            <a class="doc-link" href={guide.href}>{guide.linkLabel}</a>
-          </article>
-        ))}
-      </div>
-    </section>
-
-    <section class="section two-column" id="media">
-      <div class="section-heading">
-        <p class="eyebrow">Media and proof</p>
-        <h2>The same GIF evidence, now linked from the docs side too</h2>
-        <p>
-          The landing page sells the workflow. The docs hub helps users verify that the workflow is grounded
-          in visible setup, history, and delivery behavior, while strategy docs explain what comes next.
-        </p>
-      </div>
-
-      <div class="routing-list">
-        <article class="routing-card">
-          <h3>Setup plus doctor</h3>
-          <p>First-run config and diagnostic confidence before the tool enters daily use.</p>
-        </article>
-        <article class="routing-card">
-          <h3>History plus continuity</h3>
-          <p>Recent-run reuse keeps the next action close instead of forcing invisible one-shot prompting every time.</p>
-        </article>
-        <article class="routing-card">
-          <h3>Delivery plus paste</h3>
-          <p>The current `open-copy` handoff stays visible, while `exec` and `server` remain clearly marked as roadmap work.</p>
-        </article>
-      </div>
-    </section>
-
     <section class="section" id="references">
       <div class="section-heading">
-        <p class="eyebrow">Background and references</p>
-        <h2>Legacy router docs and repository links worth keeping close</h2>
+        <p class="eyebrow">References</p>
+        <h2>Keep the deeper product and release material close, without making it the front door</h2>
         <p>
-          These links keep the older router framing available without making it the front door of the product.
+          These references matter, but they should support the main loop instead of replacing it. Use them when
+          you need deeper roadmap, reporting, demo, or release context.
         </p>
       </div>
 

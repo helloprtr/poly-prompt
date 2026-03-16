@@ -68,6 +68,7 @@ func (a *App) runPlatform(jsonOutput bool) error {
 	}
 
 	a.writeDoctorSection("Platform matrix", checks)
+	a.writeHandoffGuide(checks)
 	return nil
 }
 
@@ -91,7 +92,8 @@ func platformHelpText() string {
 		"",
 		"`prtr platform` exposes the platform matrix directly so you can see",
 		"clipboard, launcher, paste, and submit readiness without reading the",
-		"full doctor report.",
+		"full doctor report. It also prints a short open-copy summary so you",
+		"know whether `go` and `swap` will open, paste, or require manual send.",
 		"",
 		"Usage:",
 		"  prtr platform [--json]",

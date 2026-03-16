@@ -47,6 +47,7 @@ func (a *App) runDoctor(ctx context.Context, applyFix bool) error {
 	}
 	a.writeDoctorSection("Platform matrix", report.Platform)
 	a.writeDoctorSection("Checks", report.Checks)
+	a.writeHandoffGuide(report.Platform)
 	if applyFix {
 		a.writeDoctorSuggestions(report)
 	}
@@ -336,6 +337,69 @@ func (a *App) writeDoctorSuggestions(report doctorReport) {
 	}
 }
 
+func (a *App) writeHandoffGuide(checks []doctorCheck) {
+	lines := handoffGuideLines(checks)
+	if len(lines) == 0 {
+		return
+	}
+
+	_, _ = fmt.Fprintln(a.stdout, "Open-copy flow")
+	for _, line := range lines {
+		_, _ = fmt.Fprintf(a.stdout, "%s\n", line)
+	}
+}
+
+func handoffGuideLines(checks []doctorCheck) []string {
+	byLabel := map[string]doctorCheck{}
+	for _, check := range checks {
+		byLabel[check.Label] = check
+	}
+
+	current := byLabel["current surface"]
+	launcher := byLabel["launcher surface"]
+	paste := byLabel["paste surface"]
+	submit := byLabel["submit surface"]
+
+	if current.Severity == doctorBlocking {
+		return []string{
+			"BLOCKED now: this surface cannot do the visible open-copy handoff.",
+			"Use `prtr go --dry-run` for preview mode, or move to a supported interactive surface.",
+		}
+	}
+
+	if launcher.Severity == doctorBlocking {
+		return []string{
+			"BLOCKED now: prtr cannot open the target app from this surface yet.",
+			"Fix the launcher backend or use `prtr go --dry-run` until launch is available.",
+		}
+	}
+
+	launcherName := blankDefault(launcher.Detail, current.Detail)
+	if paste.Severity == doctorBlocking {
+		lines := []string{
+			fmt.Sprintf("PARTIAL now: prtr can open %s, but automatic paste is not ready.", launcherName),
+		}
+		if paste.Err != nil && strings.Contains(strings.ToLower(paste.Err.Error()), "accessibility") {
+			lines = append(lines, "Next: grant macOS Accessibility to your terminal app, then rerun `prtr doctor`.")
+		} else {
+			lines = append(lines, "Next: fix paste automation or fall back to preview/manual paste.")
+		}
+		lines = append(lines, "Fallback: use `prtr go --dry-run`, or copy the compiled prompt and paste it yourself.")
+		return lines
+	}
+
+	lines := []string{
+		fmt.Sprintf("READY now: prtr can open %s and paste the compiled prompt automatically.", launcherName),
+	}
+	if submit.Severity == doctorWarning || strings.Contains(strings.ToLower(submit.Detail), "manual") {
+		lines = append(lines, "Next: review the prompt in the target app, then press Enter manually to submit.")
+	} else {
+		lines = append(lines, "Next: the handoff path is ready end-to-end for launch, paste, and submit.")
+	}
+	lines = append(lines, "Tip: `go` starts the first send, `swap` compares another app, and `take` turns the answer into the next action.")
+	return lines
+}
+
 func doctorSuggestion(check doctorCheck) string {
 	switch check.Label {
 	case "deepl api key", "translation":
@@ -345,6 +409,9 @@ func doctorSuggestion(check doctorCheck) string {
 	case "launcher surface":
 		return "install a supported terminal backend for this platform"
 	case "paste surface":
+		if check.Err != nil && strings.Contains(strings.ToLower(check.Err.Error()), "accessibility") {
+			return "grant Accessibility access to your terminal app, then rerun `prtr doctor`"
+		}
 		return "install the paste dependency or fall back to preview/manual paste"
 	case "user config":
 		return "rerun `prtr doctor --fix` or use `prtr start`"
@@ -353,6 +420,9 @@ func doctorSuggestion(check doctorCheck) string {
 			return "fix the launcher command or use `prtr go --dry-run`"
 		}
 		if strings.HasPrefix(check.Label, "automation ") {
+			if check.Err != nil && strings.Contains(strings.ToLower(check.Err.Error()), "accessibility") {
+				return "grant Accessibility access to your terminal app, then rerun `prtr doctor`"
+			}
 			return "install the paste dependency or use preview/manual paste"
 		}
 		return "review the diagnostic output and rerun `prtr doctor --fix`"
