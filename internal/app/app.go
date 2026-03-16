@@ -2084,10 +2084,7 @@ func parseTakeCommand(args []string) (takeCommandOptions, error) {
 		return takeCommandOptions{}, usageError{message: fmt.Sprintf("unknown take action %q (available: patch, test, commit, summary, clarify, issue, plan)", command.action), helpText: takeHelpText()}
 	}
 	if command.deep && command.action != "patch" {
-		return takeCommandOptions{}, usageError{message: "deep execution currently supports only `take patch --deep`", helpText: takeHelpText()}
-	}
-	if command.deep && command.action != "patch" {
-		return takeCommandOptions{}, usageError{message: "deep execution currently supports only `take patch --deep`", helpText: takeHelpText()}
+		return takeCommandOptions{}, usageError{message: "deep execution currently supports only `take patch --dip`", helpText: takeHelpText()}
 	}
 
 	return command, nil
@@ -3032,10 +3029,7 @@ func resolvedLLMProvider(cmd takeCommandOptions, cfg config.Config) string {
 
 func resolvedLLMAPIKey(cmd takeCommandOptions, cfg config.Config) string {
 	if cmd.llm || cmd.llmProvider != "" {
-		if cfg.LLMAPIKey != "" {
-			return cfg.LLMAPIKey
-		}
-		return os.Getenv("PRTR_LLM_KEY")
+		return cfg.LLMAPIKey
 	}
 	return ""
 }
