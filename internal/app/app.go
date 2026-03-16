@@ -2093,9 +2093,6 @@ func parseTakeCommand(args []string) (takeCommandOptions, error) {
 	if command.deep && !isSupportedDeepAction(command.action) {
 		return takeCommandOptions{}, usageError{message: "deep execution supports: patch, test, debug, refactor (got --deep with " + command.action + ")", helpText: takeHelpText()}
 	}
-	if command.deep && command.action != "patch" {
-		return takeCommandOptions{}, usageError{message: "deep execution currently supports only `take patch --deep`", helpText: takeHelpText()}
-	}
 
 	return command, nil
 }
