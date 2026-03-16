@@ -74,7 +74,43 @@ func (s *Store) Append(entry Entry) error {
 
 	entries = append(entries, entry)
 	if len(entries) > maxEntries {
-		entries = entries[len(entries)-maxEntries:]
+		// Separate pinned and unpinned; preserve all pinned entries.
+		pinned := make([]Entry, 0)
+		unpinned := make([]Entry, 0)
+		for _, e := range entries {
+			if e.Pinned {
+				pinned = append(pinned, e)
+			} else {
+				unpinned = append(unpinned, e)
+			}
+		}
+		// Keep only as many unpinned as there's room for
+		allowedUnpinned := maxEntries - len(pinned)
+		if allowedUnpinned < 0 {
+			allowedUnpinned = 0
+		}
+		if len(unpinned) > allowedUnpinned {
+			unpinned = unpinned[len(unpinned)-allowedUnpinned:]
+		}
+		// Merge back in timestamp order
+		entries = make([]Entry, 0, len(pinned)+len(unpinned))
+		pi, ui := 0, 0
+		for pi < len(pinned) || ui < len(unpinned) {
+			switch {
+			case pi >= len(pinned):
+				entries = append(entries, unpinned[ui])
+				ui++
+			case ui >= len(unpinned):
+				entries = append(entries, pinned[pi])
+				pi++
+			case pinned[pi].CreatedAt.Before(unpinned[ui].CreatedAt):
+				entries = append(entries, pinned[pi])
+				pi++
+			default:
+				entries = append(entries, unpinned[ui])
+				ui++
+			}
+		}
 	}
 
 	return s.save(entries)
@@ -119,15 +155,8 @@ func (s *Store) Latest() (Entry, error) {
 	if len(entries) == 0 {
 		return Entry{}, ErrNotFound
 	}
-
-	latest := entries[0]
-	for _, entry := range entries[1:] {
-		if entry.CreatedAt.After(latest.CreatedAt) {
-			latest = entry
-		}
-	}
-
-	return latest, nil
+	// Entries are appended in chronological order; last is always newest.
+	return entries[len(entries)-1], nil
 }
 
 func (s *Store) Search(query string) ([]Entry, error) {
@@ -201,13 +230,30 @@ func (s *Store) save(entries []Entry) error {
 		return fmt.Errorf("encode history: %w", err)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
+	dir := filepath.Dir(s.path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create history directory: %w", err)
 	}
-	if err := os.WriteFile(s.path, data, 0o644); err != nil {
+
+	tmp, err := os.CreateTemp(dir, ".history-*.json.tmp")
+	if err != nil {
+		return fmt.Errorf("create temp history file: %w", err)
+	}
+	tmpPath := tmp.Name()
+
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("write history: %w", err)
 	}
-
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("close temp history file: %w", err)
+	}
+	if err := os.Rename(tmpPath, s.path); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("commit history: %w", err)
+	}
 	return nil
 }
 

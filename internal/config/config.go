@@ -361,7 +361,7 @@ func Init() (string, error) {
 		return "", fmt.Errorf("inspect config file: %w", err)
 	}
 
-	if err := os.WriteFile(path, []byte(starterConfig), 0o644); err != nil {
+	if err := writeFileAtomic(path, []byte(starterConfig)); err != nil {
 		return "", fmt.Errorf("write config: %w", err)
 	}
 
@@ -408,7 +408,7 @@ func SaveDefaults(update DefaultsUpdate) (string, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return "", fmt.Errorf("create config directory: %w", err)
 	}
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := writeFileAtomic(path, data); err != nil {
 		return "", fmt.Errorf("write config: %w", err)
 	}
 
@@ -911,13 +911,7 @@ func defaultLaunchers() map[string]LauncherConfig {
 }
 
 func normalizeSourceLanguage(value string) string {
-	value = strings.ToLower(strings.TrimSpace(value))
-	switch value {
-	case "", "auto":
-		return value
-	default:
-		return value
-	}
+	return strings.ToLower(strings.TrimSpace(value))
 }
 
 func normalizeTargetLanguage(value string) string {
@@ -947,4 +941,27 @@ func sortedKeys[T any](items map[string]T) []string {
 	}
 	sort.Strings(names)
 	return names
+}
+
+func writeFileAtomic(path string, data []byte) error {
+	dir := filepath.Dir(path)
+	tmp, err := os.CreateTemp(dir, ".config-*.toml.tmp")
+	if err != nil {
+		return fmt.Errorf("create temp config file: %w", err)
+	}
+	tmpPath := tmp.Name()
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("write temp config: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("close temp config: %w", err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("commit config: %w", err)
+	}
+	return nil
 }

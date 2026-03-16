@@ -1,6 +1,9 @@
 package history
 
 import (
+	"encoding/json"
+	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -113,5 +116,66 @@ func TestStoreLatestReturnsMostRecentEntry(t *testing.T) {
 	}
 	if entry.ID != "newer" {
 		t.Fatalf("Latest() ID = %q, want %q", entry.ID, "newer")
+	}
+}
+
+func TestSaveIsAtomic(t *testing.T) {
+	dir := t.TempDir()
+	store := New(filepath.Join(dir, "history.json"))
+	for i := 0; i < 5; i++ {
+		err := store.Append(Entry{
+			Original: fmt.Sprintf("entry %d", i),
+			Target:   "claude",
+		})
+		if err != nil {
+			t.Fatalf("Append(%d) failed: %v", i, err)
+		}
+		data, readErr := os.ReadFile(filepath.Join(dir, "history.json"))
+		if readErr != nil {
+			t.Fatalf("ReadFile after Append(%d) failed: %v", i, readErr)
+		}
+		var entries []Entry
+		if err := json.Unmarshal(data, &entries); err != nil {
+			t.Fatalf("history file is not valid JSON after Append(%d): %v", i, err)
+		}
+		if len(entries) != i+1 {
+			t.Fatalf("expected %d entries after Append(%d), got %d", i+1, i, len(entries))
+		}
+	}
+}
+
+func TestAppendPreservesPinnedEntries(t *testing.T) {
+	dir := t.TempDir()
+	store := New(filepath.Join(dir, "history.json"))
+
+	// Add a pinned entry first
+	if err := store.Append(Entry{ID: "pinned-1", Original: "keep me", Target: "claude", Pinned: true}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Fill well beyond maxEntries to push pinned-1 out of the tail
+	for i := 0; i < maxEntries+5; i++ {
+		_ = store.Append(Entry{Original: fmt.Sprintf("entry %d", i), Target: "claude"})
+	}
+
+	_, err := store.Get("pinned-1")
+	if err != nil {
+		t.Fatalf("pinned entry was evicted: %v", err)
+	}
+}
+
+func TestLatestReturnsNewest(t *testing.T) {
+	dir := t.TempDir()
+	store := New(filepath.Join(dir, "history.json"))
+	_ = store.Append(Entry{ID: "old", Original: "old entry", Target: "claude",
+		CreatedAt: time.Now().Add(-1 * time.Hour)})
+	_ = store.Append(Entry{ID: "new", Original: "new entry", Target: "claude",
+		CreatedAt: time.Now()})
+	latest, err := store.Latest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if latest.ID != "new" {
+		t.Fatalf("Latest() returned %q, want %q", latest.ID, "new")
 	}
 }

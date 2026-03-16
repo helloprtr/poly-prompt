@@ -168,6 +168,22 @@ type resolvedRun struct {
 	config              config.Config
 }
 
+var sourceLangOptions = []languageOption{
+	{Label: "auto", Value: "auto", Description: "automatic detection"},
+	{Label: "ko", Value: "ko", Description: "Korean"},
+	{Label: "ja", Value: "ja", Description: "Japanese"},
+	{Label: "zh", Value: "zh", Description: "Chinese"},
+	{Label: "en", Value: "en", Description: "English"},
+}
+
+var targetLangOptions = []languageOption{
+	{Label: "en", Value: "en", Description: "English"},
+	{Label: "ja", Value: "ja", Description: "Japanese"},
+	{Label: "zh", Value: "zh", Description: "Chinese"},
+	{Label: "de", Value: "de", Description: "German"},
+	{Label: "fr", Value: "fr", Description: "French"},
+}
+
 func New(deps Dependencies) *App {
 	store := deps.HistoryStore
 	if store == nil {
@@ -291,24 +307,12 @@ func (a *App) runSetup(stdin io.Reader) error {
 		return err
 	}
 
-	sourceLangValue, err := promptLanguage(reader, a.stdout, "Default input language", []languageOption{
-		{Label: "auto", Value: "auto", Description: "automatic detection"},
-		{Label: "ko", Value: "ko", Description: "Korean"},
-		{Label: "ja", Value: "ja", Description: "Japanese"},
-		{Label: "zh", Value: "zh", Description: "Chinese"},
-		{Label: "en", Value: "en", Description: "English"},
-	}, currentSourceLang, true)
+	sourceLangValue, err := promptLanguage(reader, a.stdout, "Default input language", sourceLangOptions, currentSourceLang, true)
 	if err != nil {
 		return err
 	}
 
-	targetLangValue, err := promptLanguage(reader, a.stdout, "Default output language", []languageOption{
-		{Label: "en", Value: "en", Description: "English"},
-		{Label: "ja", Value: "ja", Description: "Japanese"},
-		{Label: "zh", Value: "zh", Description: "Chinese"},
-		{Label: "de", Value: "de", Description: "German"},
-		{Label: "fr", Value: "fr", Description: "French"},
-	}, currentTargetLang, false)
+	targetLangValue, err := promptLanguage(reader, a.stdout, "Default output language", targetLangOptions, currentTargetLang, false)
 	if err != nil {
 		return err
 	}
@@ -369,24 +373,12 @@ func (a *App) runLang(stdin io.Reader) error {
 		currentTargetLang = "en"
 	}
 
-	sourceLangValue, err := promptLanguage(reader, a.stdout, "Default input language", []languageOption{
-		{Label: "auto", Value: "auto", Description: "automatic detection"},
-		{Label: "ko", Value: "ko", Description: "Korean"},
-		{Label: "ja", Value: "ja", Description: "Japanese"},
-		{Label: "zh", Value: "zh", Description: "Chinese"},
-		{Label: "en", Value: "en", Description: "English"},
-	}, currentSourceLang, true)
+	sourceLangValue, err := promptLanguage(reader, a.stdout, "Default input language", sourceLangOptions, currentSourceLang, true)
 	if err != nil {
 		return err
 	}
 
-	targetLangValue, err := promptLanguage(reader, a.stdout, "Default output language", []languageOption{
-		{Label: "en", Value: "en", Description: "English"},
-		{Label: "ja", Value: "ja", Description: "Japanese"},
-		{Label: "zh", Value: "zh", Description: "Chinese"},
-		{Label: "de", Value: "de", Description: "German"},
-		{Label: "fr", Value: "fr", Description: "French"},
-	}, currentTargetLang, false)
+	targetLangValue, err := promptLanguage(reader, a.stdout, "Default output language", targetLangOptions, currentTargetLang, false)
 	if err != nil {
 		return err
 	}
@@ -1277,10 +1269,8 @@ func (a *App) prepareRun(ctx context.Context, opts runOptions, text, shortcutNam
 		return resolvedRun{}, fmt.Errorf("unknown target %q (available: %s)", target, strings.Join(config.AvailableTargets(cfg), ", "))
 	}
 	if opts.launch || opts.paste || strings.TrimSpace(opts.submitMode) != "" {
-		switch target {
-		case "claude", "codex", "gemini":
-		default:
-			return resolvedRun{}, fmt.Errorf("launch, paste, and submit only support claude, codex, and gemini targets")
+		if _, hasLauncher := cfg.Launchers[target]; !hasLauncher {
+			return resolvedRun{}, fmt.Errorf("target %q does not have a launcher configured; launch, paste, and submit require a [launchers.%s] config entry", target, target)
 		}
 	}
 
@@ -2142,10 +2132,14 @@ func promptLanguage(reader *bufio.Reader, output io.Writer, label string, choice
 func truncateOneLine(text string, limit int) string {
 	text = strings.ReplaceAll(text, "\n", " ")
 	text = strings.TrimSpace(text)
-	if len(text) <= limit {
+	runes := []rune(text)
+	if len(runes) <= limit {
 		return text
 	}
-	return text[:limit-3] + "..."
+	if limit <= 3 {
+		return string(runes[:limit])
+	}
+	return string(runes[:limit-3]) + "..."
 }
 
 func blankDefault(value, fallback string) string {

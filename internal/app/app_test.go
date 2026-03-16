@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/helloprtr/poly-prompt/internal/automation"
 	"github.com/helloprtr/poly-prompt/internal/config"
@@ -1286,5 +1287,49 @@ func TestExecuteInteractiveCancelReturnsSentinelError(t *testing.T) {
 	err := app.Execute(context.Background(), []string{"-i", "원문"}, strings.NewReader(""), false)
 	if !errors.Is(err, editor.ErrCanceled) {
 		t.Fatalf("Execute() error = %v", err)
+	}
+}
+
+func TestTruncateOneLineUnicode(t *testing.T) {
+	cases := []struct {
+		input string
+		limit int
+	}{
+		{"안녕하세요 세계입니다", 8},
+		{"hello world", 5},
+		{"안녕", 2},             // limit <= 3: no ellipsis, no panic
+		{"안녕하세요", 3},       // limit == 3: no panic
+	}
+	for _, tc := range cases {
+		result := truncateOneLine(tc.input, tc.limit)
+		if !utf8.ValidString(result) {
+			t.Errorf("truncateOneLine(%q, %d) produced invalid UTF-8: %q", tc.input, tc.limit, result)
+		}
+		if len([]rune(result)) > tc.limit {
+			t.Errorf("truncateOneLine(%q, %d) exceeded limit: got %d runes in %q", tc.input, tc.limit, len([]rune(result)), result)
+		}
+	}
+}
+
+func TestIsUIHeavyNoFalsePositives(t *testing.T) {
+	cases := []struct {
+		text   string
+		wantUI bool
+	}{
+		{"build the feature quickly", false},        // "ui" in "build"
+		{"the pursuit of performance", false},       // "ui" in "pursuit"
+		{"unique approach to the problem", false},   // "ui" in "unique"
+		{"quit the application", false},             // "ui" in "quit"
+		{"design the user interface layout", true},  // intentional UI
+		{"update the UI component", true},           // explicit "UI" word
+		{"improve the UX flow", true},               // explicit "UX" word
+		{"create a wireframe for the screen", true}, // wireframe/screen markers
+		{"", false},
+	}
+	for _, tc := range cases {
+		got := isUIHeavy(tc.text)
+		if got != tc.wantUI {
+			t.Errorf("isUIHeavy(%q) = %v, want %v", tc.text, got, tc.wantUI)
+		}
 	}
 }

@@ -145,6 +145,7 @@ type readBackend interface {
 }
 
 func detectFirst(lookPath LookPathFunc, candidates []backendCandidate, notFoundMessage string) (*commandClipboard, error) {
+	var errs []string
 	for _, candidate := range candidates {
 		command, err := lookPath(candidate.name)
 		if err == nil {
@@ -153,7 +154,7 @@ func detectFirst(lookPath LookPathFunc, candidates []backendCandidate, notFoundM
 				args:    candidate.args,
 			}, nil
 		}
+		errs = append(errs, fmt.Sprintf("%s: %v", candidate.name, err))
 	}
-
-	return nil, fmt.Errorf("%s", notFoundMessage)
+	return nil, fmt.Errorf("%s (tried: %s)", notFoundMessage, strings.Join(errs, "; "))
 }
