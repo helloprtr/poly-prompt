@@ -193,7 +193,11 @@ func (a *App) buildDoctorReport(ctx context.Context, cfg config.Config) doctorRe
 			detail = fmt.Sprintf("%s via %s", launcherCfg.Command, description)
 		}
 		if err := a.launcher.Diagnose(req); err != nil {
-			report.Checks = append(report.Checks, doctorCheck{Severity: doctorBlocking, Label: "launcher " + targetName, Err: err, Detail: "fix launcher support or use `prtr go --dry-run`"})
+			detail := "fix launcher support or use `prtr go --dry-run`"
+			if strings.Contains(strings.ToLower(err.Error()), "unsupported for macos launch handoff") {
+				detail = "set PRTR_TERMINAL_APP to Terminal.app or iTerm.app, or use `prtr go --dry-run`"
+			}
+			report.Checks = append(report.Checks, doctorCheck{Severity: doctorBlocking, Label: "launcher " + targetName, Err: err, Detail: detail})
 		} else {
 			report.Checks = append(report.Checks, doctorCheck{Severity: doctorOK, Label: "launcher " + targetName, Detail: detail})
 		}
@@ -241,6 +245,23 @@ func (a *App) buildPlatformMatrix(cfg config.Config) []doctorCheck {
 		}
 	}
 
+	if currentGOOS() == "darwin" {
+		pref := preferredTerminalAppPreference(a.lookupEnv)
+		detail := pref.DisplayName
+		if pref.Source != "" {
+			detail = fmt.Sprintf("%s via %s", detail, pref.Source)
+		}
+		if pref.Supported {
+			checks = append(checks, doctorCheck{Severity: doctorOK, Label: "terminal preference", Detail: detail})
+		} else {
+			checks = append(checks, doctorCheck{
+				Severity: doctorWarning,
+				Label:    "terminal preference",
+				Detail:   fmt.Sprintf("%s is selected, but open-copy launch currently supports Terminal.app and iTerm.app", detail),
+			})
+		}
+	}
+
 	if a.launcher == nil {
 		checks = append(checks, doctorCheck{Severity: doctorBlocking, Label: "launcher surface", Err: errors.New("launcher is not configured")})
 	} else if req, ok := firstLauncherRequest(cfg, a.lookupEnv); ok {
@@ -249,7 +270,11 @@ func (a *App) buildPlatformMatrix(cfg config.Config) []doctorCheck {
 			detail = description
 		}
 		if err := a.launcher.Diagnose(req); err != nil {
-			checks = append(checks, doctorCheck{Severity: doctorBlocking, Label: "launcher surface", Err: err, Detail: "use a supported terminal backend"})
+			detail := "use a supported terminal backend"
+			if strings.Contains(strings.ToLower(err.Error()), "unsupported for macos launch handoff") {
+				detail = "set PRTR_TERMINAL_APP to Terminal.app or iTerm.app"
+			}
+			checks = append(checks, doctorCheck{Severity: doctorBlocking, Label: "launcher surface", Err: err, Detail: detail})
 		} else {
 			checks = append(checks, doctorCheck{Severity: doctorOK, Label: "launcher surface", Detail: detail})
 		}
@@ -269,7 +294,13 @@ func (a *App) buildPlatformMatrix(cfg config.Config) []doctorCheck {
 		}
 	}
 
-	checks = append(checks, doctorCheck{Severity: doctorWarning, Label: "submit surface", Detail: "manual only in the current release"})
+	submitSeverity := doctorWarning
+	submitDetail := "manual only on this surface; confirm and auto are not supported here yet"
+	if currentGOOS() == "darwin" {
+		submitSeverity = doctorOK
+		submitDetail = "manual by default; `--submit confirm` and `--submit auto` are available"
+	}
+	checks = append(checks, doctorCheck{Severity: submitSeverity, Label: "submit surface", Detail: submitDetail})
 	return checks
 }
 
@@ -359,6 +390,7 @@ func handoffGuideLines(checks []doctorCheck) []string {
 	launcher := byLabel["launcher surface"]
 	paste := byLabel["paste surface"]
 	submit := byLabel["submit surface"]
+	terminalPreference := byLabel["terminal preference"]
 
 	if current.Severity == doctorBlocking {
 		return []string{
@@ -368,10 +400,13 @@ func handoffGuideLines(checks []doctorCheck) []string {
 	}
 
 	if launcher.Severity == doctorBlocking {
-		return []string{
-			"BLOCKED now: prtr cannot open the target app from this surface yet.",
-			"Fix the launcher backend or use `prtr go --dry-run` until launch is available.",
+		lines := []string{"BLOCKED now: prtr cannot open the target app from this surface yet."}
+		if strings.Contains(strings.ToLower(launcher.Err.Error()), "unsupported for macos launch handoff") {
+			lines = append(lines, "Next: set PRTR_TERMINAL_APP to Terminal.app or iTerm.app, then rerun `prtr doctor`.")
+		} else {
+			lines = append(lines, "Fix the launcher backend or use `prtr go --dry-run` until launch is available.")
 		}
+		return lines
 	}
 
 	launcherName := blankDefault(launcher.Detail, current.Detail)
@@ -391,7 +426,12 @@ func handoffGuideLines(checks []doctorCheck) []string {
 	lines := []string{
 		fmt.Sprintf("READY now: prtr can open %s and paste the compiled prompt automatically.", launcherName),
 	}
-	if submit.Severity == doctorWarning || strings.Contains(strings.ToLower(submit.Detail), "manual") {
+	if terminalPreference.Detail != "" {
+		lines = append(lines, fmt.Sprintf("Terminal: %s.", terminalPreference.Detail))
+	}
+	if strings.Contains(strings.ToLower(submit.Detail), "confirm") || strings.Contains(strings.ToLower(submit.Detail), "auto") {
+		lines = append(lines, "Default: review the prompt in the target app, then press Enter manually. Optional on macOS: add `--submit confirm` or `--submit auto`.")
+	} else if submit.Severity == doctorWarning || strings.Contains(strings.ToLower(submit.Detail), "manual") {
 		lines = append(lines, "Next: review the prompt in the target app, then press Enter manually to submit.")
 	} else {
 		lines = append(lines, "Next: the handoff path is ready end-to-end for launch, paste, and submit.")
@@ -407,6 +447,9 @@ func doctorSuggestion(check doctorCheck) string {
 	case "clipboard":
 		return "install the platform clipboard dependency or use `prtr go --dry-run`"
 	case "launcher surface":
+		if check.Err != nil && strings.Contains(strings.ToLower(check.Err.Error()), "unsupported for macos launch handoff") {
+			return "set PRTR_TERMINAL_APP to Terminal.app or iTerm.app, then rerun `prtr doctor`"
+		}
 		return "install a supported terminal backend for this platform"
 	case "paste surface":
 		if check.Err != nil && strings.Contains(strings.ToLower(check.Err.Error()), "accessibility") {
@@ -417,6 +460,9 @@ func doctorSuggestion(check doctorCheck) string {
 		return "rerun `prtr doctor --fix` or use `prtr start`"
 	default:
 		if strings.HasPrefix(check.Label, "launcher ") {
+			if check.Err != nil && strings.Contains(strings.ToLower(check.Err.Error()), "unsupported for macos launch handoff") {
+				return "set PRTR_TERMINAL_APP to Terminal.app or iTerm.app, then rerun `prtr doctor`"
+			}
 			return "fix the launcher command or use `prtr go --dry-run`"
 		}
 		if strings.HasPrefix(check.Label, "automation ") {

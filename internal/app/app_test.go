@@ -1420,17 +1420,40 @@ func TestExecuteSubmitConfirmUsesConfirmerAndAutomator(t *testing.T) {
 	}
 }
 
-func TestExecuteSubmitAutoRejected(t *testing.T) {
+func TestExecuteSubmitAutoUsesAutomator(t *testing.T) {
 	t.Parallel()
 
-	app := newTestApp(t, testConfig(), &stubTranslator{output: "ok"}, &stubClipboard{}, &stubEditor{}, history.New(filepath.Join(t.TempDir(), "history.json")))
+	cfg := testConfig()
+	translator := &stubTranslator{output: "ok"}
+	clipboard := &stubClipboard{}
+	launchStub := &stubLauncher{}
+	autoStub := &stubAutomator{}
+	app := New(Dependencies{
+		Version:         "test",
+		Stdout:          &bytes.Buffer{},
+		Stderr:          &bytes.Buffer{},
+		Translator:      translator,
+		Clipboard:       clipboard,
+		Editor:          &stubEditor{},
+		Launcher:        launchStub,
+		Automator:       autoStub,
+		SubmitConfirmer: &stubConfirmer{},
+		ConfigLoader: func() (config.Config, error) {
+			return cfg, nil
+		},
+		ConfigInit:   func() (string, error) { return "/tmp/prtr/config.toml", nil },
+		LookupEnv:    func(string) (string, bool) { return "", false },
+		HistoryStore: history.New(filepath.Join(t.TempDir(), "history.json")),
+	})
 
-	err := app.Execute(context.Background(), []string{"--paste", "--submit", "auto", "원문"}, strings.NewReader(""), false)
-	if err == nil {
-		t.Fatal("Execute() expected an error, got nil")
+	if err := app.Execute(context.Background(), []string{"--paste", "--submit", "auto", "원문"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute() error = %v", err)
 	}
-	if !strings.Contains(err.Error(), "not supported yet") {
-		t.Fatalf("error = %v", err)
+	if autoStub.submitCalls != 1 {
+		t.Fatalf("submit calls = %d", autoStub.submitCalls)
+	}
+	if autoStub.gotReq.SubmitMode != automation.SubmitAuto {
+		t.Fatalf("submit mode = %q", autoStub.gotReq.SubmitMode)
 	}
 }
 
@@ -1608,7 +1631,7 @@ func TestExecutePlatformShowsHandoffGuide(t *testing.T) {
 	if !strings.Contains(stdout.String(), "READY now: prtr can open iTerm.app and paste the compiled prompt automatically.") {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
-	if !strings.Contains(stdout.String(), "press Enter manually to submit") {
+	if !strings.Contains(stdout.String(), "Optional on macOS: add `--submit confirm` or `--submit auto`.") {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
 }
@@ -1659,6 +1682,45 @@ func TestExecuteGoReportsManualSubmitHintAfterPaste(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "send: review the prompt in the target app, then press Enter manually") {
 		t.Fatalf("stderr = %q", stderr.String())
+	}
+}
+
+func TestExecuteDoctorWarnsForUnsupportedTerminalPreference(t *testing.T) {
+	t.Parallel()
+
+	app := New(Dependencies{
+		Version:         "test",
+		Stdout:          &bytes.Buffer{},
+		Stderr:          &bytes.Buffer{},
+		Translator:      &stubTranslator{output: "ok"},
+		Clipboard:       &stubClipboard{},
+		Editor:          &stubEditor{},
+		Launcher:        &stubLauncher{diagErr: errors.New("terminal app \"Ghostty\" is unsupported for macOS launch handoff (supported: Terminal.app, iTerm.app)")},
+		Automator:       &stubAutomator{desc: "macOS via osascript"},
+		SubmitConfirmer: &stubConfirmer{},
+		ConfigLoader: func() (config.Config, error) {
+			return testConfig(), nil
+		},
+		ConfigInit: func() (string, error) { return "", nil },
+		LookupEnv: func(key string) (string, bool) {
+			if key == "PRTR_TERMINAL_APP" {
+				return "Ghostty", true
+			}
+			return "", false
+		},
+		HistoryStore: history.New(filepath.Join(t.TempDir(), "history.json")),
+	})
+	stdout, _ := buffersFromApp(app)
+
+	err := app.Execute(context.Background(), []string{"doctor", "--fix"}, strings.NewReader(""), false)
+	if err == nil {
+		t.Fatal("doctor expected an error, got nil")
+	}
+	if !strings.Contains(stdout.String(), "WARN terminal preference: Ghostty via PRTR_TERMINAL_APP is selected, but open-copy launch currently supports Terminal.app and iTerm.app") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "SUGGEST launcher surface: set PRTR_TERMINAL_APP to Terminal.app or iTerm.app, then rerun `prtr doctor`") {
+		t.Fatalf("stdout = %q", stdout.String())
 	}
 }
 

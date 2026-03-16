@@ -13,6 +13,7 @@ func TestDetectPlatformSurface(t *testing.T) {
 		{name: "mac", goos: "darwin", label: "macOS + Terminal.app", supported: true},
 		{name: "mac iterm", goos: "darwin", env: map[string]string{"TERM_PROGRAM": "iTerm.app"}, label: "macOS + iTerm.app", supported: true},
 		{name: "mac iterm override", goos: "darwin", env: map[string]string{"PRTR_TERMINAL_APP": "iTerm"}, label: "macOS + iTerm.app", supported: true},
+		{name: "mac custom terminal override", goos: "darwin", env: map[string]string{"PRTR_TERMINAL_APP": "Ghostty"}, label: "macOS + Ghostty", supported: true},
 		{name: "x11", goos: "linux", env: map[string]string{"DISPLAY": ":0"}, label: "Linux + X11", supported: true},
 		{name: "wayland", goos: "linux", env: map[string]string{"WAYLAND_DISPLAY": "wayland-0"}, label: "Linux + Wayland", supported: true},
 		{name: "windows interactive", goos: "windows", env: map[string]string{"SESSIONNAME": "Console"}, label: "Windows interactive session", supported: true},

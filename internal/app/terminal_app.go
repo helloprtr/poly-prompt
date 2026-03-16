@@ -2,36 +2,71 @@ package app
 
 import "strings"
 
-func preferredTerminalApp(lookupEnv LookupEnv) string {
+type terminalAppPreference struct {
+	AppName     string
+	DisplayName string
+	Source      string
+	Raw         string
+	Supported   bool
+}
+
+func preferredTerminalAppPreference(lookupEnv LookupEnv) terminalAppPreference {
 	for _, key := range []string{"PRTR_TERMINAL_APP", "TERM_PROGRAM", "LC_TERMINAL"} {
 		if value, ok := lookupEnv(key); ok {
-			if app := normalizeTerminalApp(value); app != "" {
-				return app
+			if pref, ok := parseTerminalAppPreference(value, key); ok {
+				return pref
 			}
 		}
 	}
-	return "Terminal"
-}
 
-func preferredTerminalDisplayName(lookupEnv LookupEnv) string {
-	switch preferredTerminalApp(lookupEnv) {
-	case "iTerm":
-		return "iTerm.app"
-	default:
-		return "Terminal.app"
+	return terminalAppPreference{
+		AppName:     "Terminal",
+		DisplayName: "Terminal.app",
+		Source:      "default",
+		Raw:         "Terminal",
+		Supported:   true,
 	}
 }
 
-func normalizeTerminalApp(value string) string {
-	lower := strings.ToLower(strings.TrimSpace(value))
+func preferredTerminalApp(lookupEnv LookupEnv) string {
+	return preferredTerminalAppPreference(lookupEnv).AppName
+}
+
+func preferredTerminalDisplayName(lookupEnv LookupEnv) string {
+	return preferredTerminalAppPreference(lookupEnv).DisplayName
+}
+
+func parseTerminalAppPreference(value, source string) (terminalAppPreference, bool) {
+	raw := strings.TrimSpace(value)
+	if raw == "" {
+		return terminalAppPreference{}, false
+	}
+
+	lower := strings.ToLower(raw)
 	switch {
-	case lower == "":
-		return ""
-	case strings.Contains(lower, "iterm"):
-		return "iTerm"
-	case strings.Contains(lower, "terminal"):
-		return "Terminal"
+	case strings.Contains(lower, "iterm"), lower == "com.googlecode.iterm2":
+		return terminalAppPreference{
+			AppName:     "iTerm",
+			DisplayName: "iTerm.app",
+			Source:      source,
+			Raw:         raw,
+			Supported:   true,
+		}, true
+	case strings.Contains(lower, "terminal"), lower == "com.apple.terminal":
+		return terminalAppPreference{
+			AppName:     "Terminal",
+			DisplayName: "Terminal.app",
+			Source:      source,
+			Raw:         raw,
+			Supported:   true,
+		}, true
 	default:
-		return ""
+		return terminalAppPreference{
+			AppName:     raw,
+			DisplayName: raw,
+			Source:      source,
+			Raw:         raw,
+			Supported:   false,
+		}, true
 	}
 }

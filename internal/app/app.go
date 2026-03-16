@@ -1369,9 +1369,17 @@ func (a *App) executePrompt(ctx context.Context, opts runOptions, text, shortcut
 		_, _ = fmt.Fprintf(a.stderr, "pasted prompt into %s terminal session\n", resolved.targetName)
 	}
 	if resolved.submitted {
-		_, _ = fmt.Fprintf(a.stderr, "submitted prompt to %s\n", resolved.targetName)
+		if resolved.submitMode == string(automation.SubmitAuto) {
+			_, _ = fmt.Fprintf(a.stderr, "submitted prompt to %s automatically\n", resolved.targetName)
+		} else {
+			_, _ = fmt.Fprintf(a.stderr, "submitted prompt to %s\n", resolved.targetName)
+		}
 	} else if opts.paste && resolved.pasted {
-		_, _ = fmt.Fprintf(a.stderr, "review the prompt in %s, then press Enter manually to submit\n", resolved.targetName)
+		if resolved.submitMode == string(automation.SubmitConfirm) {
+			_, _ = fmt.Fprintf(a.stderr, "confirmation was skipped; review the prompt in %s and press Enter manually when ready\n", resolved.targetName)
+		} else {
+			_, _ = fmt.Fprintf(a.stderr, "review the prompt in %s, then press Enter manually to submit\n", resolved.targetName)
+		}
 	}
 
 	return nil
@@ -1719,9 +1727,6 @@ func (a *App) applyDelivery(ctx context.Context, opts runOptions, run *resolvedR
 		if a.automator == nil {
 			return errors.New("paste mode is unavailable: automator is not configured")
 		}
-		if run.submitMode == string(automation.SubmitAuto) {
-			return fmt.Errorf("--submit=auto is not supported yet")
-		}
 		autoReq := automation.Request{
 			Target:           run.targetName,
 			TerminalApp:      preferredTerminalApp(a.lookupEnv),
@@ -1735,30 +1740,38 @@ func (a *App) applyDelivery(ctx context.Context, opts runOptions, run *resolvedR
 		run.pasted = true
 	}
 
-	if opts.paste && strings.TrimSpace(run.submitMode) == string(automation.SubmitConfirm) {
+	submitMode := strings.TrimSpace(run.submitMode)
+	if opts.paste && submitMode != "" && submitMode != string(automation.SubmitManual) {
 		if runtime.GOOS != "darwin" {
-			return fmt.Errorf("--submit=confirm is only supported on macOS right now")
+			return fmt.Errorf("--submit=%s is only supported on macOS right now", submitMode)
 		}
-		if a.submitConfirmer == nil {
-			return errors.New("submit confirmation is unavailable")
+		if a.automator == nil {
+			return errors.New("submit mode is unavailable: automator is not configured")
 		}
-		confirmed, err := a.submitConfirmer.ConfirmSubmit(run.targetName)
-		if err != nil {
-			return err
-		}
-		if confirmed {
-			if a.automator == nil {
-				return errors.New("submit mode is unavailable: automator is not configured")
+		switch submitMode {
+		case string(automation.SubmitConfirm):
+			if a.submitConfirmer == nil {
+				return errors.New("submit confirmation is unavailable")
 			}
-			if err := a.automator.Submit(ctx, automation.Request{
-				Target:      run.targetName,
-				TerminalApp: preferredTerminalApp(a.lookupEnv),
-				SubmitMode:  automation.SubmitConfirm,
-			}); err != nil {
+			confirmed, err := a.submitConfirmer.ConfirmSubmit(run.targetName)
+			if err != nil {
 				return err
 			}
-			run.submitted = true
+			if !confirmed {
+				return nil
+			}
+		case string(automation.SubmitAuto):
+		default:
+			return fmt.Errorf("invalid submit mode %q", submitMode)
 		}
+		if err := a.automator.Submit(ctx, automation.Request{
+			Target:      run.targetName,
+			TerminalApp: preferredTerminalApp(a.lookupEnv),
+			SubmitMode:  automation.SubmitMode(submitMode),
+		}); err != nil {
+			return err
+		}
+		run.submitted = true
 	}
 
 	return nil
@@ -1823,7 +1836,18 @@ func (a *App) compactHandoffNotes(opts runOptions, run resolvedRun) []string {
 		lines := []string{
 			fmt.Sprintf("handoff: opened %s in %s and pasted the compiled prompt", run.targetName, terminalName),
 		}
-		if !run.submitted {
+		switch run.submitMode {
+		case string(automation.SubmitAuto):
+			if run.submitted {
+				lines = append(lines, "send: submitted automatically after paste")
+			}
+		case string(automation.SubmitConfirm):
+			if run.submitted {
+				lines = append(lines, "send: confirmation accepted and Enter was pressed automatically")
+			} else {
+				lines = append(lines, "send: confirm mode is selected; if you decline, press Enter manually later")
+			}
+		default:
 			lines = append(lines, "send: review the prompt in the target app, then press Enter manually")
 		}
 		return lines
@@ -2667,7 +2691,8 @@ func doctorHelpText() string {
 		"Run environment and configuration diagnostics.",
 		"",
 		"`prtr doctor` checks config, translation readiness, clipboard support,",
-		"launchers, automation, and the current platform matrix.",
+		"launchers, automation, the current platform matrix, and a short",
+		"open-copy handoff summary.",
 		"",
 		"Usage:",
 		"  prtr doctor",
@@ -2675,6 +2700,9 @@ func doctorHelpText() string {
 		"",
 		"`--fix` applies safe automatic fixes when possible, then prints fallback",
 		"suggestions for anything it cannot repair automatically.",
+		"",
+		"On macOS, `PRTR_TERMINAL_APP` can override the preferred terminal app",
+		"for open-copy handoff. Supported values today are Terminal.app and iTerm.app.",
 	}, "\n")
 }
 

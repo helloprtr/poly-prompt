@@ -57,6 +57,9 @@ func (l *TerminalLauncher) Diagnose(req Request) error {
 	}
 	switch l.goos {
 	case "darwin":
+		if !darwinTerminalSupported(req.TerminalApp) {
+			return fmt.Errorf("terminal app %q is unsupported for macOS launch handoff (supported: Terminal.app, iTerm.app)", darwinTerminalDisplayName(req.TerminalApp))
+		}
 		return nil
 	case "linux":
 		_, err := l.selectLinuxBackend()
@@ -182,16 +185,42 @@ func shellQuote(value string) string {
 }
 
 func darwinTerminalAppName(value string) string {
-	lower := strings.ToLower(strings.TrimSpace(value))
-	if strings.Contains(lower, "iterm") {
+	pref := parseDarwinTerminalPreference(value)
+	if pref.AppName == "iTerm" {
 		return "iTerm"
 	}
-	return "Terminal"
+	if pref.AppName == "Terminal" {
+		return "Terminal"
+	}
+	return strings.TrimSpace(value)
 }
 
 func darwinTerminalDisplayName(value string) string {
-	if darwinTerminalAppName(value) == "iTerm" {
-		return "iTerm.app"
+	return parseDarwinTerminalPreference(value).DisplayName
+}
+
+func darwinTerminalSupported(value string) bool {
+	return parseDarwinTerminalPreference(value).Supported
+}
+
+type darwinTerminalPreference struct {
+	AppName     string
+	DisplayName string
+	Supported   bool
+}
+
+func parseDarwinTerminalPreference(value string) darwinTerminalPreference {
+	raw := strings.TrimSpace(value)
+	lower := strings.ToLower(raw)
+
+	switch {
+	case raw == "":
+		return darwinTerminalPreference{AppName: "Terminal", DisplayName: "Terminal.app", Supported: true}
+	case strings.Contains(lower, "iterm"), lower == "com.googlecode.iterm2":
+		return darwinTerminalPreference{AppName: "iTerm", DisplayName: "iTerm.app", Supported: true}
+	case strings.Contains(lower, "terminal"), lower == "com.apple.terminal":
+		return darwinTerminalPreference{AppName: "Terminal", DisplayName: "Terminal.app", Supported: true}
+	default:
+		return darwinTerminalPreference{AppName: raw, DisplayName: raw, Supported: false}
 	}
-	return "Terminal.app"
 }

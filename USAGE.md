@@ -320,21 +320,20 @@ Supported delivery targets:
 
 `--launch` support:
 
-- macOS: `Terminal.app`
+- macOS: `Terminal.app` or `iTerm.app`
 - Linux: first available backend from `x-terminal-emulator`, `gnome-terminal`, `konsole`, `kitty`, `wezterm`
 - Windows: first available backend from `wt.exe`, `pwsh.exe`, `powershell.exe`, `cmd.exe`
 
 `--paste` support:
 
-- macOS: `Terminal.app`
+- macOS: `Terminal.app` or `iTerm.app`
 - Linux: graphical sessions with `xdotool` on X11 or `wtype` on Wayland
 - Windows: interactive desktop sessions via PowerShell SendKeys
 
 `--submit` support:
 
-- macOS: `--submit confirm`
-- Linux and Windows: `--submit` is not supported yet
-- `--submit auto` is parsed but intentionally rejected
+- macOS: `--submit confirm` and `--submit auto`
+- Linux and Windows: `--submit confirm` and `--submit auto` are not supported yet
 
 Important rules:
 
@@ -348,11 +347,17 @@ Examples:
 prtr --launch "이 변경의 핵심 리스크를 요약해줘"
 prtr --paste "이 변경의 핵심 리스크를 요약해줘"
 prtr --paste --submit confirm "이 변경을 지금 보내도 되는지 검토해줘"
+prtr --paste --submit auto "이 변경을 지금 바로 보내줘"
 ```
+
+macOS terminal override:
+
+- `PRTR_TERMINAL_APP` overrides the preferred terminal app for open-copy handoff
+- supported values today: `Terminal`, `Terminal.app`, `com.apple.Terminal`, `iTerm`, `iTerm.app`, `com.googlecode.iterm2`
 
 Current limitations:
 
-- no iTerm2 support yet
+- other macOS terminal apps can be selected with `PRTR_TERMINAL_APP`, but scripted open-copy launch currently supports `Terminal.app` and `iTerm.app`
 - no GUI AI app automation
 - no full auto submit
 

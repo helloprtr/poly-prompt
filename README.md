@@ -68,8 +68,8 @@ It is the command layer between what you mean and what you should do next.
 ### Current boundaries
 
 - history is local-only
-- full auto submit is not supported
-- `--submit confirm` is still macOS-only
+- `--submit confirm` and `--submit auto` are macOS-only
+- macOS open-copy launch currently supports `Terminal.app` and `iTerm.app`
 
 ## Core Concepts
 
@@ -241,8 +241,9 @@ These commands are part of the roadmap. They are not implemented in the current 
 
 If you need short PR or announcement copy, use the full versioned set in [docs/RELEASE_MESSAGES.md](docs/RELEASE_MESSAGES.md).
 
-Current public release: `v0.6.1`
+Current public release: `v0.6.2`
 
+- `v0.6.2`: `doctor` and `platform` explain open-copy readiness more clearly, `--submit auto` is available on macOS, and `PRTR_TERMINAL_APP` now makes terminal preference explicit.
 - `v0.6.1`: release automation is hardened around Node 24 compatible actions and a pinned GoReleaser CLI path.
 - `v0.6.0`: `go` now suggests stronger next steps, `learn` updates both termbook and repo memory by default, and the release ships demo assets plus launch checklists.
 - `v0.5.1`: README, docs, site, and CLI help were unified around the public `go -> swap -> take -> learn` loop.

@@ -83,7 +83,7 @@ const shipNow = [
   },
   {
     label: "Current boundaries",
-    items: ["history is local-only", "full auto submit is not supported", "`--submit confirm` is macOS-only"],
+    items: ["history is local-only", "`--submit confirm` and `--submit auto` are macOS-only", "macOS open-copy launch currently supports `Terminal.app` and `iTerm.app`"],
   },
 ];
 
@@ -136,6 +136,11 @@ const demos = [
 ];
 
 const timeline = [
+  {
+    version: "v0.6.2",
+    title: "Friendlier handoff and selectable submit",
+    body: "`doctor` and `platform` now explain open-copy readiness in plain language, macOS supports `--submit auto`, and `PRTR_TERMINAL_APP` makes terminal preference explicit.",
+  },
   {
     version: "v0.6.1",
     title: "Release reliability hardening",

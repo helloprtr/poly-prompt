@@ -107,6 +107,35 @@ func TestMacOSAutomatorSubmitRejectsUnsupportedMode(t *testing.T) {
 	}
 }
 
+func TestMacOSAutomatorSubmitAutoBuildsScript(t *testing.T) {
+	t.Parallel()
+
+	var scripts []string
+	automator := NewForTesting("darwin", func(name string) (string, error) {
+		return "/usr/bin/" + name, nil
+	}, func(_ context.Context, script string) (string, error) {
+		scripts = append(scripts, script)
+		if strings.Contains(script, "UI elements enabled") {
+			return "true", nil
+		}
+		return "", nil
+	})
+
+	err := automator.Submit(context.Background(), Request{
+		TerminalApp: "iTerm",
+		SubmitMode:  SubmitAuto,
+	})
+	if err != nil {
+		t.Fatalf("Submit() error = %v", err)
+	}
+	if len(scripts) < 3 {
+		t.Fatalf("scripts = %d, want at least 3", len(scripts))
+	}
+	if !strings.Contains(scripts[len(scripts)-1], "key code 36") {
+		t.Fatalf("script = %q", scripts[len(scripts)-1])
+	}
+}
+
 func TestMacOSAutomatorUnsupportedPlatform(t *testing.T) {
 	t.Parallel()
 

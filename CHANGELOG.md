@@ -6,6 +6,20 @@ All notable product-facing changes to `prtr` are documented in this file.
 
 No unreleased entries yet.
 
+## v0.6.2 - 2026-03-16
+
+### Highlights
+
+- Added a clearer open-copy handoff summary to both `prtr doctor` and `prtr platform`.
+- Added compact handoff notes after `go` and `swap` so launch, paste, and manual-send expectations are visible immediately.
+- Enabled `--submit auto` on macOS for one-step paste-and-send flows.
+- Added explicit macOS terminal preference reporting, plus `PRTR_TERMINAL_APP` override guidance in diagnostics and help text.
+- Updated docs and site messaging around submit choices and supported macOS open-copy terminals.
+
+### Why This Release Matters
+
+`v0.6.2` makes the handoff layer easier to trust in real use. Users can now see whether prtr will open, paste, or wait for manual send before they get stuck, macOS users can opt into automatic submit when they want it, and terminal preference is no longer hidden behind hardcoded assumptions.
+
 ## v0.6.1 - 2026-03-16
 
 ### Highlights

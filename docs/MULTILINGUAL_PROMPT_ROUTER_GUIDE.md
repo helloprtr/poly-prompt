@@ -335,13 +335,12 @@ Current implementation notes:
 
 - `--paste` implies `--launch`
 - `--submit` requires `--paste`
-- `--submit auto` is parsed but intentionally unsupported
 - `--launch` supports `claude`, `codex`, and `gemini`
 - `--paste` supports:
-  - macOS: `Terminal.app`
+  - macOS: `Terminal.app` or `iTerm.app`
   - Linux: graphical sessions with `xdotool` on X11 or `wtype` on Wayland
   - Windows: interactive desktop sessions via PowerShell SendKeys
-- `--submit confirm` remains macOS-only
+- `--submit confirm` and `--submit auto` remain macOS-only
 
 ## 11. History As Local Prompt Memory
 

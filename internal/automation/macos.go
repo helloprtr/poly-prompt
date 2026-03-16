@@ -80,7 +80,7 @@ func (a *MacOSAutomator) Submit(ctx context.Context, req Request) error {
 	if err := a.Diagnose(req); err != nil {
 		return err
 	}
-	if req.SubmitMode != SubmitConfirm {
+	if req.SubmitMode != SubmitConfirm && req.SubmitMode != SubmitAuto {
 		return ErrUnsupportedSubmitMode
 	}
 

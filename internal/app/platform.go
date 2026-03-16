@@ -94,6 +94,8 @@ func platformHelpText() string {
 		"clipboard, launcher, paste, and submit readiness without reading the",
 		"full doctor report. It also prints a short open-copy summary so you",
 		"know whether `go` and `swap` will open, paste, or require manual send.",
+		"On macOS, `PRTR_TERMINAL_APP` can override the preferred terminal app",
+		"for open-copy handoff. Supported values today are Terminal.app and iTerm.app.",
 		"",
 		"Usage:",
 		"  prtr platform [--json]",

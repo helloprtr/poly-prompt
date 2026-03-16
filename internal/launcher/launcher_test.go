@@ -90,6 +90,22 @@ func TestTerminalLauncherDescribeDarwinITerm(t *testing.T) {
 	}
 }
 
+func TestTerminalLauncherDiagnoseRejectsUnsupportedDarwinTerminalApp(t *testing.T) {
+	t.Parallel()
+
+	launcher := NewForTesting("darwin", func(name string) (string, error) {
+		return "/usr/local/bin/" + name, nil
+	}, func(context.Context, string) error { return nil }, func(context.Context, string, ...string) error { return nil })
+
+	err := launcher.Diagnose(Request{Command: "codex", TerminalApp: "Ghostty"})
+	if err == nil {
+		t.Fatal("Diagnose() expected an error, got nil")
+	}
+	if !strings.Contains(err.Error(), "unsupported for macOS launch handoff") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestTerminalLauncherLaunchUsesLinuxTerminal(t *testing.T) {
 	t.Parallel()
 

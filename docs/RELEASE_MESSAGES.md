@@ -2,6 +2,68 @@
 
 Short PR and announcement copy for the current release train.
 
+## v0.6.2
+
+**PR title**
+`feat: clarify open-copy handoff and add selectable submit on macOS`
+
+**PR description**
+This release improves the part of `prtr` people touch every day after the first route is chosen: the open-copy handoff.
+
+What changed:
+
+- `prtr doctor` and `prtr platform` now print a short open-copy summary that explains whether launch, paste, and submit are ready
+- compact `go` and `swap` status output now explains what happened to the prompt after routing
+- macOS now supports `--submit auto` alongside `--submit confirm`
+- `PRTR_TERMINAL_APP` is now surfaced more clearly in diagnostics, with explicit guidance when a selected terminal is unsupported for open-copy launch
+- docs and site copy now reflect the current macOS handoff surface more honestly
+
+Why it matters:
+
+- users can tell whether `prtr` will open, paste, or wait for manual send before trial and error
+- macOS users can choose between manual, confirm, and auto send behavior
+- terminal preference is now visible and debuggable instead of hidden behind defaults
+- the release surface better matches the actual day-to-day user experience
+
+**Announcement**
+`v0.6.2` makes the open-copy handoff much easier to read and control. `doctor` and `platform` now explain launch, paste, and submit readiness in plain language, macOS supports `--submit auto`, and `PRTR_TERMINAL_APP` is now visible in diagnostics instead of hidden behind hardcoded assumptions.
+
+**Announcement (long)**
+`prtr v0.6.2` is the release where the handoff layer gets easier to trust.
+
+Instead of only showing raw diagnostics, `doctor` and `platform` now explain what will actually happen during open-copy:
+
+- will the target app open?
+- will the compiled prompt paste automatically?
+- do you still need to press Enter yourself?
+
+This release also adds selectable submit behavior on macOS:
+
+- manual send remains the default
+- `--submit confirm` stays available
+- `--submit auto` is now supported
+
+Finally, `PRTR_TERMINAL_APP` now shows up clearly in diagnostics, so terminal preference no longer feels like hidden magic.
+
+**Announcement (KR)**
+`prtr v0.6.2`는 open-copy handoff를 실제 사용 기준으로 더 신뢰할 수 있게 만든 릴리스입니다.
+
+이제 `doctor`와 `platform`은 단순 체크리스트를 넘어서,
+
+- 앱이 실제로 열리는지
+- 프롬프트가 자동으로 붙여넣기 되는지
+- 마지막 Enter를 사용자가 직접 눌러야 하는지
+
+를 더 직접적으로 설명합니다.
+
+또한 macOS에서는 submit 동작을 사용자가 직접 선택할 수 있게 됐습니다.
+
+- 기본은 manual
+- `--submit confirm` 계속 지원
+- `--submit auto` 새로 지원
+
+그리고 `PRTR_TERMINAL_APP`도 진단 표면에 더 명확하게 드러나서, 예전처럼 하드코딩된 기본값 뒤에 숨어 있는 느낌이 줄어듭니다.
+
 ## v0.6.1
 
 **PR title**
