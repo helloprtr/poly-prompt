@@ -47,7 +47,7 @@ type execCommandOptions struct {
 	mode      string
 	app       string
 	dryRun    bool
-	noContext  bool
+	noContext bool
 	json      bool
 	prompt    []string
 }
@@ -58,7 +58,7 @@ type serverExecRequest struct {
 	Target    string `json:"target"`
 	Mode      string `json:"mode"`
 	DryRun    bool   `json:"dry_run"`
-	NoContext  bool   `json:"no_context"`
+	NoContext bool   `json:"no_context"`
 	JSON      bool   `json:"json"`
 }
 

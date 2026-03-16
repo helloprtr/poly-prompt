@@ -22,6 +22,11 @@ const loopSteps = [
     detail: "Use copied model output as the seed for a patch, test, summary, issue, or plan prompt instead of rewriting it from scratch.",
   },
   {
+    command: "take --deep",
+    summary: "Run the five-worker AI pipeline.",
+    detail: "Planner, patcher, critic, tester, and reconciler process the clipboard answer as structured evidence. Add --llm=claude|gemini|codex to optimize the delivery prompt for your AI tool.",
+  },
+  {
     command: "again",
     summary: "Replay the recent flow.",
     detail: "Bring the last run back with the same app and mode, then optionally edit before delivery when you want a controlled repeat loop.",
@@ -84,6 +89,10 @@ const routingPoints = [
     label: "Loop, not one-shot prompting",
     text: "swap, take, learn, and inspect stay close so the answer becomes the next step instead of another dead-end prompt tab.",
   },
+  {
+    label: "Provider-aware delivery",
+    text: "take --deep --llm=claude formats the prompt with XML semantic tags. take --deep --llm=gemini uses structured Markdown. take --deep --llm=codex uses numbered instructions with diff code blocks.",
+  },
 ];
 ---
 
@@ -138,7 +147,7 @@ const routingPoints = [
             <p class="panel-caption">One loop. One command layer. One next action.</p>
             <pre><code>npm test 2&gt;&amp;1 | prtr go fix "왜 깨지는지 정확한 원인만 찾아줘"
 prtr swap gemini
-prtr take patch
+prtr take patch --deep --llm=claude
 prtr learn</code></pre>
           </div>
         </div>

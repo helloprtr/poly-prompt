@@ -377,3 +377,69 @@ func TestEventsJSONLWorkerSet(t *testing.T) {
 		}
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Provider-specific delivery prompt tests
+// ---------------------------------------------------------------------------
+
+// TestBuildDeliveryPromptContainsXMLRole verifies that the Claude provider
+// format uses XML semantic tags.
+func TestBuildDeliveryPromptContainsXMLRole(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	result, err := ExecutePatchRun(context.Background(), Options{
+		Action:      "patch",
+		Source:      "Fix the auth token validation in internal/auth/auth.go",
+		SourceKind:  "clipboard",
+		TargetApp:   "claude",
+		RepoRoot:    repoRoot,
+		LLMProvider: "claude",
+	})
+	if err != nil {
+		t.Fatalf("ExecutePatchRun() error = %v", err)
+	}
+	if !strings.Contains(result.DeliveryPrompt, "<role>") {
+		t.Errorf("Claude prompt missing <role> tag; got: %q", result.DeliveryPrompt[:min(200, len(result.DeliveryPrompt))])
+	}
+	if !strings.Contains(result.DeliveryPrompt, "<task>") {
+		t.Errorf("Claude prompt missing <task> tag")
+	}
+	if !result.LLMEnhanced {
+		t.Error("LLMEnhanced should be true when LLMProvider is set")
+	}
+}
+
+// TestBuildDeliveryPromptContainsValidation verifies that the Claude provider
+// includes a <validation> section.
+func TestBuildDeliveryPromptContainsValidation(t *testing.T) {
+	t.Parallel()
+
+	result, err := ExecutePatchRun(context.Background(), Options{
+		Action:      "patch",
+		Source:      "Fix nil pointer in handlers/user.go",
+		SourceKind:  "clipboard",
+		RepoRoot:    t.TempDir(),
+		LLMProvider: "claude",
+	})
+	if err != nil {
+		t.Fatalf("ExecutePatchRun() error = %v", err)
+	}
+	if !strings.Contains(result.DeliveryPrompt, "<validation>") {
+		t.Errorf("Claude prompt missing <validation> tag")
+	}
+}
+
+// TestBuildDeliveryPromptUniversalContainsPatchBundle verifies the universal
+// (rule-based) format contains "patch bundle" for integration test compatibility.
+func TestBuildDeliveryPromptUniversalContainsPatchBundle(t *testing.T) {
+	t.Parallel()
+
+	result := runPatch(t, t.TempDir())
+	if !strings.Contains(result.DeliveryPrompt, "patch bundle") {
+		t.Errorf("Universal prompt missing 'patch bundle'; got: %q", result.DeliveryPrompt[:min(200, len(result.DeliveryPrompt))])
+	}
+	if result.LLMEnhanced {
+		t.Error("LLMEnhanced should be false when no LLMProvider is set")
+	}
+}

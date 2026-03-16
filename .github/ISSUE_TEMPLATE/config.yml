@@ -1,5 +1,11 @@
-blank_issues_enabled: true
+blank_issues_enabled: false
 contact_links:
   - name: Workflow ideas and product feedback
     url: https://github.com/helloprtr/poly-prompt/discussions
     about: Use Discussions for workflow ideas, product feedback, and launch conversation instead of opening a bug issue.
+  - name: Security vulnerability report
+    url: https://github.com/helloprtr/poly-prompt/security/advisories/new
+    about: Report suspected vulnerabilities privately from the Security tab.
+  - name: Contribution guide
+    url: https://github.com/helloprtr/poly-prompt/blob/main/CONTRIBUTING.md
+    about: Review issue, PR, testing, and security expectations before opening a contribution.

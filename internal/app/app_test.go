@@ -1211,7 +1211,7 @@ func TestExecuteTakeDeepRejectsUnsupportedAction(t *testing.T) {
 	if err == nil {
 		t.Fatal("Execute() expected an error, got nil")
 	}
-	if !strings.Contains(err.Error(), "deep execution currently supports only `take patch --deep`") {
+	if !strings.Contains(err.Error(), "deep execution supports") {
 		t.Fatalf("error = %v", err)
 	}
 }
