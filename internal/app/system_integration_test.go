@@ -770,7 +770,6 @@ func TestSystemS5_TestActionDeepSucceeds(t *testing.T) {
 	}
 }
 
-
 // TestSystemS5_EmptyHistoryForSwapAndAgain verifies that `swap` and `again`
 // return a friendly error (not a panic) when there is no history.
 func TestSystemS5_EmptyHistoryForSwapAndAgain(t *testing.T) {
