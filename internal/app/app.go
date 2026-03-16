@@ -1620,9 +1620,6 @@ func (a *App) prepareRun(ctx context.Context, opts runOptions, text, shortcutNam
 		ProtectedTerms: opts.protectedTerms,
 	}, translate.Mode(blankDefault(opts.translationMode, string(translate.ModeAuto))))
 	if err != nil {
-		if errors.Is(err, translate.ErrMissingAPIKey) {
-			return resolvedRun{}, fmt.Errorf("translation requires a DeepL key for this request. You can try prtr now without a key with `prtr demo` or `prtr go \"explain this error\" --dry-run`, then run `prtr setup` when you want multilingual routing: %w", err)
-		}
 		return resolvedRun{}, err
 	}
 
@@ -1848,7 +1845,6 @@ func (a *App) latestHistoryEntry() (history.Entry, error) {
 func (a *App) writeCompactStatus(opts runOptions, run resolvedRun) {
 	mode := blankDefault(opts.surfaceMode, "ask")
 	inputSource := blankDefault(opts.surfaceInput, "prompt")
-	delivery := blankDefault(opts.surfaceDelivery, "copy")
 
 	parts := []string{mode, run.targetName, inputSource, delivery, run.sourceLang + "->" + run.targetLang}
 	if strings.TrimSpace(run.engine) == "deep" {
@@ -2076,6 +2072,9 @@ func parseTakeCommand(args []string) (takeCommandOptions, error) {
 	}
 	if !isSupportedTakeAction(command.action) {
 		return takeCommandOptions{}, usageError{message: fmt.Sprintf("unknown take action %q (available: patch, test, commit, summary, clarify, issue, plan)", command.action), helpText: takeHelpText()}
+	}
+	if command.deep && command.action != "patch" {
+		return takeCommandOptions{}, usageError{message: "deep execution currently supports only `take patch --deep`", helpText: takeHelpText()}
 	}
 	if command.deep && command.action != "patch" {
 		return takeCommandOptions{}, usageError{message: "deep execution currently supports only `take patch --deep`", helpText: takeHelpText()}
@@ -2872,7 +2871,7 @@ func takeHelpText() string {
 		"  - deep: build a typed execution run with artifacts, plan, and progress",
 		"",
 		"Usage:",
-		"  prtr take <action>",
+		"  prtr take <action> [--deep] [flags]",
 		"",
 		"Actions:",
 		"  patch     Turn the answer into an implementation prompt",
@@ -2883,7 +2882,7 @@ func takeHelpText() string {
 		"  issue     Turn the answer into an issue or task prompt",
 		"  plan      Turn the answer into an implementation plan prompt",
 		"",
-		"Examples:",
+		"Classic examples:",
 		"  prtr take patch",
 		"  prtr take patch --deep --dry-run",
 		"  prtr take test --to codex",
@@ -2891,6 +2890,11 @@ func takeHelpText() string {
 		"  prtr take summary --edit",
 		"  prtr take issue",
 		"  prtr take plan",
+		"",
+		"Deep execution engine examples:",
+		"  prtr take patch --deep",
+		"  prtr take patch --deep --dry-run   # write artifacts; skip opening app",
+		"  prtr take patch --deep --to claude # route delivery to Claude",
 		"",
 		"Flags:",
 		"      --to <app>        Choose the app: claude | codex | gemini",

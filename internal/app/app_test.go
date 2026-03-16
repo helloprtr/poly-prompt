@@ -587,9 +587,11 @@ func TestExecuteGoSkipsTranslationForEnglishWithoutAPIKey(t *testing.T) {
 	}
 }
 
-func TestExecuteGoShowsFriendlyMissingKeyGuidance(t *testing.T) {
+func TestExecuteGoNoDeepLKeyPassesThroughNonEnglish(t *testing.T) {
 	t.Parallel()
 
+	// No translator configured (no DeepL key) — non-English prompt should pass
+	// through to the AI unchanged instead of returning an error.
 	app := New(Dependencies{
 		Version: "test",
 		Stdout:  &bytes.Buffer{},
@@ -1679,7 +1681,7 @@ func TestExecuteDoctorReportsFailures(t *testing.T) {
 	if err == nil {
 		t.Fatal("doctor expected an error, got nil")
 	}
-	if !strings.Contains(stdout.String(), "WARN deepl api key") {
+	if !strings.Contains(stdout.String(), "INFO deepl api key") {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
 	if !strings.Contains(err.Error(), "required issue") {
@@ -1699,10 +1701,10 @@ func TestExecuteDoctorAllowsNoKeyTryNowPath(t *testing.T) {
 	if err := app.Execute(context.Background(), []string{"doctor"}, strings.NewReader(""), false); err != nil {
 		t.Fatalf("doctor returned error: %v", err)
 	}
-	if !strings.Contains(stdout.String(), "WARN deepl api key") {
+	if !strings.Contains(stdout.String(), "INFO deepl api key") {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
-	if !strings.Contains(stdout.String(), `prtr go "explain this error" --dry-run`) {
+	if !strings.Contains(stdout.String(), "optional") {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "Platform matrix") {
@@ -1825,5 +1827,113 @@ func TestIsUIHeavyNoFalsePositives(t *testing.T) {
 		if got != tc.wantUI {
 			t.Errorf("isUIHeavy(%q) = %v, want %v", tc.text, got, tc.wantUI)
 		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Classic take regression — must work without --deep
+// ---------------------------------------------------------------------------
+
+// TestExecuteTakeClassicPatchRegressionNoDeeply verifies that `take patch`
+// (without --deep) still uses the classic path: no deep artifacts are created,
+// the translator is bypassed, and the output contains the take action template.
+func TestExecuteTakeClassicPatchRegressionNoDeeply(t *testing.T) {
+	t.Parallel()
+
+	store := history.New(filepath.Join(t.TempDir(), "history.json"))
+	if err := store.Append(history.Entry{
+		ID:        "h1",
+		CreatedAt: time.Unix(100, 0).UTC(),
+		Target:    "codex",
+	}); err != nil {
+		t.Fatalf("Append() error = %v", err)
+	}
+
+	translator := &stubTranslator{output: "should not be used"}
+	clipboard := &stubClipboard{read: "Apply the suggested fix to auth.go"}
+	app := newTestApp(t, testConfig(), translator, clipboard, &stubEditor{}, store)
+	stdout, stderr := buffersFromApp(app)
+
+	if err := app.Execute(context.Background(), []string{"take", "patch", "--dry-run"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	// Classic path: prompt contains the take action template text.
+	if !strings.Contains(stdout.String(), "Turn the material below into an implementation prompt.") {
+		t.Fatalf("stdout missing classic take template: %q", stdout.String())
+	}
+	// Classic compact status includes delivery + lang, no run status.
+	if !strings.Contains(stderr.String(), "-> take:patch | codex | clipboard | preview | en->en") {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+	// No "running" line should appear for classic take.
+	if strings.Contains(stderr.String(), "| running") {
+		t.Fatalf("classic take should not emit 'running' line: %q", stderr.String())
+	}
+	// Translator should not have been called.
+	if translator.gotInput.Text != "" {
+		t.Fatalf("translator should not be called; got %q", translator.gotInput.Text)
+	}
+}
+
+// TestExecuteTakeClassicTestActionRegressionNoDeeply verifies `take test`
+// (without --deep) still renders the correct action template.
+func TestExecuteTakeClassicTestActionRegressionNoDeeply(t *testing.T) {
+	t.Parallel()
+
+	clipboard := &stubClipboard{read: "Add coverage for the new handler."}
+	app := newTestApp(t, testConfig(), &stubTranslator{}, clipboard, &stubEditor{},
+		history.New(filepath.Join(t.TempDir(), "history.json")))
+	stdout, _ := buffersFromApp(app)
+
+	if err := app.Execute(context.Background(), []string{"take", "test", "--dry-run"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "Turn the material below into a testing prompt.") {
+		t.Fatalf("stdout missing test action template: %q", stdout.String())
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Deep run history metadata linkage
+// ---------------------------------------------------------------------------
+
+// TestExecuteTakeDeepHistoryLinkage verifies that after a deep run the stored
+// history entry is linked to the run via RunID and ArtifactRoot, and that the
+// ArtifactRoot on disk contains manifest.json.
+func TestExecuteTakeDeepHistoryLinkage(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	store := history.New(filepath.Join(t.TempDir(), "history.json"))
+	app := newDeepTestApp(t, testConfig(), &stubTranslator{}, &stubClipboard{read: "Fix the nil pointer in handlers/user.go"}, &stubEditor{}, store, repoRoot)
+
+	if err := app.Execute(context.Background(), []string{"take", "patch", "--deep", "--dry-run"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	entry, err := store.Latest()
+	if err != nil {
+		t.Fatalf("Latest() error = %v", err)
+	}
+
+	// Fields that link the history entry to the deep run.
+	if entry.Engine != "deep" {
+		t.Errorf("entry.Engine = %q, want deep", entry.Engine)
+	}
+	if entry.RunID == "" {
+		t.Error("entry.RunID is empty")
+	}
+	if entry.ArtifactRoot == "" {
+		t.Error("entry.ArtifactRoot is empty")
+	}
+	if entry.ResultType != "PatchBundle" {
+		t.Errorf("entry.ResultType = %q, want PatchBundle", entry.ResultType)
+	}
+
+	// ArtifactRoot must exist on disk and contain manifest.json.
+	manifestPath := filepath.Join(entry.ArtifactRoot, "manifest.json")
+	if _, err := os.Stat(manifestPath); err != nil {
+		t.Errorf("manifest.json not found at %s: %v", manifestPath, err)
 	}
 }
