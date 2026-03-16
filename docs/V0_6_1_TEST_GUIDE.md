@@ -4,6 +4,8 @@
 
 This guide is for validating `prtr v0.6.1` from A to Z.
 
+If you want a ready-to-use checkbox sheet for the hands-on eval repo, use `docs/V0_6_1_FIXTURE_CHECKLIST.md` together with this guide.
+
 The goal is not only to confirm that commands run.
 
 The goal is to confirm that:
