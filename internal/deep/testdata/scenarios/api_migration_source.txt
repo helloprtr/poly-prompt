@@ -1,0 +1,23 @@
+Migrate the translation service API from REST/JSON to gRPC for internal service communication.
+
+Background:
+- Current: REST API on port 8080, used by 3 internal services
+- Target: gRPC on port 9090, REST gateway stays for external clients
+- Proto file: proto/translation/v1/translation.proto (already defined)
+
+Translation service proto:
+  service TranslationService {
+    rpc Translate(TranslateRequest) returns (TranslateResponse);
+    rpc TranslateBatch(TranslateBatchRequest) returns (TranslateBatchResponse);
+    rpc GetSupportedLanguages(Empty) returns (LanguageList);
+  }
+
+Migration steps needed:
+1. Generate Go gRPC server stubs from proto
+2. Implement TranslationServiceServer interface in internal/grpc/server.go
+3. Add grpc.NewServer() startup in cmd/server/main.go alongside existing HTTP
+4. Update 3 internal callers to use gRPC client instead of HTTP
+5. Add integration test with bufconn (in-process gRPC for testing)
+
+Keep REST endpoint running during migration (dual-stack).
+Files: internal/grpc/server.go (new), cmd/server/main.go, internal/callers/*.go
