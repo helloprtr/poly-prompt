@@ -276,6 +276,14 @@ Optional quick language-only update later:
 prtr lang
 ```
 
+`doctor` now splits "ready now" checks from optional unlocks. Missing a DeepL key should not block `prtr demo` or English `--dry-run` flows.
+
+Optional quick language-only update later:
+
+```bash
+prtr lang
+```
+
 Optional interactive check:
 
 ```bash
