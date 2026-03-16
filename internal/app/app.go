@@ -224,7 +224,6 @@ FAIL
 exit status 1`
 )
 
-
 func New(deps Dependencies) *App {
 	store := deps.HistoryStore
 	if store == nil {
@@ -1149,7 +1148,6 @@ func (a *App) runTake(ctx context.Context, args []string) error {
 		cfg, _ := a.configLoader()
 		envLLMProvider, _ := a.lookupEnv("PRTR_LLM_PROVIDER")
 		llmProvider := config.ResolveLLMProvider(command.llmProvider, cfg, envLLMProvider)
-
 
 		_, _ = fmt.Fprintf(a.stderr, "-> take:%s --deep | %s | clipboard | running\n", command.action, target)
 		result, err := deep.ExecutePatchRun(ctx, deep.Options{
