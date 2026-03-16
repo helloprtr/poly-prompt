@@ -2146,6 +2146,9 @@ func truncateOneLine(text string, limit int) string {
 	if len(runes) <= limit {
 		return text
 	}
+	if limit <= 3 {
+		return string(runes[:limit])
+	}
 	return string(runes[:limit-3]) + "..."
 }
 

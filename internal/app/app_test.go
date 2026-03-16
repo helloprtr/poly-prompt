@@ -1291,13 +1291,22 @@ func TestExecuteInteractiveCancelReturnsSentinelError(t *testing.T) {
 }
 
 func TestTruncateOneLineUnicode(t *testing.T) {
-	input := "안녕하세요 세계입니다"
-	result := truncateOneLine(input, 8)
-	if !utf8.ValidString(result) {
-		t.Fatalf("truncateOneLine produced invalid UTF-8: %q", result)
+	cases := []struct {
+		input string
+		limit int
+	}{
+		{"안녕하세요 세계입니다", 8},
+		{"hello world", 5},
+		{"안녕", 2},             // limit <= 3: no ellipsis, no panic
+		{"안녕하세요", 3},       // limit == 3: no panic
 	}
-	runes := []rune(result)
-	if len(runes) > 8 {
-		t.Fatalf("truncateOneLine exceeded rune limit: got %d runes", len(runes))
+	for _, tc := range cases {
+		result := truncateOneLine(tc.input, tc.limit)
+		if !utf8.ValidString(result) {
+			t.Errorf("truncateOneLine(%q, %d) produced invalid UTF-8: %q", tc.input, tc.limit, result)
+		}
+		if len([]rune(result)) > tc.limit {
+			t.Errorf("truncateOneLine(%q, %d) exceeded limit: got %d runes in %q", tc.input, tc.limit, len([]rune(result)), result)
+		}
 	}
 }
