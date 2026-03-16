@@ -54,8 +54,11 @@ func (e *claudeEnhancer) Enhance(ctx context.Context, source string, bundle sche
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, readErr := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
+		if readErr != nil {
+			return "", fmt.Errorf("claude: status %d (body unreadable: %w)", resp.StatusCode, readErr)
+		}
 		return "", fmt.Errorf("claude: status %d: %s", resp.StatusCode, body)
 	}
 

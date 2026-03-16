@@ -52,8 +52,11 @@ func (e *codexEnhancer) Enhance(ctx context.Context, source string, bundle schem
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, readErr := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
+		if readErr != nil {
+			return "", fmt.Errorf("codex: status %d (body unreadable: %w)", resp.StatusCode, readErr)
+		}
 		return "", fmt.Errorf("codex: status %d: %s", resp.StatusCode, body)
 	}
 

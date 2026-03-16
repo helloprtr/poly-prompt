@@ -21,6 +21,8 @@ type geminiEnhancer struct {
 func (e *geminiEnhancer) Provider() string { return "gemini" }
 
 func (e *geminiEnhancer) Enhance(ctx context.Context, source string, bundle schema.PatchBundle, ruleBased string) (string, error) {
+	// Gemini REST API requires the key as a query parameter; this is intentional.
+	// The key does not appear in returned error messages (which log only status+body).
 	url := geminiAPIURL + "?key=" + e.apiKey
 	if e.baseURL != "" {
 		url = e.baseURL + "?key=" + e.apiKey
@@ -49,8 +51,11 @@ func (e *geminiEnhancer) Enhance(ctx context.Context, source string, bundle sche
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, readErr := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
+		if readErr != nil {
+			return "", fmt.Errorf("gemini: status %d (body unreadable: %w)", resp.StatusCode, readErr)
+		}
 		return "", fmt.Errorf("gemini: status %d: %s", resp.StatusCode, body)
 	}
 

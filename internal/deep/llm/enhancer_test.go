@@ -64,6 +64,9 @@ func TestClaudeEnhancerErrorOnBadStatus(t *testing.T) {
 
 func TestGeminiEnhancerCallsCorrectEndpoint(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.URL.RawQuery, "key=test-key") {
+			t.Errorf("expected key query param, got %q", r.URL.RawQuery)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
 			"candidates": []map[string]any{
@@ -82,6 +85,32 @@ func TestGeminiEnhancerCallsCorrectEndpoint(t *testing.T) {
 	}
 	if result != "gemini enhanced" {
 		t.Errorf("got %q, want %q", result, "gemini enhanced")
+	}
+}
+
+func TestGeminiEnhancerErrorOnBadStatus(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	e := &geminiEnhancer{apiKey: "test-key", baseURL: srv.URL}
+	_, err := e.Enhance(context.Background(), "source", testBundle(), "rule-based")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestCodexEnhancerErrorOnBadStatus(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	e := &codexEnhancer{apiKey: "test-key", baseURL: srv.URL}
+	_, err := e.Enhance(context.Background(), "source", testBundle(), "rule-based")
+	if err == nil {
+		t.Fatal("expected error, got nil")
 	}
 }
 
