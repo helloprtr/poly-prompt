@@ -1937,3 +1937,50 @@ func TestExecuteTakeDeepHistoryLinkage(t *testing.T) {
 		t.Errorf("manifest.json not found at %s: %v", manifestPath, err)
 	}
 }
+
+// TestExecuteTakeDipAliasWorksLikeDeep verifies that --dip is an accepted
+// alias for --deep and produces the same deep execution path.
+func TestExecuteTakeDipAliasWorksLikeDeep(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	store := history.New(filepath.Join(t.TempDir(), "history.json"))
+	app := newDeepTestApp(t, testConfig(), &stubTranslator{}, &stubClipboard{read: "Fix the nil pointer in handlers/user.go"}, &stubEditor{}, store, repoRoot)
+
+	if err := app.Execute(context.Background(), []string{"take", "patch", "--dip", "--dry-run"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute() with --dip error = %v", err)
+	}
+
+	entry, err := store.Latest()
+	if err != nil {
+		t.Fatalf("Latest() error = %v", err)
+	}
+	if entry.Engine != "deep" {
+		t.Errorf("entry.Engine = %q, want deep", entry.Engine)
+	}
+	if entry.RunID == "" {
+		t.Error("entry.RunID is empty")
+	}
+}
+
+// TestExecuteTakeDeepBackwardCompatStillWorks verifies that --deep still works
+// as a deprecated alias for --dip.
+func TestExecuteTakeDeepBackwardCompatStillWorks(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	store := history.New(filepath.Join(t.TempDir(), "history.json"))
+	app := newDeepTestApp(t, testConfig(), &stubTranslator{}, &stubClipboard{read: "Fix the nil pointer in handlers/user.go"}, &stubEditor{}, store, repoRoot)
+
+	if err := app.Execute(context.Background(), []string{"take", "patch", "--deep", "--dry-run"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute() with --deep error = %v", err)
+	}
+
+	entry, err := store.Latest()
+	if err != nil {
+		t.Fatalf("Latest() error = %v", err)
+	}
+	if entry.Engine != "deep" {
+		t.Errorf("entry.Engine = %q, want deep", entry.Engine)
+	}
+}
