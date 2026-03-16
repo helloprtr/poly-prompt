@@ -5,304 +5,331 @@ const basePath = import.meta.env.BASE_URL.endsWith("/")
   ? import.meta.env.BASE_URL
   : `${import.meta.env.BASE_URL}/`;
 
-const coreLoopSteps = [
+const loopSteps = [
   {
     command: "go",
-    summary: "Send the first request fast.",
-    detail: "Start from intent, choose the right mode, send it fast, and keep the recent run close so the next step costs less.",
+    title: "Start from intent, not prompt babysitting.",
+    body: "Write in your language, pick the right mode, and let prtr build the first useful AI action with repo context attached.",
+    cue: "Best for: first send, failing tests, risky PRs, feature design",
   },
   {
     command: "swap",
-    summary: "Compare another app without losing the thread.",
-    detail: "Reuse the same request and mode across Claude, Codex, or Gemini without rebuilding the context by hand.",
+    title: "Compare another app without rebuilding context.",
+    body: "Keep the same request and mode, then switch between Claude, Codex, and Gemini without rewriting the whole thing.",
+    cue: "Best for: side-by-side model comparison",
   },
   {
     command: "take",
-    summary: "Turn the first answer into the next action.",
-    detail: "Use copied output as the seed for a patch, issue, plan, summary, test, commit, or clarify prompt instead of stalling after analysis.",
+    title: "Turn the answer into the next action.",
+    body: "Convert copied output into a patch, issue, plan, test, commit, summary, or clarification prompt before momentum dies.",
+    cue: "Best for: moving from analysis to execution",
   },
   {
     command: "learn",
-    summary: "Remember the project.",
-    detail: "Update repo-local termbook and memory files so names, guidance, and project language survive translation and future follow-up runs.",
+    title: "Save repo memory for the next run.",
+    body: "Update `.prtr/termbook.toml` and `.prtr/memory.toml` so project names, guidance, and wording survive follow-up runs.",
+    cue: "Best for: repeated work in the same repo",
   },
 ];
 
-const supportSurfaces = [
+const scenarios = [
   {
-    command: "start",
-    summary: "Handle the first-run path.",
+    eyebrow: "Fix a failing test",
+    title: "Send the first useful debugging prompt in one command.",
+    command: `npm test 2>&1 | prtr go fix "왜 깨지는지 정확한 원인만 찾아줘"\nprtr swap gemini\nprtr take patch`,
+    notes: ["`go` pulls in the failure log", "`swap` compares another app fast", "`take patch` turns the answer into implementation work"],
   },
   {
-    command: "again",
-    summary: "Replay the recent flow with control.",
+    eyebrow: "Review a risky PR",
+    title: "Keep the review thread alive instead of starting over.",
+    command: `prtr go review "이 PR에서 위험한 부분만 짚어줘"\nprtr swap codex\nprtr take issue`,
+    notes: ["review mode stays intact", "app comparison stays cheap", "issue writing becomes a follow-up action"],
+  },
+  {
+    eyebrow: "Design a feature",
+    title: "Move from structure to plan to repo memory.",
+    command: `prtr go design "이 기능 구조 설계해줘"\nprtr take plan\nprtr learn`,
+    notes: ["design mode frames the first prompt", "`take plan` turns ideas into steps", "`learn` saves project language for later"],
+  },
+];
+
+const proofPoints = [
+  {
+    title: "Why it feels faster",
+    body: "You stop paying the same setup cost over and over. The first prompt, the comparison step, the follow-up action, and the repo memory all stay in one command surface.",
+  },
+  {
+    title: "Why it feels clearer",
+    body: "Mode comes before app. `fix`, `review`, `design`, and `ask` explain what kind of help you want before you worry about prompt wording.",
+  },
+  {
+    title: "Why it feels trustworthy",
+    body: "`start`, `doctor`, `platform`, and `inspect` make activation, boundaries, and route composition visible instead of hiding them in magic.",
+  },
+  {
+    title: "Why people keep using it",
+    body: "The answer is not the end. `swap`, `take`, `again`, and `learn` make the second and third step cheaper than the first.",
+  },
+];
+
+const shipNow = [
+  {
+    label: "Available now",
+    items: ["`start`", "`go`", "`swap`", "`take`", "`again`", "`learn`", "`inspect`", "`sync`", "`doctor --fix`", "`platform`", "`exec`"],
+  },
+  {
+    label: "Alpha / planned",
+    items: ["`server` is alpha", "`fanout` is planned", "`collect` is planned"],
+  },
+  {
+    label: "Current boundaries",
+    items: ["history is local-only", "full auto submit is not supported", "`--submit confirm` is macOS-only"],
+  },
+];
+
+const supportSurface = [
+  {
+    command: "start",
+    detail: "Beginner-first entry for setup, doctor, and the first send.",
+  },
+  {
+    command: "doctor",
+    detail: "Find and explain why delivery is failing before you waste time blaming the prompt.",
+  },
+  {
+    command: "platform",
+    detail: "Show launcher, paste, and submit readiness as a platform matrix.",
+  },
+  {
+    command: "sync",
+    detail: "Render canonical `.prtr` guidance into vendor-facing files.",
   },
   {
     command: "inspect",
-    summary: "Open the expert path for raw details.",
+    detail: "Explain the compiled route, config, and JSON/debug path.",
   },
   {
     command: "exec",
-    summary: "Run the same prompt pipeline headlessly.",
+    detail: "Use the same routing pipeline without the visible open-copy handoff.",
   },
 ];
 
 const demos = [
   {
     title: "Input to first send",
-    description: "Start from a real request, keep the route visible, and use the shortest path from intent to a sent prompt.",
-    note: "This is the input layer: `go` turns one request into the first app-ready action without forcing prompt rewrites.",
+    text: "`go` takes the first request, attaches evidence, chooses the app, and gives you a useful first move without making you hand-build the prompt.",
     image: `${basePath}media/prtr-setup-doctor.gif`,
-    alt: "Animated demonstration of prtr start, setup, and doctor onboarding",
+    alt: "Animated terminal demo showing prtr go creating the first useful fix prompt from a failing test.",
   },
   {
-    title: "Compare without rebuilding context",
-    description: "Reuse the same request and mode across apps so Claude, Codex, and Gemini can be compared without rebuilding the whole flow.",
-    note: "This is the comparison layer: `swap` keeps intent intact while the destination app changes.",
+    title: "Comparison without rewrite",
+    text: "`swap` proves the comparison story: same request, same mode, different app, almost zero rebuilding cost.",
     image: `${basePath}media/prtr-routing-history.gif`,
-    alt: "Animated demonstration of multilingual routing and history commands",
+    alt: "Animated terminal demo showing prtr swap comparing another AI app without rebuilding context.",
   },
   {
-    title: "Take action and remember",
-    description: "Turn the first answer into a patch, issue, or plan, then save repo memory so the next run starts smarter.",
-    note: "This is the execution layer: `take` keeps answers moving and `learn` keeps project vocabulary from drifting.",
+    title: "Answer to action to memory",
+    text: "`take` turns the first answer into implementation work, then `learn` stores repo vocabulary so the next run starts smarter.",
     image: `${basePath}media/prtr-delivery-paste.gif`,
-    alt: "Animated demonstration of prtr delivery and paste flow",
+    alt: "Animated terminal demo showing prtr take patch and prtr learn saving repo memory.",
   },
 ];
 
 const timeline = [
   {
     version: "v0.6.1",
-    title: "Release workflow hardening",
-    body: "The release pipeline now uses Node 24 compatible action versions and a pinned GoReleaser CLI install so future tags ship with fewer warnings and less release risk.",
+    title: "Release reliability hardening",
+    body: "GitHub Releases and Homebrew updates now run on a safer workflow path with pinned tooling and fewer avoidable warnings.",
   },
   {
     version: "v0.6.0",
     title: "Continuity upgrades",
-    body: "Mode-aware next-step suggestions after `go`, stronger answer-to-action positioning for `take`, repo memory updates built into `learn`, and launch-ready demo assets for the public loop.",
+    body: "`go` suggests next steps by mode, and `learn` now updates both termbook and repo memory by default.",
   },
   {
     version: "v0.5.1",
-    title: "Public surface sync",
-    body: "README, docs, site, and CLI help are aligned around one story: `go`, `swap`, `take`, and `learn` are the public loop.",
-  },
-  {
-    version: "v0.4.1",
-    title: "Beginner-first entry",
-    body: "Short release copy: `prtr start` became the first-run front door and `setup` moved to the advanced compatibility path.",
-  },
-  {
-    version: "v0.4.2",
-    title: "Repair surface",
-    body: "Short release copy: `doctor --fix` turned diagnostics into a practical repair flow with a visible platform matrix.",
-  },
-  {
-    version: "v0.4.3",
-    title: "Shared guidance",
-    body: "Short release copy: `sync`, routing metadata, and repo memory made follow-up work more consistent across Claude, Codex, and Gemini.",
-  },
-  {
-    version: "v0.4.5",
-    title: "Platform visibility",
-    body: "Short release copy: `prtr platform` made supported surfaces and current delivery constraints easier to inspect before handoff.",
+    title: "Public surface alignment",
+    body: "README, docs, site, and CLI help all tell the same `go -> swap -> take -> learn` story.",
   },
   {
     version: "v0.5.0",
-    title: "Automation plus positioning",
-    body: "Short release copy: `exec` and `server` arrived while the docs and site were repositioned around the next-action command layer.",
-  },
-];
-
-const releaseMessages = [
-  {
-    version: "v0.6.1",
-    pr: "ci: harden release workflow for v0.6.1",
-    announcement: "`v0.6.1` hardens the release path around Node 24 compatible GitHub Actions, replaces the GoReleaser action with a pinned GoReleaser CLI install, and makes future release tags safer to ship.",
-  },
-  {
-    version: "v0.6.0",
-    pr: "feat: strengthen take/learn continuity around the next action",
-    announcement: "Start fast. Swap instantly. Take action. Learn the project. `v0.6.0` adds mode-aware next-step suggestions after `go`, expands `learn` to update repo memory alongside the termbook, and ships the demo asset kit plus launch checklist for a cleaner public rollout.",
-  },
-  {
-    version: "v0.5.1",
-    pr: "docs: align public surfaces around the AI command layer loop",
-    announcement: "Unified README, docs, site, and CLI help around one message: `prtr` turns what you mean into the next AI action, with the public loop centered on `go`, `swap`, `take`, and `learn`.",
-  },
-  {
-    version: "v0.4.1",
-    pr: "feat: make start the beginner-first entry",
-    announcement: "Introduced `prtr start`, moved `setup` into the advanced compatibility path, and made the first-run flow easier to explain and complete.",
-  },
-  {
-    version: "v0.4.2",
-    pr: "feat: add doctor --fix and repair-ready diagnostics",
-    announcement: "Added `doctor --fix`, platform matrix visibility, and clearer repair guidance for clipboard, launcher, paste, and auth failures.",
-  },
-  {
-    version: "v0.4.3",
-    pr: "feat: add sync, routing metadata, and repo memory",
-    announcement: "Added canonical `.prtr` sync, vendor guide generation, richer routing metadata, and repo-local memory for more consistent follow-up runs.",
-  },
-  {
-    version: "v0.4.5",
-    pr: "feat: add platform surface and shared matrix reporting",
-    announcement: "Added `prtr platform` plus shared platform matrix reporting so supported surfaces and delivery constraints are visible before users get stuck.",
-  },
-  {
-    version: "v0.5.0",
-    pr: "feat: add exec/server and reposition prtr around the next action",
-    announcement: "Added `exec` and `server` alpha surfaces, aligned the docs and site around the next-action command layer, and tightened first-run readiness across `start`, `doctor`, and `sync`.",
-  },
-];
-
-const routingPoints = [
-  {
-    label: "Mode before app",
-    text: "The first question is what kind of help you want. App choice matters, but the product starts from `ask`, `review`, `fix`, or `design`.",
-  },
-  {
-    label: "Next action over prompt polish",
-    text: "The point is not just getting one nice answer. The loop is built so the next move is obvious and cheap after the first response lands.",
-  },
-  {
-    label: "Honest delivery boundaries",
-    text: "Today `open-copy` is the shipped default fallback, `exec` is available, and `server` is alpha. The site stays explicit about what is real now.",
+    title: "Automation and headless surface",
+    body: "`exec`, `server` alpha, and the next-action framing moved prtr beyond a one-shot prompt helper.",
   },
 ];
 ---
 
 <BaseLayout
-  title="Next-Action Command Layer"
+  title="AI Command Layer"
   description="prtr turns what you mean into the next AI action across Claude, Codex, and Gemini."
 >
   <main class="page-shell">
     <header class="topbar">
-      <a class="brand" href="https://github.com/helloprtr/poly-prompt" aria-label="prtr on GitHub">
+      <a class="brand" href={basePath} aria-label="prtr home">
         <span class="brand-mark">prtr</span>
-        <span class="brand-copy">poly-prompt</span>
+        <span class="brand-copy">AI command layer</span>
       </a>
       <nav class="topnav" aria-label="Primary">
-        <a href="#loop">Core loop</a>
-        <a href="#demos">GIF demos</a>
+        <a href="#what">What it is</a>
+        <a href="#loop">How it works</a>
+        <a href="#proof">Proof</a>
         <a href={`${basePath}docs/`}>Docs</a>
-        <a href="#timeline">Timeline</a>
+        <a href="https://github.com/helloprtr/poly-prompt/releases">Releases</a>
       </nav>
     </header>
 
-    <section class="hero">
+    <section class="hero hero-home" id="what">
       <div class="hero-copy">
-        <p class="eyebrow">A beginner-first command layer for real AI work.</p>
+        <p class="eyebrow">Command layer for multilingual AI work</p>
         <h1>prtr turns what you mean into the next AI action.</h1>
-        <p class="hero-text">Write in your language. Route to Claude, Codex, or Gemini. Keep the loop moving.</p>
+        <p class="hero-text hero-lead">
+          Write in your language. Route to Claude, Codex, or Gemini. Keep the loop moving with a command surface
+          built for the first send, the comparison step, the next action, and repo memory.
+        </p>
+
         <div class="hero-actions">
-          <a class="button button-primary" href="https://github.com/helloprtr/poly-prompt#30-second-loop">See the 30-second loop</a>
-          <a class="button button-secondary" href={`${basePath}docs/`}>Open docs hub</a>
-          <a class="button button-tertiary" href="https://github.com/helloprtr/poly-prompt/blob/main/docs/PRD_V1.md">Read the PRD</a>
-          <a class="button button-ghost" href="https://github.com/helloprtr/poly-prompt/releases">See releases</a>
+          <a class="button button-primary" href="#try-now">See what to run first</a>
+          <a class="button button-secondary" href="#proof">See product proof</a>
+          <a class="button button-tertiary" href={`${basePath}docs/`}>Open docs hub</a>
+          <a class="button button-ghost" href="https://github.com/helloprtr/poly-prompt">GitHub</a>
         </div>
-        <ul class="signal-strip" aria-label="Product signals">
-          <li>Mode-first command vocabulary</li>
-          <li>Start and exec available now</li>
-          <li>Loop continuity built in</li>
-        </ul>
+
+        <div class="hero-tags" aria-label="Key product ideas">
+          <span>One intent, many AI apps</span>
+          <span>Mode before app</span>
+          <span>Answer to action</span>
+          <span>Repo memory</span>
+        </div>
       </div>
 
-      <div class="hero-console">
-        <div class="panel">
-          <div class="panel-header">
-            <span class="panel-dot"></span>
-            <span class="panel-dot"></span>
-            <span class="panel-dot"></span>
-            <span class="panel-title">repeatable-work-loop.sh</span>
+      <div class="hero-aside">
+        <article class="hero-story">
+          <p class="eyebrow">If you remember one thing</p>
+          <h2>Not a prompt toy. Not a full agent runtime.</h2>
+          <p>
+            prtr sits in the middle. It takes what you mean, routes it into the right app and mode, then keeps
+            the next step close so work does not stall after the first answer.
+          </p>
+        </article>
+
+        <div class="hero-route">
+          <div class="route-step">
+            <strong>1. Start</strong>
+            <span>`go` builds the first useful prompt from your own language, logs, and repo context.</span>
           </div>
-          <div class="panel-body">
-            <p class="panel-caption">Start fast. Swap instantly. Take action. Learn the project.</p>
-            <pre><code>npm test 2&gt;&amp;1 | prtr go fix "왜 깨지는지 정확한 원인만 찾아줘"
-prtr swap claude
+          <div class="route-step">
+            <strong>2. Compare</strong>
+            <span>`swap` sends the same intent to another app without rebuilding context.</span>
+          </div>
+          <div class="route-step">
+            <strong>3. Execute</strong>
+            <span>`take` turns the answer into a patch, issue, plan, test, summary, or commit prompt.</span>
+          </div>
+          <div class="route-step">
+            <strong>4. Remember</strong>
+            <span>`learn` saves repo vocabulary and guidance for future runs.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-tight" id="try-now">
+      <div class="section-heading">
+        <p class="eyebrow">Try this first</p>
+        <h2>The product in four commands</h2>
+        <p>
+          If you want to understand prtr fast, do not start with settings. Start with a failing test, compare
+          another app, turn the answer into work, then save the repo memory.
+        </p>
+      </div>
+
+      <div class="command-ribbon">
+        <div class="command-ribbon-head">
+          <span class="timeline-version">30-second loop</span>
+          <p>From Korean intent to routed prompt to next action.</p>
+        </div>
+        <pre><code>npm test 2&gt;&amp;1 | prtr go fix "왜 깨지는지 정확한 원인만 찾아줘"
+prtr swap gemini
 prtr take patch
 prtr learn</code></pre>
-          </div>
-        </div>
-
-        <div class="mini-grid" aria-hidden="true">
-          <div class="mini-card">
-            <strong>Mode</strong>
-            <span>ask + review + fix + design</span>
-          </div>
-          <div class="mini-card">
-            <strong>Loop</strong>
-            <span>go -&gt; swap -&gt; take -&gt; learn</span>
-          </div>
-          <div class="mini-card">
-            <strong>Delivery</strong>
-            <span>open-copy + exec now</span>
-          </div>
-        </div>
       </div>
     </section>
 
     <section class="section" id="loop">
       <div class="section-heading">
-        <p class="eyebrow">Core loop</p>
-        <h2>Four commands that keep the loop moving</h2>
+        <p class="eyebrow">How it works</p>
+        <h2>Understand the loop before you understand the settings</h2>
         <p>
-          The first request matters, but app comparison, answer-to-action conversion, and repo memory are what
-          make the loop repeatable. prtr keeps those steps close together.
+          prtr is easiest to understand when you follow the order of real work: first send, compare another
+          app, turn the answer into action, then save what the repo just taught you.
         </p>
       </div>
 
-      <div class="loop-grid">
-        {coreLoopSteps.map((step) => (
-          <article class="loop-card">
+      <div class="loop-ladder">
+        {loopSteps.map((step) => (
+          <article class="loop-ladder-card">
             <p class="command-tag">prtr {step.command}</p>
-            <h3>{step.summary}</h3>
-            <p>{step.detail}</p>
+            <h3>{step.title}</h3>
+            <p>{step.body}</p>
+            <p class="loop-cue">{step.cue}</p>
           </article>
         ))}
       </div>
+    </section>
 
-      <div class="mini-grid support-grid" aria-label="Support surfaces">
-        {supportSurfaces.map((step) => (
-          <div class="mini-card">
-            <strong>prtr {step.command}</strong>
-            <span>{step.summary}</span>
-          </div>
+    <section class="section" id="scenarios">
+      <div class="section-heading">
+        <p class="eyebrow">Common workflows</p>
+        <h2>Three ways users usually understand the product</h2>
+        <p>
+          These examples are more useful than a feature list because they show where the time savings actually
+          come from in day-to-day work.
+        </p>
+      </div>
+
+      <div class="scenario-grid">
+        {scenarios.map((scenario) => (
+          <article class="scenario-card">
+            <p class="eyebrow">{scenario.eyebrow}</p>
+            <h3>{scenario.title}</h3>
+            <pre><code>{scenario.command}</code></pre>
+            <ul class="scenario-notes">
+              {scenario.notes.map((note) => (
+                <li>{note}</li>
+              ))}
+            </ul>
+          </article>
         ))}
       </div>
     </section>
 
-    <section class="section">
+    <section class="section" id="why-fast">
       <div class="section-heading">
-        <p class="eyebrow">Answer to action</p>
-        <h2>Do not stop at the first answer</h2>
+        <p class="eyebrow">Why it feels faster</p>
+        <h2>The product advantage is workflow compression</h2>
         <p>
-          `take` is where a useful answer becomes a patch prompt, issue prompt, or plan prompt instead of
-          turning into another copy-and-paste stall.
+          prtr does not win by adding one more model picker. It wins by making the second and third step cheaper
+          than the first.
         </p>
       </div>
-      <div class="panel">
-        <div class="panel-body">
-          <p class="panel-caption">answer received -&gt; take action</p>
-          <pre><code>prtr take patch
-prtr take issue
-prtr take plan
-prtr take summary
-prtr take test
-prtr take commit
-prtr take clarify</code></pre>
-        </div>
+
+      <div class="proof-grid">
+        {proofPoints.map((point) => (
+          <article class="proof-card">
+            <h3>{point.title}</h3>
+            <p>{point.body}</p>
+          </article>
+        ))}
       </div>
     </section>
 
-    <section class="section" id="demos">
+    <section class="section" id="proof">
       <div class="section-heading">
-        <p class="eyebrow">See it work</p>
-        <h2>Three GIFs that show the product proof</h2>
+        <p class="eyebrow">Product proof</p>
+        <h2>Three demos that map to the real loop</h2>
         <p>
-          These flows stay close to the actual product boundaries: configure once, send fast, and keep the
-          next action moving through the current visible delivery path.
+          Each GIF corresponds to a user question: can I start quickly, can I compare cheaply, and can I turn
+          the first answer into real work without losing momentum?
         </p>
       </div>
 
@@ -314,29 +341,52 @@ prtr take clarify</code></pre>
             </figure>
             <div class="demo-copy">
               <p class="eyebrow">{demo.title}</p>
-              <h3>{demo.description}</h3>
-              <p>{demo.note}</p>
+              <h3>{demo.text}</h3>
             </div>
           </article>
         ))}
       </div>
     </section>
 
-    <section class="section two-column">
+    <section class="section status-section">
       <div class="section-heading">
-        <p class="eyebrow">Product principles</p>
-        <h2>More than prompt routing, less than an agent runtime</h2>
+        <p class="eyebrow">What ships now</p>
+        <h2>What is real today, and what is not</h2>
         <p>
-          prtr is intentionally narrow. It should reduce friction, preserve continuity, and stay honest
-          about what is and is not automated in the current release.
+          A big part of the user experience is trust. The product needs to be explicit about which commands are
+          available now, which surfaces are still alpha, and which boundaries are intentional.
         </p>
       </div>
 
-      <div class="routing-list">
-        {routingPoints.map((point) => (
-          <article class="routing-card">
-            <h3>{point.label}</h3>
-            <p>{point.text}</p>
+      <div class="status-grid">
+        {shipNow.map((group) => (
+          <article class="status-card">
+            <p class="timeline-version">{group.label}</p>
+            <ul class="status-list">
+              {group.items.map((item) => (
+                <li set:html={item}></li>
+              ))}
+            </ul>
+          </article>
+        ))}
+      </div>
+    </section>
+
+    <section class="section support-section">
+      <div class="section-heading">
+        <p class="eyebrow">Trust surfaces</p>
+        <h2>These commands make the loop easier to trust</h2>
+        <p>
+          The main loop is small on purpose. These supporting surfaces exist to help people start correctly,
+          inspect the route, and recover from environment failures without guessing.
+        </p>
+      </div>
+
+      <div class="support-grid-list">
+        {supportSurface.map((item) => (
+          <article class="support-card">
+            <p class="command-tag">prtr {item.command}</p>
+            <p>{item.detail}</p>
           </article>
         ))}
       </div>
@@ -345,14 +395,14 @@ prtr take clarify</code></pre>
     <section class="section" id="timeline">
       <div class="section-heading">
         <p class="eyebrow">Version story</p>
-        <h2>Release copy now matches the shipped surface</h2>
+        <h2>Recent releases, in plain language</h2>
         <p>
-          These snapshots are the short PR and launch-style messages for the current release train. They keep
-          the public story aligned with what actually shipped.
+          You should be able to read the recent release train without decoding internal project language. These
+          four milestones are the current public story in order.
         </p>
       </div>
 
-      <div class="timeline">
+      <div class="timeline timeline-compact">
         {timeline.map((item) => (
           <article class="timeline-item">
             <p class="timeline-version">{item.version}</p>
@@ -363,72 +413,17 @@ prtr take clarify</code></pre>
       </div>
     </section>
 
-    <section class="section">
-      <div class="section-heading">
-        <p class="eyebrow">Release-ready copy</p>
-        <h2>Short PR titles and announcement lines for each shipped milestone</h2>
-        <p>
-          GitHub releases, README updates, and launch posts should all tell the same short version story.
-          The full reusable set also lives in `docs/RELEASE_MESSAGES.md`.
-        </p>
-      </div>
-
-      <div class="routing-list">
-        {releaseMessages.map((item) => (
-          <article class="routing-card">
-            <p class="timeline-version">{item.version}</p>
-            <h3>{item.pr}</h3>
-            <p>{item.announcement}</p>
-          </article>
-        ))}
-      </div>
-    </section>
-
     <section class="section docs-bridge">
-      <div class="section-heading">
-        <p class="eyebrow">Docs hub</p>
-        <h2>Keep the landing page fast, move deeper in one click</h2>
-        <p>
-          The project site separates launch messaging from operator docs. Use the docs hub for install,
-          usage, PRD, backlog, and the older router references without digging through the repo.
-        </p>
-      </div>
-
       <div class="bridge-card">
         <div>
-          <p class="eyebrow">Included in /docs</p>
-          <h3>Quick start, usage, strategy docs, release messages, router guide, and release references</h3>
+          <p class="eyebrow">Go deeper</p>
+          <h2>Use the docs hub when you want install steps, the full usage guide, the v0.6.1 report, or the test checklist.</h2>
           <p>
-            The homepage stays focused on product proof while the docs page acts as the operator-facing entry
-            point for both current workflow docs and background references.
+            The homepage is now optimized for quick understanding. The docs hub is where operator docs, release
+            copy, reports, and deeper references live.
           </p>
         </div>
-        <a class="button button-primary" href={`${basePath}docs/`}>Go to docs</a>
-      </div>
-    </section>
-
-    <section class="section cta-panel">
-      <div class="cta-copy">
-        <p class="eyebrow">Start here</p>
-        <h2>Set it up once, then keep the loop moving</h2>
-        <p>
-          Start with `prtr start`, use `setup` only when you want the full advanced defaults flow, then keep the same thread of work
-          alive through `swap`, `take`, `again`, `learn`, and `inspect`.
-        </p>
-      </div>
-      <div class="panel">
-        <div class="panel-header">
-          <span class="panel-dot"></span>
-          <span class="panel-dot"></span>
-          <span class="panel-dot"></span>
-          <span class="panel-title">quick-start.sh</span>
-        </div>
-        <div class="panel-body">
-          <pre><code>brew tap helloprtr/homebrew-tap
-brew install prtr
-prtr start
-prtr go "이 함수 왜 느린지 설명해줘"</code></pre>
-        </div>
+        <a class="button button-primary" href={`${basePath}docs/`}>Open docs hub</a>
       </div>
     </section>
   </main>
