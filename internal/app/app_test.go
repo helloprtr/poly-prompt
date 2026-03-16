@@ -2042,8 +2042,8 @@ func TestServerDeepExecRequestLLMFieldsPassThrough(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if !resp.LLMUsed {
-		t.Errorf("LLMUsed = false, want true when llm_provider and llm_api_key are set")
+	if !resp.LLMRequested {
+		t.Errorf("LLMRequested = false, want true when llm_provider and llm_api_key are set")
 	}
 	if resp.RunID == "" {
 		t.Error("RunID is empty")
@@ -2051,7 +2051,7 @@ func TestServerDeepExecRequestLLMFieldsPassThrough(t *testing.T) {
 }
 
 // TestServerDeepExecRequestNoLLMFields verifies that when llm_provider and
-// llm_api_key are absent, llm_used is false (omitted from JSON).
+// llm_api_key are absent, llm_requested is false (omitted from JSON).
 func TestServerDeepExecRequestNoLLMFields(t *testing.T) {
 	t.Parallel()
 
@@ -2076,8 +2076,8 @@ func TestServerDeepExecRequestNoLLMFields(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if resp.LLMUsed {
-		t.Errorf("LLMUsed = true, want false when llm_provider/llm_api_key are not set")
+	if resp.LLMRequested {
+		t.Errorf("LLMRequested = true, want false when llm_provider/llm_api_key are not set")
 	}
 }
 

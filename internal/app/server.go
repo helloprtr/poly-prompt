@@ -152,7 +152,7 @@ type serverDeepExecResponse struct {
 	Warnings         []string `json:"warnings,omitempty"`
 	ApprovalRequired bool     `json:"approval_required,omitempty"`
 	Approved         bool     `json:"approved"`
-	LLMUsed          bool     `json:"llm_used,omitempty"`
+	LLMRequested     bool     `json:"llm_requested,omitempty"`
 }
 
 // serverMux builds the HTTP handler used by the server.
@@ -194,7 +194,7 @@ func (a *App) serverMux(ctx context.Context) http.Handler {
 		response := serverExecResponse{
 			Target:       resolved.targetName,
 			TargetSource: resolved.targetSource,
-			TargetReason: resolved.targetSource,
+			TargetReason: resolved.targetSource, // same as TargetSource; no separate reason for this path
 			FinalPrompt:  resolved.finalPrompt,
 		}
 
@@ -274,7 +274,7 @@ func (a *App) serverMux(ctx context.Context) http.Handler {
 			Warnings:         result.Bundle.Warnings,
 			ApprovalRequired: !req.Approved,
 			Approved:         req.Approved,
-			LLMUsed:          req.LLMProvider != "" && req.LLMAPIKey != "",
+			LLMRequested:     req.LLMProvider != "" && req.LLMAPIKey != "",
 		}
 
 		// If the caller has not yet approved, return 202 so they can review the bundle.

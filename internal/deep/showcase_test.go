@@ -63,6 +63,32 @@ func TestDeepShowcaseAuthRefactor(t *testing.T) {
 	t.Logf("\n=== SHOWCASE: auth_refactor ===\n%s\n=== END ===\n", result.DeliveryPrompt)
 }
 
+// TestDeepShowcaseAPIMigration demonstrates the API migration scenario.
+func TestDeepShowcaseAPIMigration(t *testing.T) {
+	source, err := os.ReadFile("testdata/scenarios/api_migration_source.txt")
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+
+	opts := deep.Options{
+		Action:     "patch",
+		Source:     string(source),
+		SourceKind: "clipboard",
+		RepoRoot:   t.TempDir(),
+	}
+
+	result, err := deep.ExecutePatchRun(context.Background(), opts)
+	if err != nil {
+		t.Fatalf("ExecutePatchRun: %v", err)
+	}
+
+	if result.DeliveryPrompt == "" {
+		t.Fatal("expected non-empty DeliveryPrompt")
+	}
+
+	t.Logf("\n=== SHOWCASE: api_migration ===\n%s\n=== END ===\n", result.DeliveryPrompt)
+}
+
 // TestShowcaseRuleBasedVsLLM compares rule-based and LLM-enhanced prompts side by side.
 // Requires PRTR_LLM_KEY env var to be set; skips otherwise.
 func TestShowcaseRuleBasedVsLLM(t *testing.T) {
