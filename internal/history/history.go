@@ -201,13 +201,30 @@ func (s *Store) save(entries []Entry) error {
 		return fmt.Errorf("encode history: %w", err)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
+	dir := filepath.Dir(s.path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create history directory: %w", err)
 	}
-	if err := os.WriteFile(s.path, data, 0o644); err != nil {
+
+	tmp, err := os.CreateTemp(dir, ".history-*.json.tmp")
+	if err != nil {
+		return fmt.Errorf("create temp history file: %w", err)
+	}
+	tmpPath := tmp.Name()
+
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("write history: %w", err)
 	}
-
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("close temp history file: %w", err)
+	}
+	if err := os.Rename(tmpPath, s.path); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("commit history: %w", err)
+	}
 	return nil
 }
 
