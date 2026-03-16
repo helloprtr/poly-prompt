@@ -31,6 +31,7 @@ import (
 	"testing"
 
 	deepevent "github.com/helloprtr/poly-prompt/internal/deep/event"
+	"github.com/helloprtr/poly-prompt/internal/deep/llm"
 	deepschema "github.com/helloprtr/poly-prompt/internal/deep/schema"
 	"github.com/helloprtr/poly-prompt/internal/deep/worker"
 )
@@ -57,7 +58,7 @@ func TestScenario1_AllProgressStepsEmitted(t *testing.T) {
 		},
 	}
 
-	result, err := executePatchRunWithGraph(context.Background(), opts, worker.NewPatchGraph)
+	result, err := executePatchRunWithGraph(context.Background(), opts, worker.NewPatchGraph, llm.New)
 	if err != nil {
 		t.Fatalf("executePatchRunWithGraph() error = %v", err)
 	}
@@ -116,7 +117,7 @@ func TestScenario1_DryRunArtifactsAndEvents(t *testing.T) {
 		SourceKind: "clipboard",
 		TargetApp:  "claude",
 		RepoRoot:   repoRoot,
-	}, worker.NewPatchGraph)
+	}, worker.NewPatchGraph, llm.New)
 	if err != nil {
 		t.Fatalf("executePatchRunWithGraph() error = %v", err)
 	}
@@ -215,7 +216,7 @@ func TestScenario2_CriticSoftFailureProducesCompletedWithWarnings(t *testing.T) 
 			worker.NewDefaultTesterWorker(),
 			worker.NewDefaultReconcilerWorker(),
 		)
-	})
+	}, llm.New)
 	if err != nil {
 		t.Fatalf("run returned error = %v (expected success with warnings)", err)
 	}
@@ -256,7 +257,7 @@ func TestScenario2_TesterSoftFailureProducesCompletedWithWarnings(t *testing.T) 
 			worker.NewErrorWorker("tester", false, fmt.Errorf("tester timeout")),
 			worker.NewDefaultReconcilerWorker(),
 		)
-	})
+	}, llm.New)
 	if err != nil {
 		t.Fatalf("run returned error = %v (expected success with warnings)", err)
 	}
@@ -287,7 +288,7 @@ func TestScenario2_BothSoftBlockersFailProducesWarnings(t *testing.T) {
 			worker.NewErrorWorker("tester", false, fmt.Errorf("tester down")),
 			worker.NewDefaultReconcilerWorker(),
 		)
-	})
+	}, llm.New)
 	if err != nil {
 		t.Fatalf("run returned error = %v (expected success with warnings)", err)
 	}
@@ -334,7 +335,7 @@ func TestScenario2_PlannerHardFailureProducesFailedStatus(t *testing.T) {
 			worker.NewDefaultTesterWorker(),
 			worker.NewDefaultReconcilerWorker(),
 		)
-	})
+	}, llm.New)
 	if err == nil {
 		t.Fatal("expected error from planner hard failure, got nil")
 	}
@@ -393,7 +394,7 @@ func TestScenario2_PatcherHardFailureProducesFailedStatus(t *testing.T) {
 			trackingTester,
 			worker.NewDefaultReconcilerWorker(),
 		)
-	})
+	}, llm.New)
 	if err == nil {
 		t.Fatal("expected error from patcher hard failure, got nil")
 	}
@@ -436,7 +437,7 @@ func TestScenario3_PatchBundleSchemaComplete(t *testing.T) {
 		Source:     "fix the memory leak in internal/cache/lru.go",
 		SourceKind: "clipboard",
 		RepoRoot:   repoRoot,
-	}, worker.NewPatchGraph)
+	}, worker.NewPatchGraph, llm.New)
 	if err != nil {
 		t.Fatalf("executePatchRunWithGraph() error = %v", err)
 	}
@@ -485,7 +486,7 @@ func TestScenario3_ManifestCompleteFields(t *testing.T) {
 		SourceKind: "clipboard",
 		TargetApp:  "claude",
 		RepoRoot:   repoRoot,
-	}, worker.NewPatchGraph)
+	}, worker.NewPatchGraph, llm.New)
 	if err != nil {
 		t.Fatalf("executePatchRunWithGraph() error = %v", err)
 	}
@@ -528,7 +529,7 @@ func TestScenario3_ManifestReflectsRunStatusFromResult(t *testing.T) {
 			Source:     "fix nil pointer in internal/auth/auth.go",
 			SourceKind: "clipboard",
 			RepoRoot:   t.TempDir(),
-		}, worker.NewPatchGraph)
+		}, worker.NewPatchGraph, llm.New)
 		if err != nil {
 			t.Fatalf("error = %v", err)
 		}
@@ -547,7 +548,7 @@ func TestScenario3_ManifestReflectsRunStatusFromResult(t *testing.T) {
 			Source:     "just fix it",
 			SourceKind: "clipboard",
 			RepoRoot:   t.TempDir(),
-		}, worker.NewPatchGraph)
+		}, worker.NewPatchGraph, llm.New)
 		if err != nil {
 			t.Fatalf("error = %v", err)
 		}

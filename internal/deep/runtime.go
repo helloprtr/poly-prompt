@@ -11,6 +11,7 @@ import (
 
 	"github.com/helloprtr/poly-prompt/internal/deep/artifact"
 	deepevent "github.com/helloprtr/poly-prompt/internal/deep/event"
+	"github.com/helloprtr/poly-prompt/internal/deep/llm"
 	deepplan "github.com/helloprtr/poly-prompt/internal/deep/plan"
 	deeprun "github.com/helloprtr/poly-prompt/internal/deep/run"
 	deepschema "github.com/helloprtr/poly-prompt/internal/deep/schema"
@@ -88,12 +89,17 @@ func AppendEvent(path string, e Event) error {
 
 // ExecutePatchRun runs the deep patch pipeline using the default worker graph.
 func ExecutePatchRun(ctx context.Context, opts Options) (Result, error) {
-	return executePatchRunWithGraph(ctx, opts, worker.NewPatchGraph)
+	return executePatchRunWithGraph(ctx, opts, worker.NewPatchGraph, llm.New)
 }
 
-// executePatchRunWithGraph is the testable version that accepts a graph factory,
-// allowing tests to inject stub workers.
-func executePatchRunWithGraph(ctx context.Context, opts Options, graphFactory func() *worker.Graph) (Result, error) {
+// executePatchRunWithGraph is the testable version that accepts a graph factory and
+// an LLM factory, allowing tests to inject stub workers and mock enhancers.
+func executePatchRunWithGraph(
+	ctx context.Context,
+	opts Options,
+	graphFactory func() *worker.Graph,
+	llmFactory func(provider, apiKey string) (llm.Enhancer, error),
+) (Result, error) {
 	if strings.TrimSpace(opts.Action) != "patch" {
 		return Result{}, fmt.Errorf("deep execution only supports patch right now")
 	}
@@ -279,10 +285,21 @@ func executePatchRunWithGraph(ctx context.Context, opts Options, graphFactory fu
 		return Result{}, err
 	}
 
+	deliveryPrompt := buildDeliveryPrompt(run.Plan, bundle, opts.Source)
+	if opts.LLMProvider != "" && opts.LLMAPIKey != "" {
+		enhancer, err := llmFactory(opts.LLMProvider, opts.LLMAPIKey)
+		if err == nil {
+			if enriched, enhanceErr := enhancer.Enhance(ctx, opts.Source, bundle, deliveryPrompt); enhanceErr == nil {
+				deliveryPrompt = enriched
+			}
+			// on error: silently fall back to rule-based prompt
+		}
+	}
+
 	return Result{
 		Run:            run,
 		Bundle:         bundle,
-		DeliveryPrompt: buildDeliveryPrompt(run.Plan, bundle, opts.Source),
+		DeliveryPrompt: deliveryPrompt,
 	}, nil
 }
 
