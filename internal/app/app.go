@@ -168,6 +168,22 @@ type resolvedRun struct {
 	config              config.Config
 }
 
+var sourceLangOptions = []languageOption{
+	{Label: "auto", Value: "auto", Description: "automatic detection"},
+	{Label: "ko", Value: "ko", Description: "Korean"},
+	{Label: "ja", Value: "ja", Description: "Japanese"},
+	{Label: "zh", Value: "zh", Description: "Chinese"},
+	{Label: "en", Value: "en", Description: "English"},
+}
+
+var targetLangOptions = []languageOption{
+	{Label: "en", Value: "en", Description: "English"},
+	{Label: "ja", Value: "ja", Description: "Japanese"},
+	{Label: "zh", Value: "zh", Description: "Chinese"},
+	{Label: "de", Value: "de", Description: "German"},
+	{Label: "fr", Value: "fr", Description: "French"},
+}
+
 func New(deps Dependencies) *App {
 	store := deps.HistoryStore
 	if store == nil {
@@ -291,24 +307,12 @@ func (a *App) runSetup(stdin io.Reader) error {
 		return err
 	}
 
-	sourceLangValue, err := promptLanguage(reader, a.stdout, "Default input language", []languageOption{
-		{Label: "auto", Value: "auto", Description: "automatic detection"},
-		{Label: "ko", Value: "ko", Description: "Korean"},
-		{Label: "ja", Value: "ja", Description: "Japanese"},
-		{Label: "zh", Value: "zh", Description: "Chinese"},
-		{Label: "en", Value: "en", Description: "English"},
-	}, currentSourceLang, true)
+	sourceLangValue, err := promptLanguage(reader, a.stdout, "Default input language", sourceLangOptions, currentSourceLang, true)
 	if err != nil {
 		return err
 	}
 
-	targetLangValue, err := promptLanguage(reader, a.stdout, "Default output language", []languageOption{
-		{Label: "en", Value: "en", Description: "English"},
-		{Label: "ja", Value: "ja", Description: "Japanese"},
-		{Label: "zh", Value: "zh", Description: "Chinese"},
-		{Label: "de", Value: "de", Description: "German"},
-		{Label: "fr", Value: "fr", Description: "French"},
-	}, currentTargetLang, false)
+	targetLangValue, err := promptLanguage(reader, a.stdout, "Default output language", targetLangOptions, currentTargetLang, false)
 	if err != nil {
 		return err
 	}
@@ -369,24 +373,12 @@ func (a *App) runLang(stdin io.Reader) error {
 		currentTargetLang = "en"
 	}
 
-	sourceLangValue, err := promptLanguage(reader, a.stdout, "Default input language", []languageOption{
-		{Label: "auto", Value: "auto", Description: "automatic detection"},
-		{Label: "ko", Value: "ko", Description: "Korean"},
-		{Label: "ja", Value: "ja", Description: "Japanese"},
-		{Label: "zh", Value: "zh", Description: "Chinese"},
-		{Label: "en", Value: "en", Description: "English"},
-	}, currentSourceLang, true)
+	sourceLangValue, err := promptLanguage(reader, a.stdout, "Default input language", sourceLangOptions, currentSourceLang, true)
 	if err != nil {
 		return err
 	}
 
-	targetLangValue, err := promptLanguage(reader, a.stdout, "Default output language", []languageOption{
-		{Label: "en", Value: "en", Description: "English"},
-		{Label: "ja", Value: "ja", Description: "Japanese"},
-		{Label: "zh", Value: "zh", Description: "Chinese"},
-		{Label: "de", Value: "de", Description: "German"},
-		{Label: "fr", Value: "fr", Description: "French"},
-	}, currentTargetLang, false)
+	targetLangValue, err := promptLanguage(reader, a.stdout, "Default output language", targetLangOptions, currentTargetLang, false)
 	if err != nil {
 		return err
 	}
