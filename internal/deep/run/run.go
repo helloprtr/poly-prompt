@@ -66,6 +66,8 @@ type Options struct {
 	ProtectedTerms  []string
 	HistoryEntry    *history.Entry
 	RepoSummary     repoctx.Summary
+	LLMProvider     string
+	LLMAPIKey       string
 	Progress        func(Progress)
 	LLMProvider     string // "claude", "gemini", "codex", or "" for rule-based
 }

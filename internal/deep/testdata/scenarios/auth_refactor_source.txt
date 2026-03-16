@@ -1,0 +1,25 @@
+Refactor the authentication middleware to use JWT tokens instead of session cookies.
+
+Current implementation (internal/auth/middleware.go):
+- Uses gorilla/sessions for session storage
+- Session data stored in Redis with 24h TTL
+- Cookie-based: sets "session_id" cookie on login
+
+Problems:
+- Stateful: requires Redis availability for every request
+- Cannot scale horizontally without shared session store
+- Mobile clients struggle with cookie-based auth
+
+Target implementation:
+- Replace session middleware with JWT validation
+- Use RS256 signing (not HS256) for public key distribution
+- Store only: user_id, roles, exp in JWT claims
+- Refresh token endpoint: POST /auth/refresh (returns new JWT)
+- Logout: client-side only (blacklist not needed for MVP)
+
+Files affected:
+- internal/auth/middleware.go (rewrite)
+- internal/auth/login_handler.go (update to return JWT)
+- internal/auth/jwt_keys.go (new file: key loading)
+- cmd/server/main.go (remove Redis session init)
+- go.mod (add golang-jwt/jwt/v5, remove gorilla/sessions)

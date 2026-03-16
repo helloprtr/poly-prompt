@@ -130,10 +130,12 @@ func parseServerCommand(args []string) (serverCommandOptions, error) {
 
 // serverDeepExecRequest is the JSON body for POST /exec/deep.
 type serverDeepExecRequest struct {
-	Source   string `json:"source"`
-	Target   string `json:"target"`
-	RepoRoot string `json:"repo_root"`
-	DryRun   bool   `json:"dry_run"`
+	Source      string `json:"source"`
+	Target      string `json:"target"`
+	RepoRoot    string `json:"repo_root"`
+	DryRun      bool   `json:"dry_run"`
+	LLMProvider string `json:"llm_provider,omitempty"`
+	LLMAPIKey   string `json:"llm_api_key,omitempty"`
 	// Approved must be true for the caller to acknowledge the bundle is cleared
 	// for delivery. Workers have no mutation rights; the gate lives here.
 	Approved bool `json:"approved"`
@@ -150,6 +152,7 @@ type serverDeepExecResponse struct {
 	Warnings         []string `json:"warnings,omitempty"`
 	ApprovalRequired bool     `json:"approval_required,omitempty"`
 	Approved         bool     `json:"approved"`
+	LLMRequested     bool     `json:"llm_requested,omitempty"`
 }
 
 // serverMux builds the HTTP handler used by the server.
@@ -191,7 +194,7 @@ func (a *App) serverMux(ctx context.Context) http.Handler {
 		response := serverExecResponse{
 			Target:       resolved.targetName,
 			TargetSource: resolved.targetSource,
-			TargetReason: resolved.targetSource,
+			TargetReason: resolved.targetSource, // same as TargetSource; no separate reason for this path
 			FinalPrompt:  resolved.finalPrompt,
 		}
 
@@ -253,6 +256,8 @@ func (a *App) serverMux(ctx context.Context) http.Handler {
 			RepoRoot:       repoRoot,
 			ProtectedTerms: protectedTerms,
 			RepoSummary:    repoSummary,
+			LLMProvider:    req.LLMProvider,
+			LLMAPIKey:      req.LLMAPIKey,
 		})
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -269,6 +274,7 @@ func (a *App) serverMux(ctx context.Context) http.Handler {
 			Warnings:         result.Bundle.Warnings,
 			ApprovalRequired: !req.Approved,
 			Approved:         req.Approved,
+			LLMRequested:     req.LLMProvider != "" && req.LLMAPIKey != "",
 		}
 
 		// If the caller has not yet approved, return 202 so they can review the bundle.
