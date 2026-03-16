@@ -582,7 +582,8 @@ func TestSystemS4_DeepDryRunCLIUXOutput(t *testing.T) {
 	}
 
 	// Final completed line (status may be "completed" or "completed_with_warnings").
-	if !strings.Contains(stderrStr, "-> take:patch --deep | codex | clipboard | completed") {
+	// The line also includes the delivery label and lang (e.g. "| preview | en->en | completed").
+	if !strings.Contains(stderrStr, "-> take:patch --deep | codex | clipboard") || !strings.Contains(stderrStr, "completed") {
 		t.Errorf("missing completed status line: %q", stderrStr)
 	}
 

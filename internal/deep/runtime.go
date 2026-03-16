@@ -86,7 +86,14 @@ func AppendEvent(path string, e Event) error {
 // ExecutePatchRun — the main deep execution entry point.
 // ---------------------------------------------------------------------------
 
+// ExecutePatchRun runs the deep patch pipeline using the default worker graph.
 func ExecutePatchRun(ctx context.Context, opts Options) (Result, error) {
+	return executePatchRunWithGraph(ctx, opts, worker.NewPatchGraph)
+}
+
+// executePatchRunWithGraph is the testable version that accepts a graph factory,
+// allowing tests to inject stub workers.
+func executePatchRunWithGraph(ctx context.Context, opts Options, graphFactory func() *worker.Graph) (Result, error) {
 	if strings.TrimSpace(opts.Action) != "patch" {
 		return Result{}, fmt.Errorf("deep execution only supports patch right now")
 	}
@@ -206,7 +213,7 @@ func ExecutePatchRun(ctx context.Context, opts Options) (Result, error) {
 	emit("tests", 4, "drafting verification steps")
 	emit("reconcile", 5, "packaging the bundle")
 
-	gr, err := worker.NewPatchGraph().Run(ctx, opts, aw, files)
+	gr, err := graphFactory().Run(ctx, opts, aw, files)
 	if err != nil {
 		// Hard blocker failure — mark run as failed.
 		run.Status = RunStatusFailed

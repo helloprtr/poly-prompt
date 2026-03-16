@@ -1141,6 +1141,7 @@ func (a *App) runTake(ctx context.Context, args []string) error {
 			entryCopy := parentEntry
 			historyRef = &entryCopy
 		}
+		_, _ = fmt.Fprintf(a.stderr, "-> take:%s --deep | %s | clipboard | running\n", command.action, target)
 		result, err := deep.ExecutePatchRun(ctx, deep.Options{
 			Action:          command.action,
 			Source:          clipboardText,
@@ -1184,7 +1185,9 @@ func (a *App) runTake(ctx context.Context, args []string) error {
 				"artifact: " + result.Run.ArtifactRoot + "/result/patch_bundle.json",
 			},
 			nextSteps: []string{
-				"review artifact or hand off",
+				"review: cat " + result.Run.ArtifactRoot + "/result/summary.md",
+				"inspect: cat " + result.Run.EventLogPath,
+				"log: prtr list",
 			},
 		}
 		return a.executePrompt(ctx, opts, result.DeliveryPrompt, "take:"+command.action)
@@ -1846,7 +1849,8 @@ func (a *App) writeCompactStatus(opts runOptions, run resolvedRun) {
 	mode := blankDefault(opts.surfaceMode, "ask")
 	inputSource := blankDefault(opts.surfaceInput, "prompt")
 
-	parts := []string{mode, run.targetName, inputSource, delivery, run.sourceLang + "->" + run.targetLang}
+	deliveryLabel := blankDefault(opts.surfaceDelivery, run.deliveryMode)
+	parts := []string{mode, run.targetName, inputSource, deliveryLabel, run.sourceLang + "->" + run.targetLang}
 	if strings.TrimSpace(run.engine) == "deep" {
 		parts = append(parts, blankDefault(run.runStatus, string(deep.RunStatusCompleted)))
 	}
@@ -1864,13 +1868,6 @@ func (a *App) appendDeepEvent(path string, event deep.Event) error {
 		return nil
 	}
 	return deep.AppendEvent(path, event)
-}
-
-func (a *App) diagnoseClipboard() error {
-	if diagnoser, ok := a.clipboard.(clipboard.Diagnoser); ok {
-		return diagnoser.Diagnose()
-	}
-	return nil
 }
 
 func (a *App) diagnoseClipboard() error {

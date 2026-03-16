@@ -127,12 +127,17 @@ func (patcherWorker) Run(ctx context.Context, s *State) error {
 				strings.Join(s.Opts.RepoSummary.Changes, "\n  "))
 	}
 
+	diff := buildDraftDiff(s.Files)
+	if realDiff, err := s.AW.ReadText("evidence/git.diff"); err == nil && strings.TrimSpace(realDiff) != "" {
+		diff = realDiff
+	}
+
 	draft := &deepschema.PatchDraft{
 		Summary:             summarize(s.Opts.Source),
 		TouchedFiles:        s.Files,
 		ImplementationNotes: notes,
 		Constraints:         constraints,
-		Diff:                buildDraftDiff(s.Files),
+		Diff:                diff,
 	}
 	s.Patch = draft
 

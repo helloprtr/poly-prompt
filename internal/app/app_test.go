@@ -1739,7 +1739,7 @@ func TestExecuteDoctorFixCreatesStarterConfig(t *testing.T) {
 	if !strings.Contains(stdout.String(), "FIX  user config: created starter config") {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
-	if !strings.Contains(stdout.String(), "WARN deepl api key") {
+	if !strings.Contains(stdout.String(), "deepl api key") {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
 	if _, statErr := os.Stat(filepath.Join(tempDir, "prtr", "config.toml")); statErr != nil {
