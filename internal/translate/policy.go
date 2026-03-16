@@ -3,7 +3,6 @@ package translate
 import (
 	"context"
 	"crypto/sha256"
-	"errors"
 	"fmt"
 	"regexp"
 	"sort"
@@ -72,10 +71,12 @@ func ApplyPolicy(ctx context.Context, translator Translator, req Request, mode M
 		return outcome, nil
 	}
 
-	protectedText, restore, preserved := protectSegments(req.Text, req.ProtectedTerms)
 	if translator == nil {
-		return Outcome{}, errors.New("translator is not configured")
+		outcome.Text = req.Text
+		outcome.Decision = DecisionSkipped
+		return outcome, nil
 	}
+	protectedText, restore, preserved := protectSegments(req.Text, req.ProtectedTerms)
 	translated, err := translator.Translate(ctx, Request{
 		Text:       protectedText,
 		SourceLang: sourceLang,

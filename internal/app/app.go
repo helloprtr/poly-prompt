@@ -638,7 +638,7 @@ func (a *App) runSetup(stdin io.Reader) error {
 
 	_, _ = fmt.Fprintf(a.stdout, "\nupdated config at %s\n", path)
 	if strings.TrimSpace(apiValue) == "" && currentAPIKey == "" {
-		_, _ = fmt.Fprintln(a.stdout, "DeepL API key is still empty. Add DEEPL_API_KEY or rerun setup to save it in config.")
+		_, _ = fmt.Fprintln(a.stdout, "No DeepL key set. prtr works without one — AI targets handle multilingual input natively. Add DEEPL_API_KEY or rerun setup if you want dedicated translation quality.")
 	}
 	return nil
 }
@@ -1619,9 +1619,6 @@ func (a *App) prepareRun(ctx context.Context, opts runOptions, text, shortcutNam
 		ProtectedTerms: opts.protectedTerms,
 	}, translate.Mode(blankDefault(opts.translationMode, string(translate.ModeAuto))))
 	if err != nil {
-		if errors.Is(err, translate.ErrMissingAPIKey) {
-			return resolvedRun{}, fmt.Errorf("translation requires a DeepL key for this request. You can try prtr now without a key with `prtr demo` or `prtr go \"explain this error\" --dry-run`, then run `prtr setup` when you want multilingual routing: %w", err)
-		}
 		return resolvedRun{}, err
 	}
 
@@ -1878,6 +1875,9 @@ func (a *App) diagnoseClipboard() error {
 
 func (a *App) resolveTranslator(apiKey string) translate.Translator {
 	if a.translatorFactory != nil {
+		if strings.TrimSpace(apiKey) == "" {
+			return nil
+		}
 		return a.translatorFactory(apiKey)
 	}
 	return a.translator
@@ -2725,7 +2725,7 @@ func goHelpText() string {
 		"Pipe logs or stack traces when you have evidence.",
 		"prtr shapes the request for Claude, Codex, or Gemini and keeps the next step cheaper.",
 		"",
-		"English requests already work without a DeepL key.",
+		"Works without a DeepL key — AI targets handle multilingual input natively.",
 		"Use `prtr demo` if you want a safe preview before setup.",
 		"",
 		"Usage:",
@@ -2780,7 +2780,7 @@ func goHelpText() string {
 
 func demoHelpText() string {
 	return strings.Join([]string{
-		"Preview prtr's core loop without a DeepL key.",
+		"Preview prtr's core loop.",
 		"",
 		"`prtr demo` is a safe preview path.",
 		"It shows the command-layer story with a Korean fix request, sample npm test evidence,",

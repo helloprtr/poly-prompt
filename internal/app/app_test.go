@@ -332,7 +332,7 @@ func TestExecuteGoHelp(t *testing.T) {
 	if !strings.Contains(stdout.String(), "`prtr go` is the fastest way to use prtr for real work.") {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
-	if !strings.Contains(stdout.String(), "English requests already work without a DeepL key.") {
+	if !strings.Contains(stdout.String(), "Works without a DeepL key — AI targets handle multilingual input natively.") {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "If you pipe text and also pass a message, the piped text becomes evidence.") {
@@ -611,15 +611,11 @@ func TestExecuteGoShowsFriendlyMissingKeyGuidance(t *testing.T) {
 		RepoContext:  &stubRepoContext{},
 	})
 
+	// With no API key, the translator factory returns nil and policy gracefully
+	// skips translation (returns original text). The run should succeed.
 	err := app.Execute(context.Background(), []string{"go", "왜 실패하지", "--dry-run"}, strings.NewReader(""), false)
-	if err == nil {
-		t.Fatal("Execute() expected an error, got nil")
-	}
-	if !strings.Contains(err.Error(), "You can try prtr now without a key") {
-		t.Fatalf("error = %v", err)
-	}
-	if !strings.Contains(err.Error(), "prtr demo") {
-		t.Fatalf("error = %v", err)
+	if err != nil {
+		t.Fatalf("Execute() expected nil error with no API key, got: %v", err)
 	}
 }
 
