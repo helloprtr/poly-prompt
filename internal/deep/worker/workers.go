@@ -3,6 +3,8 @@ package worker
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	deepplan "github.com/helloprtr/poly-prompt/internal/deep/plan"
@@ -109,7 +111,9 @@ func (patcherWorker) Run(ctx context.Context, s *State) error {
 		"Validate behavior with focused regression tests after the patch.",
 	}
 	if len(s.Opts.ProtectedTerms) > 0 {
-		notes = append(notes, "Preserve repo-specific identifiers and protected terms exactly.")
+		notes = append(notes,
+			"Preserve these repo-specific identifiers exactly (do not rename or translate): "+
+				strings.Join(s.Opts.ProtectedTerms, ", ")+".")
 	}
 
 	constraints := []string{}
@@ -117,7 +121,15 @@ func (patcherWorker) Run(ctx context.Context, s *State) error {
 		constraints = append(constraints, "Respect current branch context: "+s.Opts.RepoSummary.Branch+".")
 	}
 	if len(s.Opts.RepoSummary.Changes) > 0 {
-		constraints = append(constraints, "Check nearby local changes before editing overlapping files.")
+		// Include actual file list, not just a generic reminder.
+		constraints = append(constraints,
+			"Local changes in this checkout:\n  "+
+				strings.Join(s.Opts.RepoSummary.Changes, "\n  "))
+	}
+
+	diff := buildDraftDiff(s.Files)
+	if realDiff, err := s.AW.ReadText("evidence/git.diff"); err == nil && strings.TrimSpace(realDiff) != "" {
+		diff = realDiff
 	}
 
 	draft := &deepschema.PatchDraft{
@@ -125,7 +137,7 @@ func (patcherWorker) Run(ctx context.Context, s *State) error {
 		TouchedFiles:        s.Files,
 		ImplementationNotes: notes,
 		Constraints:         constraints,
-		Diff:                buildDraftDiff(s.Files),
+		Diff:                diff,
 	}
 	s.Patch = draft
 
@@ -228,7 +240,15 @@ func (testerWorker) Run(ctx context.Context, s *State) error {
 		"Verify the happy path still passes after the change.",
 	}
 	if len(s.Files) > 0 && s.Files[0] != "<inspect-changed-files>" {
-		cases = append(cases, "Cover the behavior around "+s.Files[0]+" with the narrowest useful scope.")
+		primary := s.Files[0]
+		testFile := findTestFile(s.Opts.RepoRoot, primary)
+		if testFile != "" {
+			cases = append(cases,
+				fmt.Sprintf("Add a regression test in %s that covers the primary failure path.", testFile))
+		} else {
+			cases = append(cases,
+				fmt.Sprintf("Cover the behavior around %s with the narrowest useful scope.", primary))
+		}
 	}
 
 	tp := &deepschema.TestPlan{
@@ -346,17 +366,36 @@ func safeTests(t *deepschema.TestPlan) deepschema.TestPlan {
 	return *t
 }
 
+// summarize extracts the first meaningful sentence or line from text.
+// It strips blank lines, picks the first non-empty line as the lead,
+// then appends a second line if present and the combined length is ≤220 runes.
 func summarize(text string) string {
 	text = strings.TrimSpace(text)
 	if text == "" {
 		return "Convert the source answer into a concrete implementation follow-up."
 	}
-	text = strings.ReplaceAll(text, "\n", " ")
-	runes := []rune(text)
-	if len(runes) <= 180 {
-		return text
+	lines := strings.Split(text, "\n")
+	var nonEmpty []string
+	for _, l := range lines {
+		if t := strings.TrimSpace(l); t != "" {
+			nonEmpty = append(nonEmpty, t)
+		}
 	}
-	return string(runes[:177]) + "..."
+	if len(nonEmpty) == 0 {
+		return "Convert the source answer into a concrete implementation follow-up."
+	}
+	result := nonEmpty[0]
+	if len(nonEmpty) > 1 {
+		combined := result + " " + nonEmpty[1]
+		if len([]rune(combined)) <= 220 {
+			result = combined
+		}
+	}
+	runes := []rune(result)
+	if len(runes) > 220 {
+		return string(runes[:217]) + "..."
+	}
+	return result
 }
 
 func buildDraftDiff(files []string) string {
@@ -373,6 +412,21 @@ func buildDraftDiff(files []string) string {
 		))
 	}
 	return strings.Join(parts, "\n\n")
+}
+
+// findTestFile returns the conventional *_test.go path for srcFile if it
+// exists under repoRoot. Returns "" if not found or repoRoot is empty.
+func findTestFile(repoRoot, srcFile string) string {
+	if strings.TrimSpace(repoRoot) == "" {
+		return ""
+	}
+	ext := filepath.Ext(srcFile)
+	base := strings.TrimSuffix(srcFile, ext)
+	candidate := filepath.Join(repoRoot, base+"_test"+ext)
+	if _, err := os.Stat(candidate); err == nil {
+		return base + "_test" + ext
+	}
+	return ""
 }
 
 func formatTestPlanMD(tp *deepschema.TestPlan) string {

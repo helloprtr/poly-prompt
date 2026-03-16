@@ -1,4 +1,5 @@
 .DS_Store
+.worktrees/
 bin/
 dist/
 coverage.out
@@ -8,3 +9,4 @@ node_modules/
 site/dist/
 site/public/media/
 output/
+.env

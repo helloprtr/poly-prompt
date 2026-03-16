@@ -222,6 +222,7 @@ FAIL
 exit status 1`
 )
 
+
 func New(deps Dependencies) *App {
 	store := deps.HistoryStore
 	if store == nil {
@@ -1140,6 +1141,7 @@ func (a *App) runTake(ctx context.Context, args []string) error {
 			entryCopy := parentEntry
 			historyRef = &entryCopy
 		}
+		_, _ = fmt.Fprintf(a.stderr, "-> take:%s --deep | %s | clipboard | running\n", command.action, target)
 		result, err := deep.ExecutePatchRun(ctx, deep.Options{
 			Action:          command.action,
 			Source:          clipboardText,
@@ -1183,7 +1185,9 @@ func (a *App) runTake(ctx context.Context, args []string) error {
 				"artifact: " + result.Run.ArtifactRoot + "/result/patch_bundle.json",
 			},
 			nextSteps: []string{
-				"review artifact or hand off",
+				"review: cat " + result.Run.ArtifactRoot + "/result/summary.md",
+				"inspect: cat " + result.Run.EventLogPath,
+				"log: prtr list",
 			},
 		}
 		return a.executePrompt(ctx, opts, result.DeliveryPrompt, "take:"+command.action)
@@ -1844,9 +1848,9 @@ func (a *App) latestHistoryEntry() (history.Entry, error) {
 func (a *App) writeCompactStatus(opts runOptions, run resolvedRun) {
 	mode := blankDefault(opts.surfaceMode, "ask")
 	inputSource := blankDefault(opts.surfaceInput, "prompt")
-	delivery := blankDefault(opts.surfaceDelivery, "copy")
 
-	parts := []string{mode, run.targetName, inputSource, delivery, run.sourceLang + "->" + run.targetLang}
+	deliveryLabel := blankDefault(opts.surfaceDelivery, run.deliveryMode)
+	parts := []string{mode, run.targetName, inputSource, deliveryLabel, run.sourceLang + "->" + run.targetLang}
 	if strings.TrimSpace(run.engine) == "deep" {
 		parts = append(parts, blankDefault(run.runStatus, string(deep.RunStatusCompleted)))
 	}
@@ -2065,6 +2069,9 @@ func parseTakeCommand(args []string) (takeCommandOptions, error) {
 	}
 	if !isSupportedTakeAction(command.action) {
 		return takeCommandOptions{}, usageError{message: fmt.Sprintf("unknown take action %q (available: patch, test, commit, summary, clarify, issue, plan)", command.action), helpText: takeHelpText()}
+	}
+	if command.deep && command.action != "patch" {
+		return takeCommandOptions{}, usageError{message: "deep execution currently supports only `take patch --deep`", helpText: takeHelpText()}
 	}
 	if command.deep && command.action != "patch" {
 		return takeCommandOptions{}, usageError{message: "deep execution currently supports only `take patch --deep`", helpText: takeHelpText()}
@@ -2861,7 +2868,7 @@ func takeHelpText() string {
 		"  - deep: build a typed execution run with artifacts, plan, and progress",
 		"",
 		"Usage:",
-		"  prtr take <action>",
+		"  prtr take <action> [--deep] [flags]",
 		"",
 		"Actions:",
 		"  patch     Turn the answer into an implementation prompt",
@@ -2872,7 +2879,7 @@ func takeHelpText() string {
 		"  issue     Turn the answer into an issue or task prompt",
 		"  plan      Turn the answer into an implementation plan prompt",
 		"",
-		"Examples:",
+		"Classic examples:",
 		"  prtr take patch",
 		"  prtr take patch --deep --dry-run",
 		"  prtr take test --to codex",
@@ -2880,6 +2887,11 @@ func takeHelpText() string {
 		"  prtr take summary --edit",
 		"  prtr take issue",
 		"  prtr take plan",
+		"",
+		"Deep execution engine examples:",
+		"  prtr take patch --deep",
+		"  prtr take patch --deep --dry-run   # write artifacts; skip opening app",
+		"  prtr take patch --deep --to claude # route delivery to Claude",
 		"",
 		"Flags:",
 		"      --to <app>        Choose the app: claude | codex | gemini",

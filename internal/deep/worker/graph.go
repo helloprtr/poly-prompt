@@ -33,6 +33,17 @@ type Graph struct {
 	reconciler Worker
 }
 
+// NewPatchGraphWith constructs a Graph with injected workers for testing.
+func NewPatchGraphWith(planner, patcher, critic, tester, reconciler Worker) *Graph {
+	return &Graph{
+		planner:    planner,
+		patcher:    patcher,
+		critic:     critic,
+		tester:     tester,
+		reconciler: reconciler,
+	}
+}
+
 // NewPatchGraph constructs a Graph wired with the default patch workers.
 func NewPatchGraph() *Graph {
 	return &Graph{

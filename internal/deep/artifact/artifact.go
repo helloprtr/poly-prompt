@@ -84,6 +84,15 @@ func (w *Writer) WriteText(rel, content string) error {
 	return nil
 }
 
+// ReadText reads the content of <root>/<rel> and returns it as a string.
+func (w *Writer) ReadText(rel string) (string, error) {
+	data, err := os.ReadFile(filepath.Join(w.Root, rel))
+	if err != nil {
+		return "", fmt.Errorf("read %s: %w", rel, err)
+	}
+	return string(data), nil
+}
+
 // Path returns the absolute path for a relative artifact reference.
 func (w *Writer) Path(rel string) string {
 	return filepath.Join(w.Root, rel)

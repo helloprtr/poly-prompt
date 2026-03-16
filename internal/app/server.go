@@ -9,6 +9,9 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/helloprtr/poly-prompt/internal/deep"
+	"github.com/helloprtr/poly-prompt/internal/repoctx"
 )
 
 // HeadlessRequest is the input to a headless AI runner.
@@ -125,6 +128,30 @@ func parseServerCommand(args []string) (serverCommandOptions, error) {
 	return cmd, nil
 }
 
+// serverDeepExecRequest is the JSON body for POST /exec/deep.
+type serverDeepExecRequest struct {
+	Source   string `json:"source"`
+	Target   string `json:"target"`
+	RepoRoot string `json:"repo_root"`
+	DryRun   bool   `json:"dry_run"`
+	// Approved must be true for the caller to acknowledge the bundle is cleared
+	// for delivery. Workers have no mutation rights; the gate lives here.
+	Approved bool `json:"approved"`
+}
+
+// serverDeepExecResponse is the JSON body returned by POST /exec/deep.
+type serverDeepExecResponse struct {
+	RunID            string   `json:"run_id"`
+	Status           string   `json:"status"`
+	ArtifactRoot     string   `json:"artifact_root"`
+	BundlePath       string   `json:"bundle_path"`
+	BundleSummary    string   `json:"bundle_summary"`
+	WarningCount     int      `json:"warning_count"`
+	Warnings         []string `json:"warnings,omitempty"`
+	ApprovalRequired bool     `json:"approval_required,omitempty"`
+	Approved         bool     `json:"approved"`
+}
+
 // serverMux builds the HTTP handler used by the server.
 func (a *App) serverMux(ctx context.Context) http.Handler {
 	mux := http.NewServeMux()
@@ -185,7 +212,78 @@ func (a *App) serverMux(ctx context.Context) http.Handler {
 		_ = json.NewEncoder(w).Encode(response)
 	})
 
-	_ = ctx // outer context available for future middleware use
+	// POST /exec/deep — run the deep patch engine and return a PatchBundle.
+	//
+	// Approval gate: workers have no mutation rights (shell, git, filesystem).
+	// The bundle is returned for review. Set "approved": true in the request to
+	// acknowledge the bundle and signal it is cleared for delivery by the caller.
+	// The server itself does not launch apps or write to the repository.
+	mux.HandleFunc("/exec/deep", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+		reqCtx := r.Context()
+
+		var req serverDeepExecRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if strings.TrimSpace(req.Source) == "" {
+			http.Error(w, "source is required", http.StatusBadRequest)
+			return
+		}
+
+		repoRoot := strings.TrimSpace(req.RepoRoot)
+		repoSummary := repoctx.Summary{}
+		if a.repoContext != nil {
+			if summary, err := a.repoContext.Collect(reqCtx); err == nil {
+				repoSummary = summary
+			}
+		}
+		protectedTerms, _ := a.resolveLearnedTerms(false)
+
+		result, err := deep.ExecutePatchRun(reqCtx, deep.Options{
+			Action:         "patch",
+			Source:         req.Source,
+			SourceKind:     "server",
+			TargetApp:      strings.TrimSpace(req.Target),
+			RepoRoot:       repoRoot,
+			ProtectedTerms: protectedTerms,
+			RepoSummary:    repoSummary,
+		})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		resp := serverDeepExecResponse{
+			RunID:            result.Run.ID,
+			Status:           string(result.Run.Status),
+			ArtifactRoot:     result.Run.ArtifactRoot,
+			BundlePath:       result.Run.ArtifactRoot + "/result/patch_bundle.json",
+			BundleSummary:    result.Bundle.Summary,
+			WarningCount:     result.Run.WarningCount,
+			Warnings:         result.Bundle.Warnings,
+			ApprovalRequired: !req.Approved,
+			Approved:         req.Approved,
+		}
+
+		// If the caller has not yet approved, return 202 so they can review the bundle.
+		if !req.Approved {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusAccepted)
+			_ = json.NewEncoder(w).Encode(resp)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+
+	_ = ctx
 	return mux
 }
 

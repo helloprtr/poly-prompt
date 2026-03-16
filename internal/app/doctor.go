@@ -20,6 +20,7 @@ type doctorSeverity string
 
 const (
 	doctorOK       doctorSeverity = "ok"
+	doctorInfo     doctorSeverity = "info"
 	doctorWarning  doctorSeverity = "warning"
 	doctorBlocking doctorSeverity = "blocking"
 )
@@ -92,9 +93,11 @@ func splitDoctorChecks(checks []doctorCheck) ([]doctorCheck, []doctorCheck) {
 		case current.Label == "project config":
 			ready = append(ready, current)
 		case current.Label == "deepl api key":
-			current.Severity = doctorWarning
-			current.Err = nil
-			current.Detail = "not configured; you can try prtr now without a key with `prtr demo` or `prtr go \"explain this error\" --dry-run`"
+			// Keep INFO as-is; downgrade WARN (blocking) to WARN; keep OK as-is.
+			if current.Severity == doctorBlocking {
+				current.Severity = doctorWarning
+				current.Err = nil
+			}
 			optional = append(optional, current)
 		case current.Label == "translation":
 			hasTranslation = true
@@ -198,7 +201,14 @@ func (a *App) buildDoctorReport(ctx context.Context, cfg config.Config) doctorRe
 	}
 
 	if apiKey == "" {
-		report.Checks = append(report.Checks, doctorCheck{Severity: doctorBlocking, Label: "deepl api key", Err: translate.ErrMissingAPIKey, Detail: "run `prtr start` or `prtr setup`, or set DEEPL_API_KEY"})
+		// When a pre-built translator is injected (e.g. in tests or native-AI mode),
+		// translation works without a DeepL key — show as INFO (optional).
+		// Otherwise show as WARN so the user knows a key is needed for translation.
+		if a.translator != nil {
+			report.Checks = append(report.Checks, doctorCheck{Severity: doctorInfo, Label: "deepl api key", Detail: "optional — AI targets handle multilingual input natively"})
+		} else {
+			report.Checks = append(report.Checks, doctorCheck{Severity: doctorWarning, Label: "deepl api key", Detail: "not configured; you can try prtr now without a key with `prtr demo` or `prtr go \"explain this error\" --dry-run`"})
+		}
 	} else {
 		report.Checks = append(report.Checks, doctorCheck{Severity: doctorOK, Label: "deepl api key", Detail: apiSource})
 	}
@@ -379,6 +389,8 @@ func (a *App) writeDoctorSection(title string, checks []doctorCheck) {
 	for _, check := range checks {
 		status := "OK  "
 		switch check.Severity {
+		case doctorInfo:
+			status = "INFO"
 		case doctorWarning:
 			status = "WARN"
 		case doctorBlocking:
