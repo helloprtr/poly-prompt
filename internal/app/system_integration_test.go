@@ -694,17 +694,12 @@ func TestSystemS5_UnsupportedDeepActionFriendlyError(t *testing.T) {
 		{
 			name:    "take_summary_deep",
 			args:    []string{"take", "summary", "--deep", "--dry-run"},
-			wantMsg: "take patch --dip",
-		},
-		{
-			name:    "take_test_deep",
-			args:    []string{"take", "test", "--deep", "--dry-run"},
-			wantMsg: "take patch --dip",
+			wantMsg: "deep execution supports",
 		},
 		{
 			name:    "take_commit_deep",
 			args:    []string{"take", "commit", "--deep", "--dry-run"},
-			wantMsg: "take patch --dip",
+			wantMsg: "deep execution supports",
 		},
 	}
 
@@ -760,6 +755,22 @@ func TestSystemS5_UnknownTakeActionFriendlyError(t *testing.T) {
 	}
 }
 
+// TestSystemS5_TestActionDeepSucceeds verifies that `take test --deep` runs
+// without error now that "test" is a supported deep action.
+func TestSystemS5_TestActionDeepSucceeds(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	app := newDeepTestApp(t, testConfig(), &stubTranslator{}, &stubClipboard{read: "Write tests for the auth handler"}, &stubEditor{},
+		history.New(filepath.Join(t.TempDir(), "history.json")), repoRoot)
+
+	err := app.Execute(context.Background(), []string{"take", "test", "--deep", "--dry-run"}, strings.NewReader(""), false)
+	if err != nil {
+		t.Fatalf("take test --deep: unexpected error: %v", err)
+	}
+}
+
+
 // TestSystemS5_EmptyHistoryForSwapAndAgain verifies that `swap` and `again`
 // return a friendly error (not a panic) when there is no history.
 func TestSystemS5_EmptyHistoryForSwapAndAgain(t *testing.T) {
@@ -813,19 +824,19 @@ func TestSystemS5_NoPanicOnMissingHistoryStore(t *testing.T) {
 	t.Parallel()
 
 	app := New(Dependencies{
-		Version:  "test",
-		Stdout:   &bytes.Buffer{},
-		Stderr:   &bytes.Buffer{},
-		Translator: &stubTranslator{output: "ok"},
-		Clipboard: &stubClipboard{},
-		Editor:   &stubEditor{},
-		Launcher: &stubLauncher{},
-		Automator: &stubAutomator{},
+		Version:         "test",
+		Stdout:          &bytes.Buffer{},
+		Stderr:          &bytes.Buffer{},
+		Translator:      &stubTranslator{output: "ok"},
+		Clipboard:       &stubClipboard{},
+		Editor:          &stubEditor{},
+		Launcher:        &stubLauncher{},
+		Automator:       &stubAutomator{},
 		SubmitConfirmer: &stubConfirmer{},
-		ConfigLoader: func() (config.Config, error) { return testConfig(), nil },
-		ConfigInit:   func() (string, error) { return "/tmp/prtr/config.toml", nil },
-		LookupEnv:    func(string) (string, bool) { return "", false },
-		HistoryStore: nil, // deliberately nil
+		ConfigLoader:    func() (config.Config, error) { return testConfig(), nil },
+		ConfigInit:      func() (string, error) { return "/tmp/prtr/config.toml", nil },
+		LookupEnv:       func(string) (string, bool) { return "", false },
+		HistoryStore:    nil, // deliberately nil
 		RepoRootFinder: func() (string, error) {
 			return "", termbook.ErrNotGitRepo
 		},

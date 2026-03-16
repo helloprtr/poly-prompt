@@ -1,0 +1,96 @@
+name: Bug report
+description: Report a reproducible problem in prtr.
+title: "[bug] "
+labels:
+  - bug
+  - needs-triage
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve `prtr`.
+
+        Please fill out every required field so maintainers can reproduce the issue quickly.
+        Security issues should not be filed here. Use private vulnerability reporting from the Security tab instead.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you submit
+      options:
+        - label: I searched existing issues and discussions first.
+          required: true
+        - label: I removed tokens, API keys, and private project details from logs and screenshots.
+          required: true
+  - type: input
+    id: version
+    attributes:
+      label: prtr version
+      description: Paste the output of `prtr version`.
+      placeholder: v0.6.2
+    validations:
+      required: true
+  - type: dropdown
+    id: install_source
+    attributes:
+      label: Install source
+      options:
+        - Homebrew
+        - GitHub release archive
+        - Built from source
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and terminal
+      description: Include OS version and the terminal app you used.
+      placeholder: macOS 15.3, iTerm2 3.5
+    validations:
+      required: true
+  - type: input
+    id: mode
+    attributes:
+      label: App and mode
+      description: Which app and mode were involved, if relevant?
+      placeholder: codex + fix
+  - type: textarea
+    id: command
+    attributes:
+      label: Command or workflow that failed
+      description: Share the exact command or loop that triggered the issue.
+      placeholder: |
+        npm test 2>&1 | prtr go fix "왜 깨지는지 정확한 원인만 찾아줘"
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      description: Provide the smallest reproducible sequence.
+      placeholder: |
+        1. Run `prtr setup`
+        2. Run `prtr go "..." --dry-run`
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs, screenshots, or extra context
+      description: Paste only the minimum needed for diagnosis and keep secrets removed.
+      render: text
+

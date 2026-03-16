@@ -195,6 +195,8 @@ type Config struct {
 	DefaultTarget         string
 	DefaultRole           string
 	DefaultTemplatePreset string
+	LLMProvider           string // "claude", "gemini", "codex", or "" for rule-based
+	LLMAPIKey             string
 	Targets               map[string]TargetConfig
 	TemplatePresets       map[string]TemplatePresetConfig
 	Roles                 map[string]RoleConfig
@@ -211,8 +213,6 @@ type Config struct {
 	TranslationSource     string
 	TranslationTarget     string
 	APIKeySource          string
-	LLMProvider           string
-	LLMAPIKey             string
 }
 
 type TargetConfig struct {
@@ -504,6 +504,18 @@ func ResolveTemplatePreset(cliPreset string, cfg Config, target TargetConfig) st
 		return preset
 	}
 	return strings.TrimSpace(target.DefaultTemplatePreset)
+}
+
+// ResolveLLMProvider resolves the LLM provider with priority:
+// CLI flag > config llm_provider > PRTR_LLM_PROVIDER env var > "".
+func ResolveLLMProvider(cliProvider string, cfg Config, envProvider string) string {
+	if p := strings.ToLower(strings.TrimSpace(cliProvider)); p != "" {
+		return p
+	}
+	if p := strings.ToLower(strings.TrimSpace(cfg.LLMProvider)); p != "" {
+		return p
+	}
+	return strings.ToLower(strings.TrimSpace(envProvider))
 }
 
 func ResolveAPIKey(envAPIKey string, cfg Config) (string, string) {

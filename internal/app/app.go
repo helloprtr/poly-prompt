@@ -1125,9 +1125,6 @@ func (a *App) runTake(ctx context.Context, args []string) error {
 	}
 
 	if command.deep {
-		if command.action != "patch" {
-			return fmt.Errorf("deep execution only supports `take patch` right now")
-		}
 		deepCfg, err := a.configLoader()
 		if err != nil {
 			return err
@@ -1147,6 +1144,13 @@ func (a *App) runTake(ctx context.Context, args []string) error {
 			entryCopy := parentEntry
 			historyRef = &entryCopy
 		}
+
+		// Resolve LLM provider: --llm flag > config llm_provider > PRTR_LLM_PROVIDER env.
+		cfg, _ := a.configLoader()
+		envLLMProvider, _ := a.lookupEnv("PRTR_LLM_PROVIDER")
+		llmProvider := config.ResolveLLMProvider(command.llmProvider, cfg, envLLMProvider)
+
+
 		_, _ = fmt.Fprintf(a.stderr, "-> take:%s --deep | %s | clipboard | running\n", command.action, target)
 		result, err := deep.ExecutePatchRun(ctx, deep.Options{
 			Action:          command.action,
@@ -1166,6 +1170,12 @@ func (a *App) runTake(ctx context.Context, args []string) error {
 		})
 		if err != nil {
 			return err
+		}
+
+		if result.LLMEnhanced {
+			_, _ = fmt.Fprintf(a.stderr, "   prompt: enhanced for %s\n", llmProvider)
+		} else {
+			_, _ = fmt.Fprintf(a.stderr, "   prompt: rule-based (use --llm=claude|gemini|codex or set llm_provider in config)\n")
 		}
 
 		opts := runOptions{
@@ -2081,10 +2091,10 @@ func parseTakeCommand(args []string) (takeCommandOptions, error) {
 		return takeCommandOptions{}, usageError{message: "take requires an action such as patch, test, commit, summary, issue, or plan", helpText: takeHelpText()}
 	}
 	if !isSupportedTakeAction(command.action) {
-		return takeCommandOptions{}, usageError{message: fmt.Sprintf("unknown take action %q (available: patch, test, commit, summary, clarify, issue, plan)", command.action), helpText: takeHelpText()}
+		return takeCommandOptions{}, usageError{message: fmt.Sprintf("unknown take action %q (available: patch, test, commit, summary, clarify, issue, plan, debug, refactor)", command.action), helpText: takeHelpText()}
 	}
-	if command.deep && command.action != "patch" {
-		return takeCommandOptions{}, usageError{message: "deep execution currently supports only `take patch --dip`", helpText: takeHelpText()}
+	if command.deep && !isSupportedDeepAction(command.action) {
+		return takeCommandOptions{}, usageError{message: fmt.Sprintf("deep execution supports: patch, test, debug, refactor; got %q", command.action), helpText: takeHelpText()}
 	}
 
 	return command, nil
@@ -2880,9 +2890,11 @@ func takeHelpText() string {
 		"Usage:",
 		"  prtr take <action> [--dip] [flags]",
 		"",
-		"Actions:",
+		"Classic actions (all support --deep for patch/test/debug/refactor):",
 		"  patch     Turn the answer into an implementation prompt",
 		"  test      Turn the answer into a testing prompt",
+		"  debug     Turn the answer into a debugging prompt",
+		"  refactor  Turn the answer into a refactoring prompt",
 		"  commit    Turn the answer into a commit message prompt",
 		"  summary   Turn the answer into a short reusable summary prompt",
 		"  clarify   Turn the answer into a clarification prompt",
@@ -2913,7 +2925,7 @@ func takeHelpText() string {
 		"      --llm=<provider> Enable LLM enhancement with explicit provider",
 		"      --edit            Review and edit before sending",
 		"      --dry-run         Show the final prompt without opening any app",
-		"                       Deep mode still writes plan and artifact files locally",
+		"                        Deep mode still writes plan and artifact files locally",
 		"  -h, --help            Help for take",
 	}, "\n")
 }
@@ -2975,9 +2987,18 @@ func inspectHelpText() string {
 	}, "\n")
 }
 
+func isSupportedDeepAction(action string) bool {
+	switch normalizeTakeAction(action) {
+	case "patch", "test", "debug", "refactor":
+		return true
+	default:
+		return false
+	}
+}
+
 func isSupportedTakeAction(action string) bool {
 	switch normalizeTakeAction(action) {
-	case "patch", "test", "commit", "summary", "clarify", "issue", "plan":
+	case "patch", "test", "commit", "summary", "clarify", "issue", "plan", "debug", "refactor":
 		return true
 	default:
 		return false
@@ -3005,6 +3026,10 @@ func takePrompt(action, clipboardText string) string {
 		goal = "Turn the material below into a prompt that produces a clean issue or task description with summary, context, acceptance criteria, and open questions."
 	case "plan":
 		goal = "Turn the material below into a prompt that produces a step-by-step implementation plan with risks, dependencies, file areas, and validation steps."
+	case "debug":
+		goal = "Turn the material below into a debugging prompt. Ask for root cause identification, a minimal reproduction, and a targeted fix with verification steps."
+	case "refactor":
+		goal = "Turn the material below into a refactoring prompt. Ask for a safe, scoped refactor with rollback strategy and test coverage plan."
 	default:
 		goal = "Turn the material below into the next useful prompt."
 	}

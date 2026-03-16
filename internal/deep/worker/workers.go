@@ -20,8 +20,21 @@ import (
 
 type plannerWorker struct{}
 
-func (plannerWorker) Name() string        { return "planner" }
-func (plannerWorker) HardBlocker() bool   { return true }
+func (plannerWorker) Name() string      { return "planner" }
+func (plannerWorker) HardBlocker() bool { return true }
+
+func planSummaryFor(action string) string {
+	switch action {
+	case "test":
+		return "Plan, draft test cases, review coverage risks, verify, package TestBundle."
+	case "debug":
+		return "Plan, identify root cause, draft fix, verify, package DebugBundle."
+	case "refactor":
+		return "Plan, draft refactor scope, review safety, define rollback, package RefactorBundle."
+	default:
+		return "Plan the follow-up, draft the patch, critique the risk, draft tests, and package a single PatchBundle."
+	}
+}
 
 func (plannerWorker) Run(ctx context.Context, s *State) error {
 	todos := []deepplan.TodoItem{
@@ -33,30 +46,30 @@ func (plannerWorker) Run(ctx context.Context, s *State) error {
 		},
 		{
 			ID: "patch", Title: "Draft the patch bundle", Worker: "patcher",
-			Status:    deepplan.TodoPending,
-			DependsOn: []string{"plan"},
-			InputRefs: []string{"source.md", "plan.json", "evidence/git.diff"},
+			Status:     deepplan.TodoPending,
+			DependsOn:  []string{"plan"},
+			InputRefs:  []string{"source.md", "plan.json", "evidence/git.diff"},
 			OutputRefs: []string{"workers/patcher/result.json", "result/patch.diff"},
 		},
 		{
 			ID: "critique", Title: "Review the draft for risks", Worker: "critic",
-			Status:    deepplan.TodoPending,
-			DependsOn: []string{"patch"},
-			InputRefs: []string{"workers/patcher/result.json"},
+			Status:     deepplan.TodoPending,
+			DependsOn:  []string{"patch"},
+			InputRefs:  []string{"workers/patcher/result.json"},
 			OutputRefs: []string{"workers/critic/result.json"},
 		},
 		{
 			ID: "tests", Title: "Draft the verification plan", Worker: "tester",
-			Status:    deepplan.TodoPending,
-			DependsOn: []string{"patch"},
-			InputRefs: []string{"workers/patcher/result.json", "evidence/memory.json"},
+			Status:     deepplan.TodoPending,
+			DependsOn:  []string{"patch"},
+			InputRefs:  []string{"workers/patcher/result.json", "evidence/memory.json"},
 			OutputRefs: []string{"workers/tester/result.json", "result/tests.md"},
 		},
 		{
 			ID: "reconcile", Title: "Package the final PatchBundle", Worker: "reconciler",
-			Status:    deepplan.TodoPending,
-			DependsOn: []string{"critique", "tests"},
-			InputRefs: []string{"workers/patcher/result.json", "workers/critic/result.json", "workers/tester/result.json"},
+			Status:     deepplan.TodoPending,
+			DependsOn:  []string{"critique", "tests"},
+			InputRefs:  []string{"workers/patcher/result.json", "workers/critic/result.json", "workers/tester/result.json"},
 			OutputRefs: []string{"workers/reconciler/result.json", "result/patch_bundle.json"},
 		},
 	}
@@ -69,9 +82,9 @@ func (plannerWorker) Run(ctx context.Context, s *State) error {
 	}
 	plan := &deepplan.WorkPlan{
 		Version:      1,
-		Action:       "patch",
+		Action:       s.Opts.Action,
 		ResultType:   "PatchBundle",
-		Summary:      "Plan the follow-up, draft the patch, critique the risk, draft tests, and package a single PatchBundle.",
+		Summary:      planSummaryFor(s.Opts.Action),
 		EvidenceRefs: []string{"source.md", "evidence/repo_context.json", "evidence/history.json", "evidence/memory.json", "evidence/git.diff"},
 		Todos:        todos,
 		WorkerGraph:  graph,
@@ -81,7 +94,7 @@ func (plannerWorker) Run(ctx context.Context, s *State) error {
 		return fmt.Errorf("persist plan: %w", err)
 	}
 	if err := writeWorkerRequest(s, "planner", map[string]any{
-		"source":       "source.md",
+		"source":        "source.md",
 		"evidence_refs": []string{"evidence/repo_context.json", "evidence/history.json", "evidence/memory.json"},
 	}); err != nil {
 		return err
@@ -145,8 +158,8 @@ func (patcherWorker) Run(ctx context.Context, s *State) error {
 		return fmt.Errorf("write patch.diff: %w", err)
 	}
 	if err := writeWorkerRequest(s, "patcher", map[string]any{
-		"source":       "source.md",
-		"plan":         "plan.json",
+		"source":        "source.md",
+		"plan":          "plan.json",
 		"evidence_refs": []string{"evidence/repo_context.json", "evidence/history.json", "evidence/memory.json", "evidence/git.diff"},
 	}); err != nil {
 		return err
@@ -170,29 +183,7 @@ func (criticWorker) Run(ctx context.Context, s *State) error {
 		return fmt.Errorf("patch draft not available")
 	}
 
-	risks := []deepschema.RiskItem{
-		{
-			Title:      "Behavior drift",
-			Severity:   "high",
-			Detail:     "The follow-up may change behavior beyond the user's requested fix if the source answer mixed diagnosis and implementation.",
-			Confidence: "medium",
-		},
-		{
-			Title:      "Local context mismatch",
-			Severity:   "medium",
-			Detail:     "The suggested change may not align with the current repository state, especially if the clipboard answer was produced against an older checkout.",
-			Confidence: "medium",
-		},
-		{
-			Title:      "Test gap",
-			Severity:   "medium",
-			Detail:     "The patch may look plausible without adding a regression check for the user-visible failure path.",
-			Confidence: "high",
-		},
-	}
-	if len(s.Files) > 0 && s.Files[0] != "<inspect-changed-files>" {
-		risks[1].Detail = "Review the existing logic in " + s.Files[0] + " before applying broad changes."
-	}
+	risks := detectSourceRisks(s.Opts.Source, s.Files)
 
 	missing := []string{
 		"Confirm the exact file and symbol names before editing.",
@@ -219,6 +210,106 @@ func (criticWorker) Run(ctx context.Context, s *State) error {
 	return writeWorkerResult(s, "critic", report)
 }
 
+// detectSourceRisks maps source keywords to relevant RiskItems.
+func detectSourceRisks(source string, files []string) []deepschema.RiskItem {
+	src := strings.ToLower(source)
+	var risks []deepschema.RiskItem
+
+	type rule struct {
+		keywords []string
+		title    string
+		severity string
+		detail   string
+	}
+	rules := []rule{
+		{
+			keywords: []string{"migration", "schema", "alter table"},
+			title:    "Schema Migration Risk",
+			severity: "high",
+			detail:   "Schema or migration changes can cause data loss or incompatibility if not applied carefully.",
+		},
+		{
+			keywords: []string{"auth", "login", "token", "jwt", "session"},
+			title:    "Auth Regression Risk",
+			severity: "high",
+			detail:   "Auth changes affect security paths — verify no permission bypass introduced.",
+		},
+		{
+			keywords: []string{"api", "endpoint", "rest", "handler", "route"},
+			title:    "API Contract Risk",
+			severity: "high",
+			detail:   "API changes may break callers — check backwards compatibility.",
+		},
+		{
+			keywords: []string{"goroutine", "mutex", "race", "concurrent"},
+			title:    "Concurrency Risk",
+			severity: "high",
+			detail:   "Concurrent code changes can introduce data races — run with -race flag.",
+		},
+		{
+			keywords: []string{"delete", "remove", "drop", "purge"},
+			title:    "Destructive Operation Risk",
+			severity: "medium",
+			detail:   "Destructive operations are hard to reverse — confirm backups or dry-run first.",
+		},
+		{
+			keywords: []string{"env", "config", "secret", "credential"},
+			title:    "Config/Secret Exposure Risk",
+			severity: "medium",
+			detail:   "Config or secret changes can leak sensitive values — audit carefully.",
+		},
+		{
+			keywords: []string{"cache", "redis", "invalidat"},
+			title:    "Cache Invalidation Risk",
+			severity: "medium",
+			detail:   "Cache changes may serve stale data — verify invalidation logic.",
+		},
+	}
+
+	for _, r := range rules {
+		for _, kw := range r.keywords {
+			if strings.Contains(src, kw) {
+				risks = append(risks, deepschema.RiskItem{
+					Title:      r.title,
+					Severity:   r.severity,
+					Detail:     r.detail,
+					Confidence: "medium",
+				})
+				break
+			}
+		}
+	}
+
+	if len(risks) == 0 {
+		risks = append(risks, deepschema.RiskItem{
+			Title:      "Behavior Drift",
+			Severity:   "high",
+			Detail:     "The follow-up may change behavior beyond the user's requested fix if the source answer mixed diagnosis and implementation.",
+			Confidence: "medium",
+		})
+	}
+
+	if len(files) > 0 && files[0] != "<inspect-changed-files>" {
+		risks = append(risks, deepschema.RiskItem{
+			Title:      "Local Context Risk",
+			Severity:   "medium",
+			Detail:     "Review the existing logic in " + files[0] + " before applying broad changes.",
+			Confidence: "medium",
+		})
+	}
+
+	if !strings.Contains(src, "test") && !strings.Contains(src, "spec") && !strings.Contains(src, "regression") {
+		risks = append(risks, deepschema.RiskItem{
+			Title:      "Test Gap Risk",
+			Severity:   "medium",
+			Detail:     "The patch may look plausible without adding a regression check for the user-visible failure path.",
+			Confidence: "high",
+		})
+	}
+
+	return risks
+}
+
 // ---------------------------------------------------------------------------
 // testerWorker — soft blocker
 // Inputs:  PatchDraft (s.Patch), testing norms from evidence/memory.json
@@ -235,33 +326,12 @@ func (testerWorker) Run(ctx context.Context, s *State) error {
 		return fmt.Errorf("patch draft not available")
 	}
 
-	cases := []string{
-		"Add or update one regression test that covers the primary failure path described in the source material.",
-		"Verify the happy path still passes after the change.",
-	}
-	if len(s.Files) > 0 && s.Files[0] != "<inspect-changed-files>" {
-		primary := s.Files[0]
-		testFile := findTestFile(s.Opts.RepoRoot, primary)
-		if testFile != "" {
-			cases = append(cases,
-				fmt.Sprintf("Add a regression test in %s that covers the primary failure path.", testFile))
-		} else {
-			cases = append(cases,
-				fmt.Sprintf("Cover the behavior around %s with the narrowest useful scope.", primary))
-		}
-	}
+	cases := buildTestCases(s.Opts.Source, s.Files, s.Opts.RepoRoot)
 
 	tp := &deepschema.TestPlan{
-		TestCases: cases,
-		EdgeCases: []string{
-			"Empty or nil inputs that were mentioned or implied by the original issue.",
-			"Boundary cases around existing conditionals, parsing, or branching logic.",
-		},
-		VerificationSteps: []string{
-			"Run the smallest targeted test command first.",
-			"Re-run the original failing command if one was mentioned.",
-			"Review logs or output formatting for regressions after the patch.",
-		},
+		TestCases:         cases,
+		EdgeCases:         buildEdgeCases(s.Opts.Source),
+		VerificationSteps: buildVerificationSteps(s.Opts.Source),
 	}
 	s.Tests = tp
 
@@ -275,6 +345,99 @@ func (testerWorker) Run(ctx context.Context, s *State) error {
 		return err
 	}
 	return writeWorkerResult(s, "tester", tp)
+}
+
+// buildTestCases generates targeted test cases based on source keywords.
+func buildTestCases(source string, files []string, repoRoot string) []string {
+	src := strings.ToLower(source)
+	cases := []string{
+		"Add or update one regression test that covers the primary failure path described in the source material.",
+		"Verify the happy path still passes after the change.",
+	}
+
+	type rule struct {
+		keywords []string
+		testCase string
+	}
+	rules := []rule{
+		{
+			keywords: []string{"nil", "null", "pointer", "panic"},
+			testCase: "Add a test that passes nil/zero-value input and asserts no panic.",
+		},
+		{
+			keywords: []string{"error", "err", "failure"},
+			testCase: "Add a test that forces the error path and asserts non-nil error with useful message.",
+		},
+		{
+			keywords: []string{"timeout", "deadline", "context"},
+			testCase: "Add a test that cancels context early and verifies clean exit.",
+		},
+		{
+			keywords: []string{"auth", "token", "permission"},
+			testCase: "Add a test with invalid credential and verify proper auth rejection.",
+		},
+		{
+			keywords: []string{"loop", "range", "slice", "array"},
+			testCase: "Add a test with empty and single-element collection for off-by-one.",
+		},
+		{
+			keywords: []string{"goroutine", "race", "parallel"},
+			testCase: "Run under `go test -race` and verify no data races.",
+		},
+	}
+
+	for _, r := range rules {
+		for _, kw := range r.keywords {
+			if strings.Contains(src, kw) {
+				cases = append(cases, r.testCase)
+				break
+			}
+		}
+	}
+
+	if len(files) > 0 && files[0] != "<inspect-changed-files>" {
+		primary := files[0]
+		testFile := findTestFile(repoRoot, primary)
+		if testFile != "" {
+			cases = append(cases,
+				fmt.Sprintf("Add a regression test in %s that covers the primary failure path.", testFile))
+		} else {
+			cases = append(cases,
+				fmt.Sprintf("Cover the behavior around %s with the narrowest useful scope.", primary))
+		}
+	}
+
+	return cases
+}
+
+// buildEdgeCases generates edge cases based on source keywords.
+func buildEdgeCases(source string) []string {
+	src := strings.ToLower(source)
+	cases := []string{
+		"Empty or nil inputs that were mentioned or implied by the original issue.",
+		"Boundary cases around existing conditionals, parsing, or branching logic.",
+	}
+	if strings.Contains(src, "concurrent") || strings.Contains(src, "race") || strings.Contains(src, "goroutine") {
+		cases = append(cases, "Concurrent access with multiple goroutines calling the changed code simultaneously.")
+	}
+	if strings.Contains(src, "timeout") || strings.Contains(src, "deadline") {
+		cases = append(cases, "Zero and negative timeout durations.")
+	}
+	return cases
+}
+
+// buildVerificationSteps generates verification steps based on source keywords.
+func buildVerificationSteps(source string) []string {
+	src := strings.ToLower(source)
+	steps := []string{
+		"Run the smallest targeted test command first.",
+		"Re-run the original failing command if one was mentioned.",
+		"Review logs or output formatting for regressions after the patch.",
+	}
+	if strings.Contains(src, "race") || strings.Contains(src, "goroutine") || strings.Contains(src, "concurrent") {
+		steps = append(steps, "Run with `go test -race ./...` to detect data races.")
+	}
+	return steps
 }
 
 // ---------------------------------------------------------------------------

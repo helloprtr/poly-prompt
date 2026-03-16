@@ -1,0 +1,329 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+const basePath = import.meta.env.BASE_URL.endsWith("/")
+  ? import.meta.env.BASE_URL
+  : `${import.meta.env.BASE_URL}/`;
+
+const guides = [
+  {
+    eyebrow: "전체 사용 설명서",
+    title: "사용 설명서",
+    text: "설치부터 take --deep 파이프라인, LLM 프로바이더 설정, 히스토리, 문제 해결까지 전체 흐름을 다룹니다.",
+    href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/guide.ko.md",
+    linkLabel: "docs/guide.ko.md 읽기",
+    keywords: ["설명서", "설치", "deep", "llm", "take", "패치", "파이프라인", "설정"],
+  },
+  {
+    eyebrow: "시작하기",
+    title: "설치 가이드",
+    text: "macOS, Linux, Windows 각 플랫폼별 설치 및 업데이트 방법을 안내합니다.",
+    href: "https://github.com/helloprtr/poly-prompt/blob/main/INSTALLATION.md",
+    linkLabel: "INSTALLATION.md 읽기",
+    keywords: ["설치", "설정", "brew", "windows", "linux", "macos"],
+  },
+  {
+    eyebrow: "명령어 레퍼런스",
+    title: "명령어 레퍼런스",
+    text: "모든 명령어의 플래그 표: go, swap, take, learn, inspect, setup, doctor, history.",
+    href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/reference.md",
+    linkLabel: "docs/reference.md 읽기",
+    keywords: ["레퍼런스", "플래그", "명령어", "옵션", "take", "deep", "llm"],
+  },
+  {
+    eyebrow: "영문 가이드",
+    title: "User Guide (English)",
+    text: "Complete walkthrough: installation, the core loop, take --deep pipeline, LLM provider formatting, config, history, and troubleshooting.",
+    href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/guide.md",
+    linkLabel: "Read docs/guide.md",
+    keywords: ["guide", "english", "영어", "manual", "deep", "llm", "take", "patch", "pipeline"],
+  },
+];
+
+const references = [
+  {
+    title: "README",
+    text: "제품 개요 및 신규 사용자를 위한 빠른 시작 경로.",
+    href: "https://github.com/helloprtr/poly-prompt#readme",
+    keywords: ["개요", "readme", "소개", "빠른 시작"],
+  },
+  {
+    title: "Changelog",
+    text: "버전별 제품 변경 이력: 초기 정체성 확립부터 반복 가능한 워크플로까지.",
+    href: "https://github.com/helloprtr/poly-prompt/blob/main/CHANGELOG.md",
+    keywords: ["changelog", "릴리스", "타임라인", "버전"],
+  },
+  {
+    title: "Releases",
+    text: "GitHub에서 설치 가능한 바이너리 및 태그별 릴리스 이력.",
+    href: "https://github.com/helloprtr/poly-prompt/releases",
+    keywords: ["릴리스", "다운로드", "바이너리", "버전"],
+  },
+  {
+    title: "Source",
+    text: "구현 세부 사항이나 현재 프로젝트 상태를 확인할 때 저장소를 직접 탐색하세요.",
+    href: "https://github.com/helloprtr/poly-prompt",
+    keywords: ["소스", "저장소", "github", "코드"],
+  },
+];
+
+const coreLoop = [
+  "go 첫 번째 요청을 빠르게 전송합니다.",
+  "swap 동일한 요청을 다른 AI 앱으로 재전송합니다.",
+  "take 답변을 다음 액션으로 변환합니다.",
+  "again 최근 흐름을 다시 실행합니다.",
+  "learn 프로젝트 용어를 번역 중에도 보호합니다.",
+  "inspect 라우팅 경로가 어떻게 구성됐는지 보여줍니다.",
+  "take --deep 다섯 개 워커 패치 파이프라인을 실행합니다.",
+  "take --llm=claude Claude XML 형식에 맞게 프롬프트를 최적화합니다.",
+];
+
+const finderItems = [
+  ...guides.map((guide) => ({
+    section: "가이드",
+    title: guide.title,
+    text: guide.text,
+    href: guide.href,
+    linkLabel: guide.linkLabel,
+    keywords: guide.keywords.join(" "),
+  })),
+  ...references.map((reference) => ({
+    section: "참고 자료",
+    title: reference.title,
+    text: reference.text,
+    href: reference.href,
+    linkLabel: `${reference.title.toLowerCase()} 열기`,
+    keywords: reference.keywords.join(" "),
+  })),
+];
+
+const quickQueries = [
+  "설치",
+  "go",
+  "take",
+  "deep",
+  "llm",
+  "설정",
+];
+
+const navSections = [
+  { id: "finder", label: "검색" },
+  { id: "guides", label: "가이드" },
+  { id: "references", label: "참고 자료" },
+];
+---
+
+<BaseLayout
+  title="문서 허브"
+  description="prtr 설치, 사용법, 워크플로 라우팅, 데모 자료, 릴리스 이력을 위한 한국어 문서 허브."
+>
+  <main class="page-shell">
+    <header class="topbar">
+      <a class="brand" href={`${basePath}`} aria-label="prtr 홈">
+        <span class="brand-mark">prtr</span>
+        <span class="brand-copy">문서 허브</span>
+      </a>
+      <nav class="topnav" aria-label="Primary">
+        <a href={`${basePath}`}>홈</a>
+        <a href="#guides">가이드</a>
+        <a href="#references">참고 자료</a>
+        <a href={`${basePath}docs/`}>English</a>
+        <a href="https://github.com/helloprtr/poly-prompt">GitHub</a>
+      </nav>
+    </header>
+
+    <section class="hero hero-docs">
+      <div class="hero-copy">
+        <p class="eyebrow">AI 작업을 위한 명령 레이어.</p>
+        <h1>루프에 필요한 모든 것, 한 곳에.</h1>
+        <p class="hero-text">
+          설치 단계, 워크플로 라우팅 참고 자료, 릴리스 컨텍스트를 한 곳에서 확인할 때
+          이 페이지를 문서 입구로 사용하세요.
+        </p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="https://github.com/helloprtr/poly-prompt#try-it-in-60-seconds">60초 경로 시작하기</a>
+          <a class="button button-secondary" href="https://github.com/helloprtr/poly-prompt/blob/main/docs/guide.ko.md">사용 설명서 읽기</a>
+          <a class="button button-ghost" href={`${basePath}`}>홈으로 돌아가기</a>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-dot"></span>
+          <span class="panel-dot"></span>
+          <span class="panel-dot"></span>
+          <span class="panel-title">docs-map.md</span>
+        </div>
+        <div class="panel-body">
+          <p class="panel-caption">로그와 의도에서 다음 AI 액션으로.</p>
+          <ul class="doc-bullets">
+            {coreLoop.map((item) => (
+              <li>{item}</li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-tight">
+      <div class="dock-shell">
+        <nav class="dock-links" aria-label="문서 카테고리">
+          {navSections.map((section) => (
+            <a class="dock-link" href={`#${section.id}`}>{section.label}</a>
+          ))}
+        </nav>
+        <div class="dock-tags" aria-label="검색 태그">
+          {quickQueries.map((query) => (
+            <button class="finder-chip dock-chip" type="button" data-query={query}>
+              {query}
+            </button>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="finder">
+      <div class="section-heading">
+        <p class="eyebrow">빠른 검색</p>
+        <h2>작업, 명령어, 또는 워크플로 키워드로 문서 허브 검색</h2>
+        <p>
+          하려는 작업을 입력하거나 빠른 검색어를 사용하세요. 아래 카드가 즉시 필터링되어
+          문서 허브가 정적 링크 목록이 아닌 명령 팔레트처럼 느껴집니다.
+        </p>
+      </div>
+
+      <div class="finder-shell">
+        <label class="finder-label" for="docs-search">문서 검색</label>
+        <input
+          id="docs-search"
+          class="finder-input"
+          type="search"
+          placeholder="설치, go, take, deep, llm, 설정 등을 입력해보세요..."
+        />
+        <p class="finder-note">공유 링크는 현재 검색어를 `?q=` URL 쿼리로 보존합니다.</p>
+        <div class="finder-chips" aria-label="빠른 검색어">
+          {quickQueries.map((query) => (
+            <button class="finder-chip" type="button" data-query={query}>
+              {query}
+            </button>
+          ))}
+        </div>
+
+        <div class="docs-grid finder-grid" id="finder-results">
+          {finderItems.map((item) => (
+            <article
+              class="doc-card finder-card"
+              data-search={`${item.section} ${item.title} ${item.text} ${item.keywords}`.toLowerCase()}
+            >
+              <p class="eyebrow">{item.section}</p>
+              <h3>{item.title}</h3>
+              <p>{item.text}</p>
+              <a class="doc-link" href={item.href}>{item.linkLabel}</a>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="guides">
+      <div class="section-heading">
+        <p class="eyebrow">가이드</p>
+        <h2>파고들지 않고 시작하고, 배우고, 라우팅하기</h2>
+        <p>
+          평가에서 일상 사용으로 전환할 때 대부분의 사람들이 가장 먼저 필요로 하는 문서들입니다.
+        </p>
+      </div>
+
+      <div class="docs-grid">
+        {guides.map((guide) => (
+          <article class="doc-card">
+            <p class="eyebrow">{guide.eyebrow}</p>
+            <h3>{guide.title}</h3>
+            <p>{guide.text}</p>
+            <a class="doc-link" href={guide.href}>{guide.linkLabel}</a>
+          </article>
+        ))}
+      </div>
+    </section>
+
+    <section class="section" id="references">
+      <div class="section-heading">
+        <p class="eyebrow">참고 자료</p>
+        <h2>가까이 두면 좋은 저장소 링크들</h2>
+        <p>
+          이 링크들은 문서 허브를 릴리스 커뮤니케이션, 소스, 그리고 핵심 내러티브로 연결합니다.
+        </p>
+      </div>
+
+      <div class="docs-grid docs-grid-compact">
+        {references.map((reference) => (
+          <article class="doc-card">
+            <h3>{reference.title}</h3>
+            <p>{reference.text}</p>
+            <a class="doc-link" href={reference.href}>{reference.title.toLowerCase()} 열기</a>
+          </article>
+        ))}
+      </div>
+    </section>
+  </main>
+
+  <script is:inline>
+    const input = document.querySelector("#docs-search");
+    const cards = Array.from(document.querySelectorAll(".finder-card"));
+    const chips = Array.from(document.querySelectorAll(".finder-chip"));
+    const queryParam = "q";
+
+    const syncUrl = (query) => {
+      const url = new URL(window.location.href);
+
+      if (query) {
+        url.searchParams.set(queryParam, query);
+      } else {
+        url.searchParams.delete(queryParam);
+      }
+
+      window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+    };
+
+    const applyQuery = (rawValue, options = {}) => {
+      const { sync = true } = options;
+      const query = rawValue.trim().toLowerCase();
+
+      cards.forEach((card) => {
+        const haystack = card.dataset.search || "";
+        const visible = !query || haystack.includes(query);
+        card.toggleAttribute("hidden", !visible);
+      });
+
+      chips.forEach((chip) => {
+        const active = chip.dataset.query === query;
+        chip.dataset.active = active ? "true" : "false";
+      });
+
+      if (sync) {
+        syncUrl(query);
+      }
+    };
+
+    input?.addEventListener("input", (event) => {
+      applyQuery(event.currentTarget.value);
+    });
+
+    chips.forEach((chip) => {
+      chip.addEventListener("click", () => {
+        if (!input) return;
+        input.value = chip.dataset.query || "";
+        applyQuery(input.value);
+        input.focus();
+      });
+    });
+
+    const initialQuery = new URL(window.location.href).searchParams.get(queryParam) || "";
+
+    if (input) {
+      input.value = initialQuery;
+    }
+
+    applyQuery(initialQuery, { sync: false });
+  </script>
+</BaseLayout>

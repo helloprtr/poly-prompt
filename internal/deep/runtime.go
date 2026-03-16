@@ -101,8 +101,11 @@ func executePatchRunWithGraph(
 	graphFactory func() *worker.Graph,
 	llmFactory func(provider, apiKey string) (llm.Enhancer, error),
 ) (Result, error) {
-	if strings.TrimSpace(opts.Action) != "patch" {
-		return Result{}, fmt.Errorf("deep execution only supports patch right now")
+	switch strings.TrimSpace(opts.Action) {
+	case "patch", "test", "debug", "refactor":
+		// supported
+	default:
+		return Result{}, fmt.Errorf("deep execution supports: patch, test, debug, refactor; got %q", opts.Action)
 	}
 
 	now := time.Now().UTC()
@@ -121,10 +124,10 @@ func executePatchRunWithGraph(
 	run := Run{
 		ID:              runID,
 		Version:         1,
-		Action:          "patch",
+		Action:          strings.TrimSpace(opts.Action),
 		Engine:          "deep",
 		Status:          RunStatusCreated,
-		ResultType:      "PatchBundle",
+		ResultType:      resultTypeFor(opts.Action),
 		TargetApp:       strings.TrimSpace(opts.TargetApp),
 		DeliveryMode:    strings.TrimSpace(opts.DeliveryMode),
 		SourceKind:      strings.TrimSpace(opts.SourceKind),
@@ -286,7 +289,8 @@ func executePatchRunWithGraph(
 		return Result{}, err
 	}
 
-	deliveryPrompt := buildDeliveryPrompt(run.Plan, bundle, opts.Source)
+	deliveryPrompt := buildDeliveryPrompt(run.Plan, bundle, opts.Source, opts.LLMProvider)
+	llmEnhanced := false
 	if opts.LLMProvider != "" && opts.LLMAPIKey != "" {
 		enhancer, err := llmFactory(opts.LLMProvider, opts.LLMAPIKey)
 		if err != nil {
@@ -301,13 +305,17 @@ func executePatchRunWithGraph(
 			})
 		} else {
 			deliveryPrompt = enriched
+			llmEnhanced = true
 		}
+	} else if opts.LLMProvider != "" {
+		llmEnhanced = true
 	}
 
 	return Result{
 		Run:            run,
 		Bundle:         bundle,
 		DeliveryPrompt: deliveryPrompt,
+		LLMEnhanced:    llmEnhanced,
 	}, nil
 }
 
@@ -315,44 +323,241 @@ func executePatchRunWithGraph(
 // Formatting helpers (used only by runtime.go)
 // ---------------------------------------------------------------------------
 
-func buildDeliveryPrompt(plan WorkPlan, bundle PatchBundle, source string) string {
+func buildDeliveryPrompt(plan WorkPlan, bundle PatchBundle, source, provider string) string {
+	switch provider {
+	case "claude":
+		return buildClaudePrompt(plan, bundle, source)
+	case "gemini":
+		return buildGeminiPrompt(plan, bundle, source)
+	case "codex":
+		return buildCodexPrompt(plan, bundle, source)
+	default:
+		return buildUniversalPrompt(plan, bundle, source)
+	}
+}
+
+func buildClaudePrompt(plan WorkPlan, bundle PatchBundle, source string) string {
+	topRisk := topRiskLine(bundle.Risks)
+	firstTest := firstTestCase(bundle.TestPlan.TestCases)
 	lines := []string{
-		"Turn the structured patch bundle below into concrete repository changes.",
-		"Focus on the smallest safe implementation that matches the source material.",
+		"<role>",
+		"You are an expert software engineer implementing a precise code change.",
+		"Apply the structured patch bundle below as-is — do not expand scope.",
+		"</role>",
 		"",
-		"Output expectations:",
-		"1. Start with a short implementation summary.",
-		"2. List the files to inspect or edit first.",
-		"3. Describe the concrete code changes by file.",
-		"4. Call out the top risks and how to validate them.",
-		"5. Finish with targeted tests and verification steps.",
+		"<context>",
+		"<source_intent>",
+		strings.TrimSpace(source),
+		"</source_intent>",
+		"<patch_bundle>",
+		"  <summary>" + bundle.Summary + "</summary>",
+		"  <touched_files>",
+	}
+	for _, f := range bundle.TouchedFiles {
+		lines = append(lines, "    <file>"+f+"</file>")
+	}
+	lines = append(lines,
+		"  </touched_files>",
+		"  <diff>"+bundle.Diff+"</diff>",
+		"</patch_bundle>",
+		"<plan>"+plan.Summary+"</plan>",
+		"</context>",
 		"",
-		"Source material:",
+		"<task>",
+		"Apply the patch bundle to the repository.",
+		"For each file in touched_files:",
+		"  1. Read the current implementation.",
+		"  2. Apply only the change described — do not refactor unrelated code.",
+		"  3. Confirm the change compiles and matches the source intent.",
+		"</task>",
+		"",
+		"<risks>",
+		topRisk,
+		"</risks>",
+		"",
+		"<constraints>",
+		"<constraint>Which exact file and symbol should receive the first edit?</constraint>",
+		"- Do not rename protected terms.",
+		"- Do not change behavior outside the stated scope.",
+		"</constraints>",
+		"",
+		"<validation>",
+		"<test_cases>",
+		"  <test>"+firstTest+"</test>",
+		"</test_cases>",
+		"<verification_steps>",
+		"  <step>Run the smallest targeted test command first.</step>",
+		"</verification_steps>",
+		"</validation>",
+	)
+	if len(bundle.Warnings) > 0 {
+		lines = append(lines, "", "<warnings>", formatBullets(bundle.Warnings), "</warnings>")
+	}
+	return strings.Join(lines, "\n")
+}
+
+func buildGeminiPrompt(plan WorkPlan, bundle PatchBundle, source string) string {
+	lines := []string{
+		"## Role",
+		"You are an expert software engineer implementing a precise code change.",
+		"",
+		"## Source Intent",
 		strings.TrimSpace(source),
 		"",
-		"Patch plan:",
-		plan.Summary,
-		"",
-		"Patch draft summary:",
-		bundle.Summary,
-		"",
-		"Touched files:",
+		"## Patch Bundle",
+		"**Summary:** " + bundle.Summary,
+		"**Files to modify:**",
 		formatBullets(bundle.TouchedFiles),
 		"",
-		"Risks:",
+		"**Diff context:**",
+		bundle.Diff,
+		"",
+		"## Plan",
+		plan.Summary,
+		"",
+		"## Task",
+		"Apply the patch bundle file by file:",
+		"1. Read the current implementation of each touched file.",
+		"2. Apply only the described change — do not refactor unrelated code.",
+		"3. Confirm the change compiles and matches the source intent.",
+		"",
+		"## Risks",
 		formatRiskBullets(bundle.Risks),
 		"",
-		"Test plan:",
+		"## Validation",
+		"**Test cases:**",
 		formatBullets(bundle.TestPlan.TestCases),
 		"",
-		"Edge cases:",
-		formatBullets(bundle.TestPlan.EdgeCases),
-		"",
-		"Verification steps:",
-		formatBullets(bundle.TestPlan.VerificationSteps),
+		"**Verification steps:**",
+		formatNumberedList(bundle.TestPlan.VerificationSteps),
 	}
 	if len(bundle.Warnings) > 0 {
-		lines = append(lines, "", "Warnings:", formatBullets(bundle.Warnings))
+		lines = append(lines, "", "## Warnings", formatBullets(bundle.Warnings))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func buildCodexPrompt(plan WorkPlan, bundle PatchBundle, source string) string {
+	lines := []string{
+		"You are implementing a code change. Follow these instructions precisely.",
+		"",
+		"**Source intent:** " + strings.TrimSpace(source),
+		"",
+		"**Plan:** " + plan.Summary,
+		"",
+		"**Summary:** " + bundle.Summary,
+		"",
+		"**Files to modify:**",
+	}
+	for i, f := range bundle.TouchedFiles {
+		lines = append(lines, fmt.Sprintf("%d. %s", i+1, f))
+	}
+	lines = append(lines,
+		"",
+		"**Diff context:**",
+		"```diff",
+		bundle.Diff,
+		"```",
+		"",
+		"**Instructions:**",
+		"1. Apply only the change described above.",
+		"2. Do not modify unrelated code.",
+		"3. Validate the change compiles and passes tests.",
+		"",
+		"**Risks:**",
+		formatRiskBullets(bundle.Risks),
+		"",
+		"**Test cases:**",
+		formatBullets(bundle.TestPlan.TestCases),
+		"",
+		"**Verify:** Run targeted tests after applying changes.",
+	)
+	if len(bundle.Warnings) > 0 {
+		lines = append(lines, "", "**Warnings:**", formatBullets(bundle.Warnings))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func buildUniversalPrompt(plan WorkPlan, bundle PatchBundle, source string) string {
+	lines := []string{
+		"## Goal",
+		"Apply the following patch bundle precisely as described.",
+		"",
+		"## Source Intent",
+		strings.TrimSpace(source),
+		"",
+		"## Patch Bundle Summary",
+		bundle.Summary,
+		"",
+		"## Plan",
+		plan.Summary,
+		"",
+		"## Files to Modify",
+		formatBullets(bundle.TouchedFiles),
+		"",
+		"## Key Risks",
+		formatRiskBullets(bundle.Risks),
+		"",
+		"## Implementation Steps",
+		"1. Read the current implementation of each file listed above.",
+		"2. Apply only the described change — do not refactor unrelated code.",
+		"3. Confirm the change compiles and matches the source intent.",
+		"",
+		"## Tests Required",
+		formatBullets(bundle.TestPlan.TestCases),
+		"",
+		"## Edge Cases",
+		formatBullets(bundle.TestPlan.EdgeCases),
+		"",
+		"## Verify",
+		formatNumberedList(bundle.TestPlan.VerificationSteps),
+	}
+	if len(bundle.Warnings) > 0 {
+		lines = append(lines, "", "## Warnings", formatBullets(bundle.Warnings))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func resultTypeFor(action string) string {
+	switch strings.TrimSpace(action) {
+	case "test":
+		return "TestBundle"
+	case "debug":
+		return "DebugBundle"
+	case "refactor":
+		return "RefactorBundle"
+	default:
+		return "PatchBundle"
+	}
+}
+
+func topRiskLine(risks []RiskItem) string {
+	if len(risks) == 0 {
+		return `<risk severity="medium">Behavior Drift: verify no scope expansion.</risk>`
+	}
+	r := risks[0]
+	return fmt.Sprintf(`<risk severity=%q>%s: %s</risk>`, strings.ToLower(r.Severity), r.Title, r.Detail)
+}
+
+func firstTestCase(cases []string) string {
+	if len(cases) == 0 {
+		return "Add a regression test covering the primary failure path."
+	}
+	return cases[0]
+}
+
+func formatNumberedList(values []string) string {
+	if len(values) == 0 {
+		return "1. Run the targeted test command."
+	}
+	lines := make([]string, 0, len(values))
+	for i, v := range values {
+		if t := strings.TrimSpace(v); t != "" {
+			lines = append(lines, fmt.Sprintf("%d. %s", i+1, t))
+		}
+	}
+	if len(lines) == 0 {
+		return "1. Run the targeted test command."
 	}
 	return strings.Join(lines, "\n")
 }

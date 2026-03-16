@@ -13,13 +13,13 @@ import (
 type Status string
 
 const (
-	StatusCreated              Status = "created"
-	StatusPlanning             Status = "planning"
-	StatusRunning              Status = "running"
-	StatusAwaitingApproval     Status = "awaiting_approval"
-	StatusCompleted            Status = "completed"
+	StatusCreated               Status = "created"
+	StatusPlanning              Status = "planning"
+	StatusRunning               Status = "running"
+	StatusAwaitingApproval      Status = "awaiting_approval"
+	StatusCompleted             Status = "completed"
 	StatusCompletedWithWarnings Status = "completed_with_warnings"
-	StatusFailed               Status = "failed"
+	StatusFailed                Status = "failed"
 )
 
 // DeepRun is the canonical in-memory and on-disk record for a single deep execution.
@@ -66,7 +66,7 @@ type Options struct {
 	ProtectedTerms  []string
 	HistoryEntry    *history.Entry
 	RepoSummary     repoctx.Summary
-	LLMProvider     string
+	LLMProvider     string // "claude", "gemini", "codex", or "" for rule-based
 	LLMAPIKey       string
 	Progress        func(Progress)
 }
@@ -76,4 +76,5 @@ type Result struct {
 	Run            DeepRun
 	Bundle         schema.PatchBundle
 	DeliveryPrompt string
+	LLMEnhanced    bool
 }
