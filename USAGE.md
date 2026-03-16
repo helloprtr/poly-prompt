@@ -4,6 +4,7 @@
 
 This guide focuses on the current public surface:
 
+- `prtr start`
 - `prtr go`
 - `prtr again`
 - `prtr swap`
@@ -15,6 +16,7 @@ Advanced template, role, profile, and history commands are still available, but 
 
 The current working loop is:
 
+- `start` for the first successful send
 - `go` for the first send
 - `swap` for model comparison
 - `take` for next-action prompting
@@ -29,13 +31,26 @@ Check the installed binary:
 prtr version
 ```
 
-Run guided setup:
+Run the beginner-first entry:
+
+```bash
+prtr start
+```
+
+`start` handles the first successful send:
+
+- minimal onboarding when needed
+- `doctor` before the first send
+- a first request prompt if you do not pass one
+- the same delivery flow as `go`
+
+Use `setup` when you want the full advanced defaults flow instead:
 
 ```bash
 prtr setup
 ```
 
-`setup` asks for:
+`setup` still asks for:
 
 - DeepL API key
 - default input language
@@ -50,7 +65,7 @@ If you only want to adjust language defaults later:
 prtr lang
 ```
 
-Run diagnostics after setup:
+Run diagnostics directly at any time:
 
 ```bash
 prtr doctor
@@ -65,7 +80,15 @@ prtr doctor
 - launcher readiness
 - automation readiness for desktop paste support
 
-## 2. The fastest path: `prtr go`
+`doctor` now also prints a platform matrix summary and supports:
+
+```bash
+prtr doctor --fix
+```
+
+`--fix` applies safe automatic fixes when possible, such as creating or resetting the user config, then prints fallback suggestions for anything it cannot repair automatically.
+
+## 2. The fastest path after start: `prtr go`
 
 Send a request in your own language:
 

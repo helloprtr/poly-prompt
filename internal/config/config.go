@@ -368,6 +368,20 @@ func Init() (string, error) {
 	return path, nil
 }
 
+func Reset() (string, error) {
+	path, err := Path()
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return "", fmt.Errorf("create config directory: %w", err)
+	}
+	if err := os.WriteFile(path, []byte(starterConfig), 0o644); err != nil {
+		return "", fmt.Errorf("write config: %w", err)
+	}
+	return path, nil
+}
+
 func SaveDefaults(update DefaultsUpdate) (string, error) {
 	path, err := Path()
 	if err != nil {

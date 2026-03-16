@@ -114,6 +114,12 @@ type goCommandOptions struct {
 	prompt    []string
 }
 
+type startCommandOptions struct {
+	app    string
+	dryRun bool
+	prompt []string
+}
+
 type replayCommandOptions struct {
 	app       string
 	edit      bool
@@ -239,7 +245,7 @@ func (a *App) shouldRunRootDirect(args []string) bool {
 	}
 
 	switch first {
-	case "init", "version", "setup", "lang", "doctor", "templates", "profiles", "history", "rerun", "pin", "favorite", "go", "again", "swap", "take", "learn", "inspect":
+	case "init", "version", "start", "setup", "lang", "doctor", "templates", "profiles", "history", "rerun", "pin", "favorite", "go", "again", "swap", "take", "learn", "inspect":
 		return false
 	}
 
@@ -266,6 +272,214 @@ func (a *App) runVersion() error {
 	}
 
 	_, _ = fmt.Fprintln(a.stdout, version)
+	return nil
+}
+
+func (a *App) runStart(ctx context.Context, args []string, stdin io.Reader, stdinPiped bool) error {
+	command, err := parseStartCommand(args)
+	if err != nil {
+		return err
+	}
+
+	cfg, err := a.configLoader()
+	if err != nil {
+		return err
+	}
+
+	envAPIKey, _ := a.lookupEnv("DEEPL_API_KEY")
+	currentAPIKey, _ := config.ResolveAPIKey(envAPIKey, cfg)
+	reader := bufio.NewReader(stdin)
+
+	if startNeedsOnboarding(cfg, currentAPIKey) {
+		if stdinPiped {
+			return errors.New("prtr start requires an interactive terminal when onboarding is needed; rerun without piped stdin or use `prtr setup` first")
+		}
+		if err := a.runStartOnboarding(reader, cfg, currentAPIKey); err != nil {
+			return err
+		}
+		cfg, err = a.configLoader()
+		if err != nil {
+			return err
+		}
+	}
+
+	_, _ = fmt.Fprintln(a.stdout, "running prtr doctor before the first send...")
+	if err := a.runDoctorForStart(ctx, command.dryRun); err != nil {
+		return err
+	}
+
+	goArgs := make([]string, 0, len(command.prompt)+3)
+	if command.app != "" {
+		goArgs = append(goArgs, "--to", command.app)
+	}
+	if command.dryRun {
+		goArgs = append(goArgs, "--dry-run")
+	}
+
+	startReader := stdin
+	startStdinPiped := stdinPiped
+	switch {
+	case len(command.prompt) > 0:
+		goArgs = append(goArgs, command.prompt...)
+		startReader = strings.NewReader("")
+		startStdinPiped = false
+	case !stdinPiped:
+		_, _ = fmt.Fprintln(a.stdout, "")
+		firstPrompt, err := promptInput(reader, a.stdout, "First request [default: 이 함수 왜 느린지 설명해줘]")
+		if err != nil {
+			return err
+		}
+		firstPrompt = strings.TrimSpace(firstPrompt)
+		if firstPrompt == "" {
+			firstPrompt = "이 함수 왜 느린지 설명해줘"
+		}
+		goArgs = append(goArgs, firstPrompt)
+		startReader = strings.NewReader("")
+		startStdinPiped = false
+	}
+
+	if err := a.runGo(ctx, goArgs, startReader, startStdinPiped); err != nil {
+		return err
+	}
+
+	_, _ = fmt.Fprintln(a.stdout, "")
+	_, _ = fmt.Fprintln(a.stdout, "next actions:")
+	_, _ = fmt.Fprintln(a.stdout, "  prtr swap <app>")
+	_, _ = fmt.Fprintln(a.stdout, "  prtr take patch")
+	_, _ = fmt.Fprintln(a.stdout, "  prtr again")
+	_, _ = fmt.Fprintln(a.stdout, "  prtr learn")
+	return nil
+}
+
+func startNeedsOnboarding(cfg config.Config, currentAPIKey string) bool {
+	if !cfg.HasUserConfig {
+		return true
+	}
+	if strings.TrimSpace(currentAPIKey) == "" {
+		return true
+	}
+	if strings.TrimSpace(cfg.TranslationSourceLang) == "" {
+		return true
+	}
+	if strings.TrimSpace(cfg.TranslationTargetLang) == "" {
+		return true
+	}
+	if strings.TrimSpace(config.ResolveTarget("", cfg, "")) == "" {
+		return true
+	}
+	return false
+}
+
+func (a *App) runDoctorForStart(ctx context.Context, dryRun bool) error {
+	cfg, err := a.configLoader()
+	if err != nil {
+		return err
+	}
+
+	report := a.buildDoctorReport(ctx, cfg)
+	a.writeDoctorSection("Platform matrix", report.Platform)
+	a.writeDoctorSection("Checks", report.Checks)
+
+	failures := 0
+	for _, check := range append(append([]doctorCheck{}, report.Platform...), report.Checks...) {
+		if check.Severity != doctorBlocking {
+			continue
+		}
+		if dryRun && startAllowsDryRunBlockingCheck(check.Label) {
+			continue
+		}
+		failures++
+	}
+	if failures > 0 {
+		return fmt.Errorf("doctor found %d issue(s)", failures)
+	}
+	return nil
+}
+
+func startAllowsDryRunBlockingCheck(label string) bool {
+	switch {
+	case label == "user config":
+		return true
+	case label == "clipboard":
+		return true
+	case label == "launcher surface":
+		return true
+	case label == "paste surface":
+		return true
+	case strings.HasPrefix(label, "launcher "):
+		return true
+	case strings.HasPrefix(label, "automation "):
+		return true
+	default:
+		return false
+	}
+}
+
+func (a *App) runStartOnboarding(reader *bufio.Reader, cfg config.Config, currentAPIKey string) error {
+	currentTarget := config.ResolveTarget("", cfg, "")
+	currentSourceLang := cfg.TranslationSourceLang
+	if currentSourceLang == "" {
+		currentSourceLang = "auto"
+	}
+	currentTargetLang := cfg.TranslationTargetLang
+	if currentTargetLang == "" {
+		currentTargetLang = "en"
+	}
+
+	_, _ = fmt.Fprintln(a.stdout, "prtr start")
+	_, _ = fmt.Fprintln(a.stdout, "Let's get your first send ready. Press Enter to keep the current value.")
+
+	apiPrompt := "DeepL API key"
+	if currentAPIKey != "" {
+		apiPrompt += " [configured]"
+	}
+	apiValue, err := promptInput(reader, a.stdout, apiPrompt)
+	if err != nil {
+		return err
+	}
+
+	sourceLangValue, err := promptLanguage(reader, a.stdout, "Default input language", []languageOption{
+		{Label: "auto", Value: "auto", Description: "automatic detection"},
+		{Label: "ko", Value: "ko", Description: "Korean"},
+		{Label: "ja", Value: "ja", Description: "Japanese"},
+		{Label: "zh", Value: "zh", Description: "Chinese"},
+		{Label: "en", Value: "en", Description: "English"},
+	}, currentSourceLang, true)
+	if err != nil {
+		return err
+	}
+
+	targetLangValue, err := promptLanguage(reader, a.stdout, "Default output language", []languageOption{
+		{Label: "en", Value: "en", Description: "English"},
+		{Label: "ja", Value: "ja", Description: "Japanese"},
+		{Label: "zh", Value: "zh", Description: "Chinese"},
+		{Label: "de", Value: "de", Description: "German"},
+		{Label: "fr", Value: "fr", Description: "French"},
+	}, currentTargetLang, false)
+	if err != nil {
+		return err
+	}
+
+	targetValue, err := promptChoice(reader, a.stdout, "Default app", config.AvailableTargets(cfg), currentTarget, false)
+	if err != nil {
+		return err
+	}
+
+	update := config.DefaultsUpdate{
+		TranslationSourceLang: stringPtr(sourceLangValue),
+		TranslationTargetLang: stringPtr(targetLangValue),
+		DefaultTarget:         stringPtr(targetValue),
+	}
+	if strings.TrimSpace(apiValue) != "" {
+		update.APIKey = stringPtr(apiValue)
+	}
+
+	path, err := config.SaveDefaults(update)
+	if err != nil {
+		return err
+	}
+
+	_, _ = fmt.Fprintf(a.stdout, "\nupdated config at %s\n", path)
 	return nil
 }
 
@@ -392,119 +606,6 @@ func (a *App) runLang(stdin io.Reader) error {
 	}
 
 	_, _ = fmt.Fprintf(a.stdout, "updated language defaults in %s\n", path)
-	return nil
-}
-
-func (a *App) runDoctor(ctx context.Context) error {
-	cfg, err := a.configLoader()
-	if err != nil {
-		return err
-	}
-
-	failures := 0
-	writeCheck := func(label string, err error, detail string) {
-		if errors.Is(err, launcher.ErrUnsupportedPlatform) || errors.Is(err, automation.ErrUnsupportedPlatform) {
-			_, _ = fmt.Fprintf(a.stdout, "OK   %s: unsupported on this platform\n", label)
-			return
-		}
-		if err != nil {
-			failures++
-			_, _ = fmt.Fprintf(a.stdout, "FAIL %s: %v\n", label, err)
-			return
-		}
-		if strings.TrimSpace(detail) != "" {
-			_, _ = fmt.Fprintf(a.stdout, "OK   %s: %s\n", label, detail)
-			return
-		}
-		_, _ = fmt.Fprintf(a.stdout, "OK   %s\n", label)
-	}
-	writeWarn := func(label, detail string) {
-		_, _ = fmt.Fprintf(a.stdout, "WARN %s: %s\n", label, detail)
-	}
-
-	if cfg.HasUserConfig {
-		writeCheck("user config", nil, cfg.UserPath)
-	} else {
-		writeCheck("user config", errors.New("not found"), "run `prtr init` or `prtr setup`")
-	}
-	if cfg.HasProjectConfig {
-		writeCheck("project config", nil, cfg.ProjectPath)
-	} else {
-		writeCheck("project config", nil, "not found")
-	}
-
-	envAPIKey, _ := a.lookupEnv("DEEPL_API_KEY")
-	apiKey, apiSource := config.ResolveAPIKey(envAPIKey, cfg)
-	if apiKey == "" {
-		writeCheck("deepl api key", translate.ErrMissingAPIKey, "set DEEPL_API_KEY or run `prtr setup`")
-	} else {
-		writeCheck("deepl api key", nil, apiSource)
-	}
-
-	if diagnoser, ok := a.clipboard.(clipboard.Diagnoser); ok {
-		writeCheck("clipboard", diagnoser.Diagnose(), "")
-	} else {
-		writeCheck("clipboard", nil, "diagnostic unavailable")
-	}
-
-	writeCheck("targets", validateTargetDefaults(cfg), "")
-	writeCheck("template presets", validateTemplatePresets(cfg), fmt.Sprintf("%d presets", len(cfg.TemplatePresets)))
-	writeCheck("profiles", validateProfiles(cfg), fmt.Sprintf("%d profiles", len(cfg.Profiles)))
-	writeCheck("shortcuts", validateShortcuts(cfg), fmt.Sprintf("%d shortcuts", len(cfg.Shortcuts)))
-	writeCheck("launchers", validateLaunchers(cfg), fmt.Sprintf("%d launchers", len(cfg.Launchers)))
-
-	if apiKey != "" {
-		translator := a.resolveTranslator(apiKey)
-		if translator == nil {
-			writeCheck("translation", errors.New("translator is not configured"), "")
-		} else {
-			_, err := translator.Translate(ctx, translate.Request{Text: "안녕하세요", SourceLang: cfg.TranslationSourceLang, TargetLang: cfg.TranslationTargetLang})
-			writeCheck("translation", err, "")
-		}
-	}
-
-	for _, targetName := range []string{"claude", "codex", "gemini"} {
-		launcherCfg := cfg.Launchers[targetName]
-		if strings.TrimSpace(launcherCfg.Command) == "" {
-			writeCheck("launcher "+targetName, errors.New("not configured"), "")
-			continue
-		}
-		if a.launcher == nil {
-			writeCheck("launcher "+targetName, errors.New("launcher is not configured"), "")
-			continue
-		}
-		req := launcher.Request{
-			Command: launcherCfg.Command,
-			Args:    launcherCfg.Args,
-		}
-		detail := launcherCfg.Command
-		if description, err := a.launcher.Describe(req); err == nil && strings.TrimSpace(description) != "" {
-			detail = fmt.Sprintf("%s via %s", launcherCfg.Command, description)
-		}
-		writeCheck("launcher "+targetName, a.launcher.Diagnose(req), detail)
-		if launcherCfg.SubmitMode == string(automation.SubmitAuto) {
-			writeWarn("launcher "+targetName+" submit mode", "auto is not supported yet; use manual or confirm")
-		}
-		if a.automator == nil {
-			writeCheck("automation "+targetName, errors.New("automator is not configured"), "")
-			continue
-		}
-		autoReq := automation.Request{
-			Target:      targetName,
-			TerminalApp: "Terminal",
-			PasteDelay:  time.Duration(maxInt(0, launcherCfg.PasteDelayMS)) * time.Millisecond,
-			SubmitMode:  automation.SubmitMode(blankDefault(launcherCfg.SubmitMode, string(automation.SubmitManual))),
-		}
-		autoDetail := fmt.Sprintf("delay=%dms", launcherCfg.PasteDelayMS)
-		if description, err := a.automator.Describe(autoReq); err == nil && strings.TrimSpace(description) != "" {
-			autoDetail = fmt.Sprintf("%s delay=%dms", description, launcherCfg.PasteDelayMS)
-		}
-		writeCheck("automation "+targetName, a.automator.Diagnose(autoReq), autoDetail)
-	}
-
-	if failures > 0 {
-		return fmt.Errorf("doctor found %d issue(s)", failures)
-	}
 	return nil
 }
 
@@ -1599,6 +1700,39 @@ func parseGoCommand(args []string, builtInShortcuts map[string]bool) (goCommandO
 	return command, nil
 }
 
+func parseStartCommand(args []string) (startCommandOptions, error) {
+	command := startCommandOptions{}
+
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		switch {
+		case arg == "--dry-run":
+			command.dryRun = true
+		case arg == "--to" || arg == "--app" || arg == "--target" || arg == "-t":
+			i++
+			if i >= len(args) {
+				return startCommandOptions{}, usageError{message: fmt.Sprintf("%s requires a value", arg), helpText: startHelpText()}
+			}
+			command.app = strings.TrimSpace(args[i])
+		case strings.HasPrefix(arg, "--to="):
+			command.app = strings.TrimSpace(strings.TrimPrefix(arg, "--to="))
+		case strings.HasPrefix(arg, "--app="):
+			command.app = strings.TrimSpace(strings.TrimPrefix(arg, "--app="))
+		case strings.HasPrefix(arg, "--target="):
+			command.app = strings.TrimSpace(strings.TrimPrefix(arg, "--target="))
+		case arg == "--":
+			command.prompt = append(command.prompt, args[i+1:]...)
+			return command, nil
+		case strings.HasPrefix(arg, "-"):
+			return startCommandOptions{}, usageError{message: fmt.Sprintf("unknown start flag %q", arg), helpText: startHelpText()}
+		default:
+			command.prompt = append(command.prompt, arg)
+		}
+	}
+
+	return command, nil
+}
+
 func parseReplayCommand(args []string, requireApp bool) (replayCommandOptions, error) {
 	command := replayCommandOptions{}
 
@@ -1685,10 +1819,10 @@ func parseTakeCommand(args []string) (takeCommandOptions, error) {
 	}
 
 	if command.action == "" {
-		return takeCommandOptions{}, usageError{message: "take requires an action such as patch, test, commit, or summary", helpText: takeHelpText()}
+		return takeCommandOptions{}, usageError{message: "take requires an action such as patch, test, commit, summary, issue, or plan", helpText: takeHelpText()}
 	}
 	if !isSupportedTakeAction(command.action) {
-		return takeCommandOptions{}, usageError{message: fmt.Sprintf("unknown take action %q (available: patch, test, commit, summary)", command.action), helpText: takeHelpText()}
+		return takeCommandOptions{}, usageError{message: fmt.Sprintf("unknown take action %q (available: patch, test, commit, summary, clarify, issue, plan)", command.action), helpText: takeHelpText()}
 	}
 
 	return command, nil
@@ -2220,12 +2354,14 @@ func usageText() string {
 
 func rootHelpText() string {
 	return strings.Join([]string{
-		"Translate intent into the next AI action.",
+		"prtr is the beginner-first AI command layer that turns user intent into the next action for Claude, Codex, or Gemini.",
 		"",
-		"prtr is a cross-platform CLI that translates your request to English,",
-		"adds helpful context, and routes it to Claude, Codex, or Gemini.",
+		"Write in your language. Ship the next action.",
 		"",
 		"Start with:",
+		"  prtr start",
+		"",
+		"Or jump straight to:",
 		`  prtr go "이 에러 원인 분석해줘"`,
 		"",
 		"Then keep moving with:",
@@ -2236,6 +2372,7 @@ func rootHelpText() string {
 		"  prtr inspect",
 		"",
 		"Usage:",
+		"  prtr start [message...]",
 		"  prtr go [mode] [message...]",
 		"  prtr swap <app>",
 		"  prtr take <action>",
@@ -2243,8 +2380,7 @@ func rootHelpText() string {
 		"  prtr again",
 		"  prtr inspect [message...]",
 		"  prtr history [search <query>]",
-		"  prtr setup",
-		"  prtr doctor",
+		"  prtr doctor [--fix]",
 		"  prtr version",
 		"",
 		"Compatibility aliases:",
@@ -2259,8 +2395,75 @@ func rootHelpText() string {
 		"  prtr rerun <id> [flags]",
 		"  prtr pin <id>",
 		"  prtr favorite <id>",
+		"  prtr setup",
 		"  prtr lang",
 		"  prtr init",
+	}, "\n")
+}
+
+func setupHelpText() string {
+	return strings.Join([]string{
+		"Run the advanced guided setup flow.",
+		"",
+		"`prtr setup` is the compatibility path for people who want the full",
+		"interactive defaults flow instead of the smaller first-run path in `start`.",
+		"",
+		"What `setup` asks for:",
+		"  - DeepL API key",
+		"  - default input language",
+		"  - default output language",
+		"  - default app",
+		"  - default role",
+		"  - default template preset",
+	}, "\n")
+}
+
+func doctorHelpText() string {
+	return strings.Join([]string{
+		"Run environment and configuration diagnostics.",
+		"",
+		"`prtr doctor` checks config, translation readiness, clipboard support,",
+		"launchers, automation, and the current platform matrix.",
+		"",
+		"Usage:",
+		"  prtr doctor",
+		"  prtr doctor --fix",
+		"",
+		"`--fix` applies safe automatic fixes when possible, then prints fallback",
+		"suggestions for anything it cannot repair automatically.",
+	}, "\n")
+}
+
+func startHelpText() string {
+	return strings.Join([]string{
+		"Run the beginner-first first-send flow.",
+		"",
+		"`prtr start` helps you get from setup to a real first send with as little",
+		"friction as possible.",
+		"",
+		"What `start` does:",
+		"  1. Prompts for minimal onboarding settings when needed",
+		"  2. Runs `prtr doctor` before the first send",
+		"  3. Asks for a first request if you do not pass one",
+		"  4. Sends the request through the same flow as `prtr go`",
+		"",
+		"Usage:",
+		"  prtr start [message...]",
+		"",
+		"Examples:",
+		"  prtr start",
+		`  prtr start "이 함수 왜 느린지 설명해줘"`,
+		`  prtr start --to codex "왜 테스트가 깨지는지 찾아줘"`,
+		"  prtr start --dry-run",
+		"",
+		"Flags:",
+		"      --to <app>        Choose the app: claude | codex | gemini",
+		"      --dry-run         Show the first-send prompt without opening any app",
+		"  -h, --help            Help for start",
+		"",
+		"Advanced setup:",
+		"  Use `prtr setup` when you want the full configuration flow for role,",
+		"  template preset, and other advanced defaults.",
 	}, "\n")
 }
 
@@ -2391,12 +2594,17 @@ func takeHelpText() string {
 		"  test      Turn the answer into a testing prompt",
 		"  commit    Turn the answer into a commit message prompt",
 		"  summary   Turn the answer into a short reusable summary prompt",
+		"  clarify   Turn the answer into a clarification prompt",
+		"  issue     Turn the answer into an issue or task prompt",
+		"  plan      Turn the answer into an implementation plan prompt",
 		"",
 		"Examples:",
 		"  prtr take patch",
 		"  prtr take test --to codex",
 		"  prtr take commit --dry-run",
 		"  prtr take summary --edit",
+		"  prtr take issue",
+		"  prtr take plan",
 		"",
 		"Flags:",
 		"      --to <app>        Choose the app: claude | codex | gemini",
@@ -2465,7 +2673,7 @@ func inspectHelpText() string {
 
 func isSupportedTakeAction(action string) bool {
 	switch normalizeTakeAction(action) {
-	case "patch", "test", "commit", "summary":
+	case "patch", "test", "commit", "summary", "clarify", "issue", "plan":
 		return true
 	default:
 		return false
@@ -2487,6 +2695,12 @@ func takePrompt(action, clipboardText string) string {
 		goal = "Turn the material below into a prompt that produces a single concise commit message. Ask for one strong commit message only."
 	case "summary":
 		goal = "Turn the material below into a prompt that produces a short reusable summary. Keep it compact and easy to share."
+	case "clarify":
+		goal = "Turn the material below into a prompt that asks for a clearer explanation. Request plain language, assumptions, and a couple of concrete examples."
+	case "issue":
+		goal = "Turn the material below into a prompt that produces a clean issue or task description with summary, context, acceptance criteria, and open questions."
+	case "plan":
+		goal = "Turn the material below into a prompt that produces a step-by-step implementation plan with risks, dependencies, file areas, and validation steps."
 	default:
 		goal = "Turn the material below into the next useful prompt."
 	}

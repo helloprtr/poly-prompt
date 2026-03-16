@@ -277,7 +277,7 @@ func TestExecuteRootHelp(t *testing.T) {
 	if err := app.Execute(context.Background(), []string{"--help"}, strings.NewReader(""), false); err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
-	if !strings.Contains(stdout.String(), "Translate intent into the next AI action.") {
+	if !strings.Contains(stdout.String(), "beginner-first AI command layer") {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), `prtr go [mode] [message...]`) {
@@ -298,6 +298,23 @@ func TestExecuteGoHelp(t *testing.T) {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "If you pipe text and also pass a message, the piped text becomes evidence.") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
+func TestExecuteStartHelp(t *testing.T) {
+	t.Parallel()
+
+	app := newTestApp(t, testConfig(), &stubTranslator{}, &stubClipboard{}, &stubEditor{}, history.New(filepath.Join(t.TempDir(), "history.json")))
+	stdout, _ := buffersFromApp(app)
+
+	if err := app.Execute(context.Background(), []string{"start", "--help"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "prtr start [message...]") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "Use `prtr setup` when you want the full configuration flow") {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
 }
@@ -554,6 +571,193 @@ func TestExecuteGoNoContextSkipsRepoContext(t *testing.T) {
 	}
 	if len(translator.gotInput.ProtectedTerms) != 0 {
 		t.Fatalf("ProtectedTerms = %v", translator.gotInput.ProtectedTerms)
+	}
+}
+
+func TestExecuteStartOnboardsAndRunsGo(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tempDir)
+
+	translator := &stubTranslator{output: "Translated prompt"}
+	app := New(Dependencies{
+		Version:         "test",
+		Stdout:          &bytes.Buffer{},
+		Stderr:          &bytes.Buffer{},
+		Translator:      translator,
+		Clipboard:       &stubClipboard{},
+		Editor:          &stubEditor{},
+		Launcher:        &stubLauncher{desc: "Terminal.app"},
+		Automator:       &stubAutomator{desc: "Terminal.app"},
+		SubmitConfirmer: &stubConfirmer{},
+		ConfigLoader:    config.Load,
+		ConfigInit:      config.Init,
+		LookupEnv:       func(string) (string, bool) { return "", false },
+		HistoryStore:    history.New(filepath.Join(t.TempDir(), "history.json")),
+		RepoContext:     &stubRepoContext{},
+		RepoRootFinder: func() (string, error) {
+			return "", termbook.ErrNotGitRepo
+		},
+		TermbookLoader: func(string) (termbook.Book, error) {
+			return termbook.Book{}, os.ErrNotExist
+		},
+	})
+	stdout, _ := buffersFromApp(app)
+
+	input := strings.NewReader("saved-key\nko\nen\ncodex\n")
+	if err := app.Execute(context.Background(), []string{"start", "--dry-run", "이 함수 왜 느린지 설명해줘"}, input, false); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.DefaultTarget != "codex" {
+		t.Fatalf("DefaultTarget = %q", cfg.DefaultTarget)
+	}
+	if translator.gotInput.Text != "이 함수 왜 느린지 설명해줘" {
+		t.Fatalf("translate input = %q", translator.gotInput.Text)
+	}
+	if !strings.Contains(stdout.String(), "updated config at") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "next actions:") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
+func TestExecuteStartUsesDefaultFirstPromptWhenBlank(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tempDir)
+
+	translator := &stubTranslator{output: "Translated prompt"}
+	app := New(Dependencies{
+		Version:         "test",
+		Stdout:          &bytes.Buffer{},
+		Stderr:          &bytes.Buffer{},
+		Translator:      translator,
+		Clipboard:       &stubClipboard{},
+		Editor:          &stubEditor{},
+		Launcher:        &stubLauncher{desc: "Terminal.app"},
+		Automator:       &stubAutomator{desc: "Terminal.app"},
+		SubmitConfirmer: &stubConfirmer{},
+		ConfigLoader:    config.Load,
+		ConfigInit:      config.Init,
+		LookupEnv:       func(string) (string, bool) { return "", false },
+		HistoryStore:    history.New(filepath.Join(t.TempDir(), "history.json")),
+		RepoContext:     &stubRepoContext{},
+		RepoRootFinder: func() (string, error) {
+			return "", termbook.ErrNotGitRepo
+		},
+		TermbookLoader: func(string) (termbook.Book, error) {
+			return termbook.Book{}, os.ErrNotExist
+		},
+	})
+
+	input := strings.NewReader("saved-key\nko\nen\nclaude\n\n")
+	if err := app.Execute(context.Background(), []string{"start", "--dry-run"}, input, false); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if translator.gotInput.Text != "이 함수 왜 느린지 설명해줘" {
+		t.Fatalf("translate input = %q", translator.gotInput.Text)
+	}
+}
+
+func TestExecuteStartWithEnvKeyStillOnboardsWhenUserConfigIsMissing(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tempDir)
+
+	translator := &stubTranslator{output: "Translated prompt"}
+	app := New(Dependencies{
+		Version:         "test",
+		Stdout:          &bytes.Buffer{},
+		Stderr:          &bytes.Buffer{},
+		Translator:      translator,
+		Clipboard:       &stubClipboard{},
+		Editor:          &stubEditor{},
+		Launcher:        &stubLauncher{desc: "Terminal.app"},
+		Automator:       &stubAutomator{diagErr: errors.New("paste unavailable")},
+		SubmitConfirmer: &stubConfirmer{},
+		ConfigLoader:    config.Load,
+		ConfigInit:      config.Init,
+		LookupEnv: func(key string) (string, bool) {
+			if key == "DEEPL_API_KEY" {
+				return "env-key", true
+			}
+			return "", false
+		},
+		HistoryStore: history.New(filepath.Join(t.TempDir(), "history.json")),
+	})
+
+	input := strings.NewReader("\nko\nen\ncodex\n")
+	if err := app.Execute(context.Background(), []string{"start", "--dry-run", "이 함수 왜 느린지 설명해줘"}, input, false); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if !cfg.HasUserConfig {
+		t.Fatalf("HasUserConfig = false")
+	}
+}
+
+func TestExecuteStartRejectsPipedOnboarding(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tempDir)
+
+	app := New(Dependencies{
+		Version:         "test",
+		Stdout:          &bytes.Buffer{},
+		Stderr:          &bytes.Buffer{},
+		Translator:      &stubTranslator{output: "Translated prompt"},
+		Clipboard:       &stubClipboard{},
+		Editor:          &stubEditor{},
+		Launcher:        &stubLauncher{},
+		Automator:       &stubAutomator{},
+		SubmitConfirmer: &stubConfirmer{},
+		ConfigLoader:    config.Load,
+		ConfigInit:      config.Init,
+		LookupEnv:       func(string) (string, bool) { return "", false },
+		HistoryStore:    history.New(filepath.Join(t.TempDir(), "history.json")),
+	})
+
+	err := app.Execute(context.Background(), []string{"start"}, strings.NewReader("stack trace"), true)
+	if err == nil {
+		t.Fatal("Execute() expected an error, got nil")
+	}
+	if !strings.Contains(err.Error(), "interactive terminal") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestExecuteSetupHelpShowsAdvancedSetupText(t *testing.T) {
+	t.Parallel()
+
+	app := newTestApp(t, testConfig(), &stubTranslator{}, &stubClipboard{}, &stubEditor{}, history.New(filepath.Join(t.TempDir(), "history.json")))
+	stdout, _ := buffersFromApp(app)
+
+	if err := app.Execute(context.Background(), []string{"setup", "--help"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "advanced guided setup flow") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
+func TestExecuteDoctorHelpShowsFixUsage(t *testing.T) {
+	t.Parallel()
+
+	app := newTestApp(t, testConfig(), &stubTranslator{}, &stubClipboard{}, &stubEditor{}, history.New(filepath.Join(t.TempDir(), "history.json")))
+	stdout, _ := buffersFromApp(app)
+
+	if err := app.Execute(context.Background(), []string{"doctor", "--help"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "prtr doctor --fix") {
+		t.Fatalf("stdout = %q", stdout.String())
 	}
 }
 
@@ -1263,8 +1467,58 @@ func TestExecuteDoctorReportsFailures(t *testing.T) {
 	if !strings.Contains(stdout.String(), "FAIL deepl api key") {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
+	if !strings.Contains(stdout.String(), "Platform matrix") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
 }
 
+func TestExecuteDoctorFixCreatesStarterConfig(t *testing.T) {
+	tempDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tempDir)
+
+	app := New(Dependencies{
+		Version:         "test",
+		Stdout:          &bytes.Buffer{},
+		Stderr:          &bytes.Buffer{},
+		Translator:      &stubTranslator{output: "ok"},
+		Clipboard:       &stubClipboard{},
+		Editor:          &stubEditor{},
+		Launcher:        &stubLauncher{desc: "Terminal.app"},
+		Automator:       &stubAutomator{desc: "Terminal.app"},
+		SubmitConfirmer: &stubConfirmer{},
+		ConfigLoader:    config.Load,
+		ConfigInit:      config.Init,
+		LookupEnv:       func(string) (string, bool) { return "", false },
+		HistoryStore:    history.New(filepath.Join(t.TempDir(), "history.json")),
+	})
+	stdout, _ := buffersFromApp(app)
+
+	err := app.Execute(context.Background(), []string{"doctor", "--fix"}, strings.NewReader(""), false)
+	if err == nil {
+		t.Fatal("doctor --fix expected an error because api key is still missing")
+	}
+	if !strings.Contains(stdout.String(), "FIX  user config: created starter config") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if _, statErr := os.Stat(filepath.Join(tempDir, "prtr", "config.toml")); statErr != nil {
+		t.Fatalf("config stat error = %v", statErr)
+	}
+}
+
+func TestExecuteTakePlanSupportsNewAction(t *testing.T) {
+	t.Parallel()
+
+	clipboard := &stubClipboard{read: "We need a rollout plan for this migration."}
+	app := newTestApp(t, testConfig(), &stubTranslator{}, clipboard, &stubEditor{}, history.New(filepath.Join(t.TempDir(), "history.json")))
+	stdout, _ := buffersFromApp(app)
+
+	if err := app.Execute(context.Background(), []string{"take", "plan", "--dry-run"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "step-by-step implementation plan") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
 func TestExecuteReturnsUnknownTemplateError(t *testing.T) {
 	t.Parallel()
 

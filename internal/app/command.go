@@ -11,7 +11,7 @@ import (
 func (a *App) Command(ctx context.Context, stdin io.Reader, stdinPiped bool) *cobra.Command {
 	root := &cobra.Command{
 		Use:                "prtr [message...]",
-		Short:              "Translate intent into the next AI action.",
+		Short:              "Beginner-first AI command layer for the next action.",
 		Long:               rootHelpText(),
 		SilenceErrors:      true,
 		SilenceUsage:       true,
@@ -29,6 +29,7 @@ func (a *App) Command(ctx context.Context, stdin io.Reader, stdinPiped bool) *co
 		_, _ = fmt.Fprintln(a.stdout, cmd.Long)
 	})
 
+	root.AddCommand(a.newStartCommand(ctx, stdin, stdinPiped))
 	root.AddCommand(a.newGoCommand(ctx, stdin, stdinPiped))
 	root.AddCommand(a.newAgainCommand(ctx, stdin, stdinPiped))
 	root.AddCommand(a.newSwapCommand(ctx, stdin, stdinPiped))
@@ -52,6 +53,23 @@ func (a *App) Command(ctx context.Context, stdin io.Reader, stdinPiped bool) *co
 	root.AddCommand(a.newShortcutCommand(ctx, "design", stdin, stdinPiped))
 
 	return root
+}
+
+func (a *App) newStartCommand(ctx context.Context, stdin io.Reader, stdinPiped bool) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:                "start [message...]",
+		Short:              "Run the beginner-first first-send flow.",
+		Long:               startHelpText(),
+		DisableFlagParsing: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if wantsHelp(args) {
+				return cmd.Help()
+			}
+			return a.runStart(ctx, args, stdin, stdinPiped)
+		},
+	}
+	cmd.SetHelpFunc(func(cmd *cobra.Command, _ []string) { _, _ = fmt.Fprintln(a.stdout, cmd.Long) })
+	return cmd
 }
 
 func (a *App) newGoCommand(ctx context.Context, stdin io.Reader, stdinPiped bool) *cobra.Command {
@@ -171,9 +189,10 @@ func (a *App) newHistoryCommand() *cobra.Command {
 }
 
 func (a *App) newSetupCommand(stdin io.Reader) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "setup",
-		Short: "Run guided setup for prtr defaults.",
+		Short: "Run advanced guided setup for prtr defaults.",
+		Long:  setupHelpText(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if wantsHelp(args) {
 				return cmd.Help()
@@ -181,19 +200,26 @@ func (a *App) newSetupCommand(stdin io.Reader) *cobra.Command {
 			return a.runSetup(stdin)
 		},
 	}
+	cmd.SetHelpFunc(func(cmd *cobra.Command, _ []string) { _, _ = fmt.Fprintln(a.stdout, cmd.Long) })
+	return cmd
 }
 
 func (a *App) newDoctorCommand(ctx context.Context) *cobra.Command {
-	return &cobra.Command{
+	var fix bool
+	cmd := &cobra.Command{
 		Use:   "doctor",
 		Short: "Run environment and configuration diagnostics.",
+		Long:  doctorHelpText(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if wantsHelp(args) {
 				return cmd.Help()
 			}
-			return a.runDoctor(ctx)
+			return a.runDoctor(ctx, fix)
 		},
 	}
+	cmd.Flags().BoolVar(&fix, "fix", false, "Apply safe automatic fixes when possible.")
+	cmd.SetHelpFunc(func(cmd *cobra.Command, _ []string) { _, _ = fmt.Fprintln(a.stdout, cmd.Long) })
+	return cmd
 }
 
 func (a *App) newVersionCommand() *cobra.Command {
