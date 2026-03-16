@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>prtr show hn thumb</title>
+    <style>
+      :root {
+        --bg: #111827;
+        --panel: #0f172a;
+        --panel-alt: rgba(248, 250, 252, 0.06);
+        --line: rgba(255, 255, 255, 0.08);
+        --text: #f8fafc;
+        --muted: #cbd5e1;
+        --orange: #f97316;
+        --mint: #5eead4;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        width: 1200px;
+        height: 675px;
+        overflow: hidden;
+        font-family: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at 14% 10%, rgba(249, 115, 22, 0.18), transparent 26%),
+          radial-gradient(circle at 82% 16%, rgba(94, 234, 212, 0.12), transparent 22%),
+          linear-gradient(180deg, #0b1220 0%, #111827 100%);
+      }
+      .frame {
+        display: grid;
+        grid-template-columns: 1.05fr 0.95fr;
+        gap: 28px;
+        height: 100%;
+        padding: 42px;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 14px;
+        border-radius: 999px;
+        border: 1px solid rgba(249, 115, 22, 0.24);
+        background: rgba(249, 115, 22, 0.08);
+        color: #fdba74;
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      h1 {
+        margin: 20px 0 14px;
+        max-width: 8.8ch;
+        font-family: "Georgia", "Iowan Old Style", serif;
+        font-size: 76px;
+        line-height: 0.94;
+        letter-spacing: -0.05em;
+      }
+      .lede {
+        max-width: 520px;
+        color: var(--muted);
+        font-size: 24px;
+        line-height: 1.45;
+      }
+      .rail {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 18px;
+      }
+      .rail span {
+        padding: 10px 14px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.06);
+        border: 1px solid var(--line);
+        font-size: 15px;
+        font-weight: 600;
+      }
+      .stack {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .card {
+        border-radius: 24px;
+        border: 1px solid var(--line);
+        background: rgba(15, 23, 42, 0.86);
+        box-shadow: 0 30px 60px rgba(0,0,0,0.22);
+        padding: 22px;
+      }
+      .card h2 {
+        margin: 0 0 10px;
+        font-size: 28px;
+        line-height: 1.08;
+      }
+      .card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 18px;
+        line-height: 1.55;
+      }
+      .terminal {
+        margin-top: 14px;
+        border-radius: 18px;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        background: #020617;
+      }
+      .bar {
+        display: flex;
+        gap: 8px;
+        padding: 10px 14px;
+        background: rgba(255,255,255,0.04);
+        border-bottom: 1px solid var(--line);
+      }
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.32);
+      }
+      pre {
+        margin: 0;
+        padding: 14px 16px 16px;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 17px;
+        line-height: 1.65;
+        color: #e2e8f0;
+        white-space: pre-wrap;
+      }
+      .orange { color: #fdba74; }
+      .mint { color: var(--mint); }
+      .footer {
+        margin-top: 16px;
+        color: #94a3b8;
+        font-size: 16px;
+      }
+      .footer strong { color: var(--mint); }
+    </style>
+  </head>
+  <body>
+    <main class="frame">
+      <section>
+        <div class="badge">Show HN candidate</div>
+        <h1>Turn native-language intent into the next AI action.</h1>
+        <p class="lede">A CLI for multilingual AI workflows that reduces context switching between the first prompt, app comparison, the next action, and repo memory.</p>
+        <div class="rail">
+          <span>go</span>
+          <span>swap</span>
+          <span>take</span>
+          <span>learn</span>
+          <span>Claude / Codex / Gemini</span>
+        </div>
+        <div class="footer"><strong>prtr</strong> is not a prompt toy. It is the command layer between what you mean and what you should do next.</div>
+      </section>
+      <section class="stack">
+        <article class="card">
+          <h2>What it does</h2>
+          <p>Build the first useful prompt, compare another app without rewriting context, and turn the answer into a patch, issue, plan, test, or summary prompt.</p>
+        </article>
+        <article class="card">
+          <h2>Why it exists</h2>
+          <p>The annoying part of LLM work was never the first sentence. It was all the tab switching and repeat setup around it.</p>
+          <div class="terminal">
+            <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+            <pre><span class="orange">$</span> npm test 2&gt;&amp;1 | <span class="mint">prtr go fix</span> "왜 깨지는지 정확한 원인만 찾아줘"
+<span class="orange">$</span> <span class="mint">prtr swap</span> gemini
+<span class="orange">$</span> <span class="mint">prtr take</span> patch</pre>
+          </div>
+        </article>
+      </section>
+    </main>
+  </body>
+</html>

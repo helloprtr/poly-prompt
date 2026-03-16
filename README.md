@@ -2,18 +2,66 @@
 
 [![Project Site](https://img.shields.io/badge/project%20site-live-ff7a1a?style=flat-square)](https://helloprtr.github.io/poly-prompt/)
 [![Docs Hub](https://img.shields.io/badge/docs-pages-58f2c5?style=flat-square)](https://helloprtr.github.io/poly-prompt/docs/)
+[![Latest Release](https://img.shields.io/badge/release-v0.6.2-1b2c49?style=flat-square)](https://github.com/helloprtr/poly-prompt/releases/tag/v0.6.2)
 
-**Think in your language. Move the whole loop forward.**
+**prtr is the command layer for AI work.**
 
-The multilingual prompt router for repeatable AI work.
+Turn logs, diffs, and intent into the next AI action across Claude, Codex, and Gemini.
 
 Project site: [helloprtr.github.io/poly-prompt](https://helloprtr.github.io/poly-prompt/)
 
-`prtr` is a cross-platform CLI that turns your request into a ready-to-send prompt for Claude, Codex, or Gemini, then helps you keep the loop moving.
+`prtr` is the command layer between what you mean and what you should do next.
 
-Write in Korean, Japanese, German, or any language you want. `prtr` translates your request to English, adds useful context from your logs or repo, opens your AI app, pastes the final prompt, and keeps enough local memory around the run to make the next action cheaper.
+It takes native-language intent, shapes it for Claude, Codex, or Gemini, and keeps the repeat loop close with `go`, `swap`, `take`, `again`, `learn`, and `inspect`.
 
 ![prtr banner](images/prtr-banner.png)
+
+## 30-Second Loop
+
+```bash
+npm test 2>&1 | prtr go fix "왜 깨지는지 정확한 원인만 찾아줘"
+prtr swap gemini
+prtr take patch
+prtr learn
+```
+
+One intent. Another app. The next action. Repo memory.
+
+## Try It In 60 Seconds
+
+Install first:
+
+```bash
+brew tap helloprtr/homebrew-tap
+brew install prtr
+```
+
+Then try the setup-free path:
+
+```bash
+prtr demo
+prtr go "explain this error" --dry-run
+```
+
+Set up DeepL later when you want multilingual routing:
+
+```bash
+prtr setup
+prtr doctor
+```
+
+`prtr demo` is safe preview-only. It does not launch an app, paste into a terminal, or require a DeepL key.
+
+## Promotion Kit
+
+- X loop card: [images/x-card-loop-v062.png](images/x-card-loop-v062.png)
+- X compare card: [images/x-card-compare-v062.png](images/x-card-compare-v062.png)
+- Show HN thumbnail: [images/show-hn-thumb-v062.png](images/show-hn-thumb-v062.png)
+- Promotion copy pack: [docs/PROMOTION_PACK_V062.md](docs/PROMOTION_PACK_V062.md)
+- Release message templates: [docs/RELEASE_MESSAGES.md](docs/RELEASE_MESSAGES.md)
+- Discussion seed prompts: [docs/DISCUSSION_SEEDS.md](docs/DISCUSSION_SEEDS.md)
+- GitHub surface checklist: [docs/GITHUB_SURFACE_CHECKLIST.md](docs/GITHUB_SURFACE_CHECKLIST.md)
+- Docs hub promo section: [helloprtr.github.io/poly-prompt/docs/#promo](https://helloprtr.github.io/poly-prompt/docs/#promo)
 
 ```bash
 npm test 2>&1 | prtr go fix "왜 깨지는지 정확한 원인만 찾아줘"
@@ -101,17 +149,26 @@ go build ./cmd/prtr
 
 ```bash
 prtr version
+prtr demo
+prtr go "explain this error" --dry-run
+```
+
+Then unlock multilingual routing and diagnostics when you are ready:
+
+```bash
 prtr setup
 prtr doctor
 ```
 
-`setup` stores your DeepL API key and default language/app settings.
+`setup` stores your DeepL API key and default language/app settings. `doctor` now separates the checks you need right now from the optional unlocks that matter later.
 
 ## Start here
 
 ### Hero examples
 
 ```bash
+prtr demo
+prtr go "explain this error" --dry-run
 prtr go "이 함수 왜 느린지 설명해줘"
 prtr go review "이 PR에서 위험한 부분만 짚어줘"
 npm test 2>&1 | prtr go fix "왜 깨지는지 정확한 원인만 찾아줘"
@@ -136,12 +193,14 @@ prtr go "이 에러 원인 분석해줘"
 1. resolves the prompt text
 2. picks the app from `--to`, your latest run, or your default app
 3. picks the mode from the command or falls back to `ask`
-4. translates with DeepL when needed
+4. translates with DeepL only when needed
 5. auto-routes to the best app unless you override it with `--to`
 6. copies the final prompt
 7. opens the target CLI
 8. pastes into the active terminal session
 9. saves the run to local history
+
+English requests already work without a DeepL key. If you want a safe preview before setup, start with `prtr demo`.
 
 `go` prints a one-line status summary to `stderr`, for example:
 

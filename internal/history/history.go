@@ -34,6 +34,12 @@ type Entry struct {
 	Pasted              bool      `json:"pasted,omitempty"`
 	SubmitMode          string    `json:"submit_mode,omitempty"`
 	Submitted           bool      `json:"submitted,omitempty"`
+	ParentID            string    `json:"parent_id,omitempty"`
+	RunID               string    `json:"run_id,omitempty"`
+	Engine              string    `json:"engine,omitempty"`
+	ResultType          string    `json:"result_type,omitempty"`
+	ArtifactRoot        string    `json:"artifact_root,omitempty"`
+	RunStatus           string    `json:"run_status,omitempty"`
 	Pinned              bool      `json:"pinned,omitempty"`
 	Favorite            bool      `json:"favorite,omitempty"`
 }
@@ -180,6 +186,10 @@ func (s *Store) Search(query string) ([]Entry, error) {
 			entry.Target,
 			entry.Shortcut,
 			entry.TemplatePreset,
+			entry.Engine,
+			entry.ResultType,
+			entry.ArtifactRoot,
+			entry.RunStatus,
 		}, "\n"))
 		if strings.Contains(haystack, query) {
 			filtered = append(filtered, entry)

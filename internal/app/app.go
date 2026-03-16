@@ -16,6 +16,7 @@ import (
 	"github.com/helloprtr/poly-prompt/internal/automation"
 	"github.com/helloprtr/poly-prompt/internal/clipboard"
 	"github.com/helloprtr/poly-prompt/internal/config"
+	"github.com/helloprtr/poly-prompt/internal/deep"
 	"github.com/helloprtr/poly-prompt/internal/editor"
 	"github.com/helloprtr/poly-prompt/internal/history"
 	"github.com/helloprtr/poly-prompt/internal/input"
@@ -102,6 +103,15 @@ type runOptions struct {
 	promptSuffix         string
 	protectedTerms       []string
 	preferTargetTemplate bool
+	engine               string
+	parentID             string
+	runID                string
+	resultType           string
+	artifactRoot         string
+	runStatus            string
+	eventLogPath         string
+	statusNotes          []string
+	nextSteps            []string
 }
 
 type goCommandOptions struct {
@@ -134,6 +144,7 @@ type takeCommandOptions struct {
 	app    string
 	edit   bool
 	dryRun bool
+	deep   bool
 }
 
 type learnCommandOptions struct {
@@ -172,6 +183,15 @@ type resolvedRun struct {
 	translationMode     string
 	translationDecision string
 	config              config.Config
+	engine              string
+	parentID            string
+	runID               string
+	resultType          string
+	artifactRoot        string
+	runStatus           string
+	eventLogPath        string
+	statusNotes         []string
+	nextSteps           []string
 }
 
 var sourceLangOptions = []languageOption{
@@ -189,6 +209,18 @@ var targetLangOptions = []languageOption{
 	{Label: "de", Value: "de", Description: "German"},
 	{Label: "fr", Value: "fr", Description: "French"},
 }
+
+const (
+	demoOriginalRequest = "왜 깨지는지 정확한 원인만 찾아줘"
+	demoTranslatedGoal  = "Find only the precise root cause of why this npm test run is failing. Do not suggest fixes yet."
+	demoEvidence        = `> poly-prompt@0.6.2 test
+> go test ./...
+
+--- FAIL: TestExecuteTakePatch (0.02s)
+    app_test.go:751: expected compact status to include translation route
+FAIL
+exit status 1`
+)
 
 func New(deps Dependencies) *App {
 	store := deps.HistoryStore
@@ -245,7 +277,7 @@ func (a *App) shouldRunRootDirect(args []string) bool {
 	}
 
 	switch first {
-	case "init", "version", "start", "setup", "lang", "doctor", "templates", "profiles", "history", "rerun", "pin", "favorite", "go", "again", "swap", "take", "learn", "inspect":
+	case "init", "version", "start", "setup", "lang", "doctor", "templates", "profiles", "history", "rerun", "pin", "favorite", "go", "demo", "again", "swap", "take", "learn", "inspect":
 		return false
 	}
 
@@ -272,6 +304,46 @@ func (a *App) runVersion() error {
 	}
 
 	_, _ = fmt.Fprintln(a.stdout, version)
+	return nil
+}
+
+func (a *App) runDemo(ctx context.Context) error {
+	previewInput := demoTranslatedGoal + "\n\nEvidence:\n" + demoEvidence
+	resolved, err := a.prepareRun(ctx, runOptions{
+		target:          "codex",
+		role:            "be",
+		templatePreset:  "codex-implement",
+		sourceLang:      "en",
+		targetLang:      "en",
+		translationMode: string(translate.ModeSkip),
+		noCopy:          true,
+		launch:          false,
+		paste:           false,
+	}, previewInput, "")
+	if err != nil {
+		return err
+	}
+
+	_, _ = fmt.Fprintln(a.stdout, "prtr demo")
+	_, _ = fmt.Fprintln(a.stdout, "The command layer for AI work.")
+	_, _ = fmt.Fprintln(a.stdout, "No API key required. Safe preview only.")
+	_, _ = fmt.Fprintln(a.stdout)
+	_, _ = fmt.Fprintln(a.stdout, "Loop:")
+	_, _ = fmt.Fprintln(a.stdout, `  npm test 2>&1 | prtr go fix "왜 깨지는지 정확한 원인만 찾아줘"`)
+	_, _ = fmt.Fprintln(a.stdout, "  prtr swap gemini")
+	_, _ = fmt.Fprintln(a.stdout, "  prtr take patch")
+	_, _ = fmt.Fprintln(a.stdout)
+	_, _ = fmt.Fprintln(a.stdout, "Sample input:")
+	_, _ = fmt.Fprintf(a.stdout, "  request (ko): %s\n", demoOriginalRequest)
+	_, _ = fmt.Fprintln(a.stdout, "  evidence: npm test output")
+	_, _ = fmt.Fprintln(a.stdout)
+	_, _ = fmt.Fprintln(a.stdout, "Preview prompt:")
+	_, _ = fmt.Fprintln(a.stdout, resolved.finalPrompt)
+	_, _ = fmt.Fprintln(a.stdout)
+	_, _ = fmt.Fprintln(a.stdout, "Try next:")
+	_, _ = fmt.Fprintln(a.stdout, `  prtr go "explain this error" --dry-run`)
+	_, _ = fmt.Fprintln(a.stdout, "  prtr setup")
+
 	return nil
 }
 
@@ -608,7 +680,6 @@ func (a *App) runLang(stdin io.Reader) error {
 	_, _ = fmt.Fprintf(a.stdout, "updated language defaults in %s\n", path)
 	return nil
 }
-
 func (a *App) runTemplates(args []string) error {
 	if len(args) == 0 {
 		return usageError{message: "templates requires a subcommand: list or show"}
@@ -739,7 +810,11 @@ func (a *App) runHistory(args []string) error {
 	for _, entry := range entries[:limit] {
 		preview := truncateOneLine(entry.Original, 60)
 		flags := historyFlags(entry)
-		_, _ = fmt.Fprintf(a.stdout, "%s\t%s\ttarget=%s role=%s template=%s lang=%s->%s %s\t%s\n", entry.ID, entry.CreatedAt.Format("2006-01-02 15:04:05"), entry.Target, entry.Role, entry.TemplatePreset, blankDefault(entry.SourceLang, "auto"), blankDefault(entry.TargetLang, "en"), flags, preview)
+		extra := flags
+		if strings.TrimSpace(entry.Engine) == "deep" {
+			extra = strings.TrimSpace(strings.Join([]string{flags, "deep:" + blankDefault(entry.RunStatus, "completed")}, ","))
+		}
+		_, _ = fmt.Fprintf(a.stdout, "%s\t%s\ttarget=%s role=%s template=%s lang=%s->%s %s\t%s\n", entry.ID, entry.CreatedAt.Format("2006-01-02 15:04:05"), entry.Target, entry.Role, entry.TemplatePreset, blankDefault(entry.SourceLang, "auto"), blankDefault(entry.TargetLang, "en"), extra, preview)
 	}
 	return nil
 }
@@ -965,6 +1040,8 @@ func (a *App) runAgain(ctx context.Context, args []string, stdin io.Reader, stdi
 		surfaceMode:     blankDefault(entry.Shortcut, "ask"),
 		surfaceInput:    inputSource,
 		surfaceDelivery: surfaceDeliveryLabel(command.dryRun),
+		engine:          blankDefault(entry.Engine, "classic"),
+		parentID:        entry.ID,
 	}
 
 	return a.executePrompt(ctx, opts, text, entry.Shortcut)
@@ -1008,6 +1085,8 @@ func (a *App) runSwap(ctx context.Context, args []string, stdin io.Reader, stdin
 		surfaceInput:         inputSource,
 		surfaceDelivery:      surfaceDeliveryLabel(command.dryRun),
 		preferTargetTemplate: true,
+		engine:               blankDefault(entry.Engine, "classic"),
+		parentID:             entry.ID,
 	}
 
 	return a.executePrompt(ctx, opts, text, entry.Shortcut)
@@ -1029,10 +1108,85 @@ func (a *App) runTake(ctx context.Context, args []string) error {
 	}
 
 	target := strings.TrimSpace(command.app)
+	var parentEntry history.Entry
+	var hasParent bool
 	if target == "" {
 		if entry, err := a.latestHistoryEntry(); err == nil {
 			target = entry.Target
+			parentEntry = entry
+			hasParent = true
 		}
+	} else if entry, err := a.latestHistoryEntry(); err == nil {
+		parentEntry = entry
+		hasParent = true
+	}
+
+	if command.deep {
+		if command.action != "patch" {
+			return fmt.Errorf("deep execution only supports `take patch` right now")
+		}
+		repoRoot, _ := a.resolveRepoRoot()
+		repoSummary := repoctx.Summary{}
+		if a.repoContext != nil {
+			if summary, err := a.repoContext.Collect(ctx); err == nil {
+				repoSummary = summary
+			}
+		}
+		protectedTerms, _ := a.resolveLearnedTerms(false)
+		parentHistoryID := ""
+		var historyRef *history.Entry
+		if hasParent {
+			parentHistoryID = parentEntry.ID
+			entryCopy := parentEntry
+			historyRef = &entryCopy
+		}
+		result, err := deep.ExecutePatchRun(ctx, deep.Options{
+			Action:          command.action,
+			Source:          clipboardText,
+			SourceKind:      "clipboard",
+			TargetApp:       target,
+			RepoRoot:        repoRoot,
+			ParentHistoryID: parentHistoryID,
+			ProtectedTerms:  protectedTerms,
+			HistoryEntry:    historyRef,
+			RepoSummary:     repoSummary,
+			Progress: func(progress deep.Progress) {
+				_, _ = fmt.Fprintf(a.stderr, "   step: %s (%d/%d)\n", progress.Step, progress.Index, progress.Total)
+			},
+		})
+		if err != nil {
+			return err
+		}
+
+		opts := runOptions{
+			target:               target,
+			sourceLang:           "en",
+			targetLang:           "en",
+			translationMode:      string(translate.ModeSkip),
+			interactive:          command.edit,
+			noCopy:               command.dryRun,
+			launch:               !command.dryRun,
+			paste:                !command.dryRun,
+			compactStatus:        true,
+			surfaceMode:          "take:" + command.action + " --deep",
+			surfaceInput:         "clipboard",
+			surfaceDelivery:      surfaceDeliveryLabel(command.dryRun),
+			preferTargetTemplate: true,
+			engine:               "deep",
+			parentID:             parentHistoryID,
+			runID:                result.Run.ID,
+			resultType:           result.Run.ResultType,
+			artifactRoot:         result.Run.ArtifactRoot,
+			runStatus:            string(result.Run.Status),
+			eventLogPath:         result.Run.EventLogPath,
+			statusNotes: []string{
+				"artifact: " + result.Run.ArtifactRoot + "/result/patch_bundle.json",
+			},
+			nextSteps: []string{
+				"review artifact or hand off",
+			},
+		}
+		return a.executePrompt(ctx, opts, result.DeliveryPrompt, "take:"+command.action)
 	}
 
 	opts := runOptions{
@@ -1049,6 +1203,7 @@ func (a *App) runTake(ctx context.Context, args []string) error {
 		surfaceInput:         "clipboard",
 		surfaceDelivery:      surfaceDeliveryLabel(command.dryRun),
 		preferTargetTemplate: true,
+		engine:               "classic",
 	}
 
 	return a.executePrompt(ctx, opts, takePrompt(command.action, clipboardText), "take:"+command.action)
@@ -1152,6 +1307,15 @@ func (a *App) executePrompt(ctx context.Context, opts runOptions, text, shortcut
 	if err != nil {
 		return err
 	}
+	resolved.engine = blankDefault(opts.engine, "classic")
+	resolved.parentID = strings.TrimSpace(opts.parentID)
+	resolved.runID = strings.TrimSpace(opts.runID)
+	resolved.resultType = strings.TrimSpace(opts.resultType)
+	resolved.artifactRoot = strings.TrimSpace(opts.artifactRoot)
+	resolved.runStatus = strings.TrimSpace(opts.runStatus)
+	resolved.eventLogPath = strings.TrimSpace(opts.eventLogPath)
+	resolved.statusNotes = append([]string{}, opts.statusNotes...)
+	resolved.nextSteps = append([]string{}, opts.nextSteps...)
 
 	if opts.showOriginal {
 		_, _ = fmt.Fprintf(a.stderr, "Original:\n%s\n\n", resolved.original)
@@ -1181,7 +1345,36 @@ func (a *App) executePrompt(ctx context.Context, opts runOptions, text, shortcut
 		}
 		resolved.copied = true
 	}
+	if err := a.appendDeepEvent(resolved.eventLogPath, deep.Event{
+		Type:      deep.EventDeliveryStarted,
+		Timestamp: time.Now().UTC(),
+		Data: map[string]any{
+			"target":        resolved.targetName,
+			"delivery_mode": blankDefault(resolved.deliveryMode, blankDefault(opts.surfaceDelivery, "copy")),
+		},
+	}); err != nil {
+		return err
+	}
 	if err := a.applyDelivery(ctx, opts, &resolved); err != nil {
+		_ = a.appendDeepEvent(resolved.eventLogPath, deep.Event{
+			Type:      deep.EventRunFailed,
+			Timestamp: time.Now().UTC(),
+			Data: map[string]any{
+				"error": err.Error(),
+			},
+		})
+		return err
+	}
+	if err := a.appendDeepEvent(resolved.eventLogPath, deep.Event{
+		Type:      deep.EventDeliveryCompleted,
+		Timestamp: time.Now().UTC(),
+		Data: map[string]any{
+			"target":        resolved.targetName,
+			"pasted":        resolved.pasted,
+			"submitted":     resolved.submitted,
+			"delivery_mode": resolved.deliveryMode,
+		},
+	}); err != nil {
 		return err
 	}
 	if opts.explain {
@@ -1276,6 +1469,12 @@ func (a *App) executeStoredPrompt(ctx context.Context, opts runOptions, entry hi
 		submitMode:          blankDefault(entry.SubmitMode, string(automation.SubmitManual)),
 		pasted:              entry.Pasted,
 		submitted:           entry.Submitted,
+		engine:              blankDefault(entry.Engine, "classic"),
+		parentID:            entry.ID,
+		runID:               entry.RunID,
+		resultType:          entry.ResultType,
+		artifactRoot:        entry.ArtifactRoot,
+		runStatus:           entry.RunStatus,
 	}
 	cfg, err := a.configLoader()
 	if err != nil {
@@ -1420,6 +1619,9 @@ func (a *App) prepareRun(ctx context.Context, opts runOptions, text, shortcutNam
 		ProtectedTerms: opts.protectedTerms,
 	}, translate.Mode(blankDefault(opts.translationMode, string(translate.ModeAuto))))
 	if err != nil {
+		if errors.Is(err, translate.ErrMissingAPIKey) {
+			return resolvedRun{}, fmt.Errorf("translation requires a DeepL key for this request. You can try prtr now without a key with `prtr demo` or `prtr go \"explain this error\" --dry-run`, then run `prtr setup` when you want multilingual routing: %w", err)
+		}
 		return resolvedRun{}, err
 	}
 
@@ -1459,6 +1661,15 @@ func (a *App) prepareRun(ctx context.Context, opts runOptions, text, shortcutNam
 		deliveryMode:        deliveryMode,
 		submitMode:          resolvedSubmitMode,
 		config:              cfg,
+		engine:              blankDefault(opts.engine, "classic"),
+		parentID:            strings.TrimSpace(opts.parentID),
+		runID:               strings.TrimSpace(opts.runID),
+		resultType:          strings.TrimSpace(opts.resultType),
+		artifactRoot:        strings.TrimSpace(opts.artifactRoot),
+		runStatus:           strings.TrimSpace(opts.runStatus),
+		eventLogPath:        strings.TrimSpace(opts.eventLogPath),
+		statusNotes:         append([]string{}, opts.statusNotes...),
+		nextSteps:           append([]string{}, opts.nextSteps...),
 	}, nil
 }
 
@@ -1524,6 +1735,12 @@ func (a *App) appendHistory(run resolvedRun) error {
 		Pasted:              run.pasted,
 		SubmitMode:          run.submitMode,
 		Submitted:           run.submitted,
+		ParentID:            run.parentID,
+		RunID:               run.runID,
+		Engine:              run.engine,
+		ResultType:          run.resultType,
+		ArtifactRoot:        run.artifactRoot,
+		RunStatus:           run.runStatus,
 	})
 }
 
@@ -1633,7 +1850,30 @@ func (a *App) writeCompactStatus(opts runOptions, run resolvedRun) {
 	delivery := blankDefault(opts.surfaceDelivery, "copy")
 
 	parts := []string{mode, run.targetName, inputSource, delivery, run.sourceLang + "->" + run.targetLang}
+	if strings.TrimSpace(run.engine) == "deep" {
+		parts = append(parts, blankDefault(run.runStatus, string(deep.RunStatusCompleted)))
+	}
 	_, _ = fmt.Fprintf(a.stderr, "-> %s\n", strings.Join(parts, " | "))
+	for _, note := range run.statusNotes {
+		_, _ = fmt.Fprintf(a.stderr, "   %s\n", note)
+	}
+	for _, next := range run.nextSteps {
+		_, _ = fmt.Fprintf(a.stderr, "   next: %s\n", next)
+	}
+}
+
+func (a *App) appendDeepEvent(path string, event deep.Event) error {
+	if strings.TrimSpace(path) == "" {
+		return nil
+	}
+	return deep.AppendEvent(path, event)
+}
+
+func (a *App) diagnoseClipboard() error {
+	if diagnoser, ok := a.clipboard.(clipboard.Diagnoser); ok {
+		return diagnoser.Diagnose()
+	}
+	return nil
 }
 
 func (a *App) resolveTranslator(apiKey string) translate.Translator {
@@ -1797,6 +2037,8 @@ func parseTakeCommand(args []string) (takeCommandOptions, error) {
 			command.edit = true
 		case arg == "--dry-run":
 			command.dryRun = true
+		case arg == "--deep":
+			command.deep = true
 		case arg == "--to" || arg == "--app" || arg == "--target" || arg == "-t":
 			i++
 			if i >= len(args) {
@@ -1823,6 +2065,9 @@ func parseTakeCommand(args []string) (takeCommandOptions, error) {
 	}
 	if !isSupportedTakeAction(command.action) {
 		return takeCommandOptions{}, usageError{message: fmt.Sprintf("unknown take action %q (available: patch, test, commit, summary, clarify, issue, plan)", command.action), helpText: takeHelpText()}
+	}
+	if command.deep && command.action != "patch" {
+		return takeCommandOptions{}, usageError{message: "deep execution currently supports only `take patch --deep`", helpText: takeHelpText()}
 	}
 
 	return command, nil
@@ -2354,19 +2599,21 @@ func usageText() string {
 
 func rootHelpText() string {
 	return strings.Join([]string{
-		"prtr is the beginner-first AI command layer that turns user intent into the next action for Claude, Codex, or Gemini.",
+		"prtr is the command layer for AI work.",
 		"",
-		"Write in your language. Ship the next action.",
+		"Turn logs, diffs, and intent into the next AI action across Claude, Codex, and Gemini.",
 		"",
-		"Start with:",
+		"Start with the beginner-first flow or jump straight into a safe preview:",
 		"  prtr start",
+		"  prtr demo",
+		`  prtr go "explain this error" --dry-run`,
 		"",
-		"Or jump straight to:",
-		`  prtr go "이 에러 원인 분석해줘"`,
-		"",
-		"Then keep moving with:",
+		"Core loop:",
+		`  npm test 2>&1 | prtr go fix "왜 깨지는지 정확한 원인만 찾아줘"`,
 		"  prtr swap gemini",
 		"  prtr take patch",
+		"",
+		"Then keep moving with:",
 		"  prtr learn",
 		"  prtr again",
 		"  prtr inspect",
@@ -2374,6 +2621,7 @@ func rootHelpText() string {
 		"Usage:",
 		"  prtr start [message...]",
 		"  prtr go [mode] [message...]",
+		"  prtr demo",
 		"  prtr swap <app>",
 		"  prtr take <action>",
 		"  prtr learn [paths...]",
@@ -2469,13 +2717,16 @@ func startHelpText() string {
 
 func goHelpText() string {
 	return strings.Join([]string{
-		"Send a translated, context-aware prompt to Claude, Codex, or Gemini.",
+		"Turn logs, diffs, and intent into the next AI action.",
 		"",
-		"`prtr go` is the fastest way to use prtr.",
+		"`prtr go` is the fastest way to use prtr for real work.",
 		"",
-		"Write your request in your language.",
-		"prtr translates it to English, adds useful context, opens your AI app,",
-		"and pastes the final prompt so it is ready to send.",
+		"Write in your language when you need translation.",
+		"Pipe logs or stack traces when you have evidence.",
+		"prtr shapes the request for Claude, Codex, or Gemini and keeps the next step cheaper.",
+		"",
+		"English requests already work without a DeepL key.",
+		"Use `prtr demo` if you want a safe preview before setup.",
 		"",
 		"Usage:",
 		"  prtr go [mode] [message...]",
@@ -2496,7 +2747,7 @@ func goHelpText() string {
 		"What `go` does:",
 		"  1. Reads your request",
 		"  2. Collects useful context from stdin and the current repo",
-		"  3. Translates the request to English",
+		"  3. Translates only when needed",
 		"  4. Applies the selected mode",
 		"  5. Opens Claude, Codex, or Gemini",
 		"  6. Pastes the final prompt",
@@ -2524,6 +2775,28 @@ func goHelpText() string {
 		"  prtr learn            Teach prtr your repo terms and style",
 		"  prtr again            Run the latest flow again",
 		"  prtr inspect          Inspect the compiled prompt and config",
+	}, "\n")
+}
+
+func demoHelpText() string {
+	return strings.Join([]string{
+		"Preview prtr's core loop without a DeepL key.",
+		"",
+		"`prtr demo` is a safe preview path.",
+		"It shows the command-layer story with a Korean fix request, sample npm test evidence,",
+		"and a Codex-ready prompt preview without launching an app or touching the clipboard.",
+		"",
+		"Usage:",
+		"  prtr demo",
+		"",
+		"Notes:",
+		"  - No API key required",
+		"  - No launch, paste, or clipboard writes",
+		"  - Uses sample evidence and preview output only",
+		"",
+		"Try next:",
+		`  prtr go "explain this error" --dry-run`,
+		"  prtr setup",
 	}, "\n")
 }
 
@@ -2583,8 +2856,9 @@ func takeHelpText() string {
 	return strings.Join([]string{
 		"Turn the latest answer or clipboard text into the next action.",
 		"",
-		"`prtr take` reads from your clipboard, turns that text into a new",
-		"ready-to-send prompt, then sends it to Claude, Codex, or Gemini.",
+		"`prtr take` has two paths:",
+		"  - classic: turn clipboard text into the next ready-to-send prompt",
+		"  - deep: build a typed execution run with artifacts, plan, and progress",
 		"",
 		"Usage:",
 		"  prtr take <action>",
@@ -2600,6 +2874,7 @@ func takeHelpText() string {
 		"",
 		"Examples:",
 		"  prtr take patch",
+		"  prtr take patch --deep --dry-run",
 		"  prtr take test --to codex",
 		"  prtr take commit --dry-run",
 		"  prtr take summary --edit",
@@ -2608,8 +2883,10 @@ func takeHelpText() string {
 		"",
 		"Flags:",
 		"      --to <app>        Choose the app: claude | codex | gemini",
+		"      --deep           Run the internal execution engine for `take patch`",
 		"      --edit            Review and edit before sending",
 		"      --dry-run         Show the final prompt without opening any app",
+		"                       Deep mode still writes plan and artifact files locally",
 		"  -h, --help            Help for take",
 	}, "\n")
 }

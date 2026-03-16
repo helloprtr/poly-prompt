@@ -24,7 +24,7 @@ const guides = [
   },
   {
     eyebrow: "Router story",
-    title: "Multilingual prompt router guide",
+    title: "Workflow routing guide",
     text: "Setup, doctor, routing mechanics, targets, roles, templates, shortcuts, history, delivery modes, and troubleshooting.",
     href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/MULTILINGUAL_PROMPT_ROUTER_GUIDE.md",
     linkLabel: "Open router guide",
@@ -33,7 +33,7 @@ const guides = [
   {
     eyebrow: "Demo asset",
     title: "Demo script",
-    text: "Narrative and commands used to explain the multilingual routing flow in demos and README GIF captures.",
+    text: "Narrative and commands used to explain the single proof loop across demos and README captures.",
     href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/MULTILINGUAL_PROMPT_ROUTER_DEMO_SCRIPT.md",
     linkLabel: "Open demo script",
     keywords: ["demo", "script", "gif", "presentation", "routing"],
@@ -64,6 +64,45 @@ const references = [
     text: "Browse the repository directly when you want implementation detail or current project status.",
     href: "https://github.com/helloprtr/poly-prompt",
     keywords: ["source", "repo", "github", "code"],
+  },
+];
+
+const promotionAssets = [
+  {
+    eyebrow: "X card",
+    title: "Loop card",
+    text: "The cleanest summary of the product story: one intent, another app, the next action, and repo memory.",
+    href: "https://github.com/helloprtr/poly-prompt/blob/main/images/x-card-loop-v062.png",
+    linkLabel: "Open X loop card",
+    image: `${basePath}media/x-card-loop-v062.png`,
+    alt: "Preview of the prtr X loop card showing the command-layer message and 30-second loop.",
+  },
+  {
+    eyebrow: "X card",
+    title: "Context-switching card",
+    text: "A stronger before-versus-after framing for social posts about workflow friction and why prtr exists.",
+    href: "https://github.com/helloprtr/poly-prompt/blob/main/images/x-card-compare-v062.png",
+    linkLabel: "Open X compare card",
+    image: `${basePath}media/x-card-compare-v062.png`,
+    alt: "Preview of the prtr X compare card showing prompt-writing friction versus the go-swap-take-learn loop.",
+  },
+  {
+    eyebrow: "Show HN",
+    title: "Show HN thumbnail",
+    text: "A dark-mode thumbnail paired with title and body copy for Hacker News style launch posts.",
+    href: "https://github.com/helloprtr/poly-prompt/blob/main/images/show-hn-thumb-v062.png",
+    linkLabel: "Open Show HN thumbnail",
+    image: `${basePath}media/show-hn-thumb-v062.png`,
+    alt: "Preview of the prtr Show HN thumbnail with native-language intent to next AI action messaging.",
+  },
+  {
+    eyebrow: "Copy pack",
+    title: "Promotion pack",
+    text: "Ready-to-post X copy, Show HN title options, body draft, and the asset map in one reference doc.",
+    href: "https://github.com/helloprtr/poly-prompt/blob/main/docs/PROMOTION_PACK_V062.md",
+    linkLabel: "Open promotion pack",
+    image: `${basePath}media/github-social-preview-v062.png`,
+    alt: "Preview of the GitHub social image used as the hero visual for the promotion copy pack.",
   },
 ];
 
@@ -109,13 +148,14 @@ const navSections = [
   { id: "finder", label: "Finder" },
   { id: "guides", label: "Guides" },
   { id: "media", label: "Media" },
+  { id: "promo", label: "Promo" },
   { id: "references", label: "References" },
 ];
 ---
 
 <BaseLayout
   title="Docs Hub"
-  description="Documentation hub for prtr installation, usage, multilingual routing, demo assets, and release history."
+  description="Documentation hub for prtr installation, usage, workflow routing, demo assets, and release history."
 >
   <main class="page-shell">
     <header class="topbar">
@@ -133,14 +173,14 @@ const navSections = [
 
     <section class="hero hero-docs">
       <div class="hero-copy">
-        <p class="eyebrow">The multilingual prompt router for repeatable AI work.</p>
+        <p class="eyebrow">The command layer for AI work.</p>
         <h1>Everything around the loop, in one place.</h1>
         <p class="hero-text">
-          Think in your language. Move the whole loop forward. Use this page as the documentation front door
-          when you need install steps, routing references, and release context in one place.
+          Use this page as the documentation front door when you need install steps, workflow routing
+          references, and release context in one place without diluting the main product proof.
         </p>
         <div class="hero-actions">
-          <a class="button button-primary" href="https://github.com/helloprtr/poly-prompt/blob/main/INSTALLATION.md">Install guide</a>
+          <a class="button button-primary" href="https://github.com/helloprtr/poly-prompt#try-it-in-60-seconds">Try the 60s path</a>
           <a class="button button-secondary" href="https://github.com/helloprtr/poly-prompt/blob/main/USAGE.md">Usage guide</a>
           <a class="button button-ghost" href={`${basePath}`}>Back to home</a>
         </div>
@@ -154,7 +194,7 @@ const navSections = [
           <span class="panel-title">docs-map.md</span>
         </div>
         <div class="panel-body">
-          <p class="panel-caption">From multilingual intent to routed prompt to next action.</p>
+          <p class="panel-caption">From logs and intent to the next AI action.</p>
           <ul class="doc-bullets">
             {coreLoop.map((item) => (
               <li>{item}</li>
@@ -268,6 +308,31 @@ const navSections = [
           <h3>Delivery plus paste</h3>
           <p>App launch and prompt handoff as part of the workflow surface rather than an external manual step.</p>
         </article>
+      </div>
+    </section>
+
+    <section class="section" id="promo">
+      <div class="section-heading">
+        <p class="eyebrow">Promotion assets</p>
+        <h2>Use the same cards and copy across X, Show HN, and launch posts</h2>
+        <p>
+          These assets carry the same product spine as the site hero and GitHub social preview, so the public
+          message stays aligned when you publish outside the repo.
+        </p>
+      </div>
+
+      <div class="docs-grid docs-grid-compact">
+        {promotionAssets.map((asset) => (
+          <article class="doc-card promo-card">
+            <figure class="promo-figure">
+              <img src={asset.image} alt={asset.alt} loading="lazy" />
+            </figure>
+            <p class="eyebrow">{asset.eyebrow}</p>
+            <h3>{asset.title}</h3>
+            <p>{asset.text}</p>
+            <a class="doc-link" href={asset.href}>{asset.linkLabel}</a>
+          </article>
+        ))}
       </div>
     </section>
 

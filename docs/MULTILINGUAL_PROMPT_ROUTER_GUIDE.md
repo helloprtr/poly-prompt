@@ -1,7 +1,7 @@
-# Multilingual Prompt Router Guide
+# Workflow Routing Guide
 
-`prtr` is easiest to understand if you think of it as a routing pipeline rather than a plain translator.
-It takes a user request, decides how that request should be translated, wraps it in a target-aware prompt shape, optionally opens the target CLI, and stores the whole run in local history so you can reuse it later.
+`prtr` is easiest to understand as the command layer for AI work rather than a plain translator.
+It takes a user request plus any evidence you have, decides whether translation is needed, shapes the prompt for the target app, optionally launches the target CLI, and stores the run in local history so the next step stays cheap.
 
 The current public loop is:
 
@@ -11,7 +11,7 @@ The current public loop is:
 - `prtr learn` to build repo-local protected term memory
 - `prtr inspect` for the expert path
 
-This guide is focused on the currently implemented multilingual prompt router flow.
+This guide is focused on the currently implemented workflow routing flow.
 For install steps, see [INSTALLATION.md](../INSTALLATION.md).
 For the full command reference, see [USAGE.md](../USAGE.md).
 
@@ -45,7 +45,14 @@ Check the binary:
 prtr version
 ```
 
-Run guided setup:
+Try the setup-free path first:
+
+```bash
+prtr demo
+prtr go "explain this error" --dry-run
+```
+
+English requests already work without a DeepL key. Run guided setup when you want multilingual routing:
 
 ```bash
 prtr setup
@@ -66,13 +73,15 @@ Validate the environment after setup:
 prtr doctor
 ```
 
-Use `doctor` before recording demos or troubleshooting launch and paste behavior.
+`doctor` separates ready-now checks from optional unlocks. Use it before recording demos or troubleshooting launch and paste behavior.
 
 ## 3. The Fastest Path To A Working Run
 
 Start with a safe terminal-only run:
 
 ```bash
+prtr demo
+prtr go "explain this error" --dry-run
 prtr go "이 변경의 핵심 리스크를 요약해줘" --dry-run
 ```
 

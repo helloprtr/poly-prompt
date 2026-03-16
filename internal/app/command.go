@@ -11,7 +11,7 @@ import (
 func (a *App) Command(ctx context.Context, stdin io.Reader, stdinPiped bool) *cobra.Command {
 	root := &cobra.Command{
 		Use:                "prtr [message...]",
-		Short:              "Beginner-first AI command layer for the next action.",
+		Short:              "The command layer for AI work.",
 		Long:               rootHelpText(),
 		SilenceErrors:      true,
 		SilenceUsage:       true,
@@ -31,6 +31,7 @@ func (a *App) Command(ctx context.Context, stdin io.Reader, stdinPiped bool) *co
 
 	root.AddCommand(a.newStartCommand(ctx, stdin, stdinPiped))
 	root.AddCommand(a.newGoCommand(ctx, stdin, stdinPiped))
+	root.AddCommand(a.newDemoCommand(ctx))
 	root.AddCommand(a.newAgainCommand(ctx, stdin, stdinPiped))
 	root.AddCommand(a.newSwapCommand(ctx, stdin, stdinPiped))
 	root.AddCommand(a.newTakeCommand(ctx))
@@ -75,7 +76,7 @@ func (a *App) newStartCommand(ctx context.Context, stdin io.Reader, stdinPiped b
 func (a *App) newGoCommand(ctx context.Context, stdin io.Reader, stdinPiped bool) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                "go [mode] [message...]",
-		Short:              "Send a translated, context-aware prompt to your AI app.",
+		Short:              "Turn intent into the next AI action in Claude, Codex, or Gemini.",
 		Long:               goHelpText(),
 		DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -83,6 +84,22 @@ func (a *App) newGoCommand(ctx context.Context, stdin io.Reader, stdinPiped bool
 				return cmd.Help()
 			}
 			return a.runGo(ctx, args, stdin, stdinPiped)
+		},
+	}
+	cmd.SetHelpFunc(func(cmd *cobra.Command, _ []string) { _, _ = fmt.Fprintln(a.stdout, cmd.Long) })
+	return cmd
+}
+
+func (a *App) newDemoCommand(ctx context.Context) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "demo",
+		Short: "Preview prtr's core loop without a DeepL key.",
+		Long:  demoHelpText(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if wantsHelp(args) {
+				return cmd.Help()
+			}
+			return a.runDemo(ctx)
 		},
 	}
 	cmd.SetHelpFunc(func(cmd *cobra.Command, _ []string) { _, _ = fmt.Fprintln(a.stdout, cmd.Long) })

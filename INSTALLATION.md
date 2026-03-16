@@ -2,6 +2,15 @@
 
 This guide covers how to install or update `prtr` for the latest published release.
 
+The fastest first-run path is:
+
+```bash
+prtr demo
+prtr go "explain this error" --dry-run
+```
+
+You only need `prtr setup` when you want multilingual routing with DeepL.
+
 Release page:
 
 - [helloprtr/poly-prompt releases](https://github.com/helloprtr/poly-prompt/releases)
@@ -200,7 +209,20 @@ go build ./cmd/prtr
 
 ## Quick post-install smoke test
 
-Run the beginner-first entry:
+Try the setup-free path first:
+
+```bash
+prtr demo
+prtr go "explain this error" --dry-run
+```
+
+Then try the command-layer loop with real evidence:
+
+```bash
+npm test 2>&1 | prtr go fix "왜 깨지는지 정확한 원인만 찾아줘" --dry-run
+```
+
+If you want the beginner-first guided send instead:
 
 ```bash
 prtr start
@@ -213,16 +235,10 @@ prtr start
 - asks for a first request if you do not pass one
 - sends that first request through the same path as `prtr go`
 
-If you want the full advanced defaults flow later:
+When you want multilingual routing and advanced defaults, run guided setup:
 
 ```bash
 prtr setup
-```
-
-Optional quick language-only update later:
-
-```bash
-prtr lang
 ```
 
 Or set your API key manually:
@@ -250,6 +266,14 @@ Optional diagnostic check:
 ```bash
 prtr doctor
 prtr doctor --fix
+```
+
+`doctor` now splits "ready now" checks from optional unlocks. Missing a DeepL key should not block `prtr demo` or English `--dry-run` flows.
+
+Optional quick language-only update later:
+
+```bash
+prtr lang
 ```
 
 Optional interactive check:

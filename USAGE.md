@@ -1,6 +1,8 @@
 # prtr Usage Guide
 
-`prtr` is the fastest way to turn what you mean into a ready-to-send prompt for Claude, Codex, or Gemini.
+`prtr` is the command layer for AI work.
+
+Turn logs, diffs, and intent into the next AI action across Claude, Codex, and Gemini.
 
 This guide focuses on the current public surface:
 
@@ -31,7 +33,14 @@ Check the installed binary:
 prtr version
 ```
 
-Run the beginner-first entry:
+Try the setup-free path first:
+
+```bash
+prtr demo
+prtr go "explain this error" --dry-run
+```
+
+Then use the beginner-first flow when you want a guided first send:
 
 ```bash
 prtr start
@@ -44,7 +53,7 @@ prtr start
 - a first request prompt if you do not pass one
 - the same delivery flow as `go`
 
-Use `setup` when you want the full advanced defaults flow instead:
+Then run guided setup when you want multilingual routing and advanced defaults:
 
 ```bash
 prtr setup
@@ -71,14 +80,10 @@ Run diagnostics directly at any time:
 prtr doctor
 ```
 
-`doctor` checks:
+`doctor` splits checks into:
 
-- config discovery
-- DeepL key availability
-- clipboard support
-- target/template/profile validity
-- launcher readiness
-- automation readiness for desktop paste support
+- ready-now checks
+- optional DeepL and delivery unlocks
 
 `doctor` now also prints a platform matrix summary and supports:
 
@@ -122,7 +127,10 @@ Preview only:
 
 ```bash
 prtr go "이 문서 설명해줘" --dry-run
+prtr go "explain this error" --dry-run
 ```
+
+English requests already work without a DeepL key. For a canned preview, use `prtr demo`.
 
 How input works:
 
