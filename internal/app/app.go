@@ -2142,10 +2142,11 @@ func promptLanguage(reader *bufio.Reader, output io.Writer, label string, choice
 func truncateOneLine(text string, limit int) string {
 	text = strings.ReplaceAll(text, "\n", " ")
 	text = strings.TrimSpace(text)
-	if len(text) <= limit {
+	runes := []rune(text)
+	if len(runes) <= limit {
 		return text
 	}
-	return text[:limit-3] + "..."
+	return string(runes[:limit-3]) + "..."
 }
 
 func blankDefault(value, fallback string) string {

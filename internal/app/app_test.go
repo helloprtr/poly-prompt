@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/helloprtr/poly-prompt/internal/automation"
 	"github.com/helloprtr/poly-prompt/internal/config"
@@ -1286,5 +1287,17 @@ func TestExecuteInteractiveCancelReturnsSentinelError(t *testing.T) {
 	err := app.Execute(context.Background(), []string{"-i", "원문"}, strings.NewReader(""), false)
 	if !errors.Is(err, editor.ErrCanceled) {
 		t.Fatalf("Execute() error = %v", err)
+	}
+}
+
+func TestTruncateOneLineUnicode(t *testing.T) {
+	input := "안녕하세요 세계입니다"
+	result := truncateOneLine(input, 8)
+	if !utf8.ValidString(result) {
+		t.Fatalf("truncateOneLine produced invalid UTF-8: %q", result)
+	}
+	runes := []rune(result)
+	if len(runes) > 8 {
+		t.Fatalf("truncateOneLine exceeded rune limit: got %d runes", len(runes))
 	}
 }
