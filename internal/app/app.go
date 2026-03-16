@@ -222,6 +222,7 @@ FAIL
 exit status 1`
 )
 
+
 func New(deps Dependencies) *App {
 	store := deps.HistoryStore
 	if store == nil {
