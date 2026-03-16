@@ -1,0 +1,18 @@
+# Default ownership
+* @KooEric
+
+# Release and security surfaces
+/.github/ @KooEric
+/SECURITY.md @KooEric
+/CHANGELOG.md @KooEric
+/docs/RELEASE_MESSAGES.md @KooEric
+
+# Product surfaces
+/site/ @KooEric
+/images/ @KooEric
+
+# Runtime and release code
+/cmd/ @KooEric
+/internal/ @KooEric
+/go.mod @KooEric
+/go.sum @KooEric
