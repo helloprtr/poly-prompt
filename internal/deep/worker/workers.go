@@ -109,7 +109,9 @@ func (patcherWorker) Run(ctx context.Context, s *State) error {
 		"Validate behavior with focused regression tests after the patch.",
 	}
 	if len(s.Opts.ProtectedTerms) > 0 {
-		notes = append(notes, "Preserve repo-specific identifiers and protected terms exactly.")
+		notes = append(notes,
+			"Preserve these repo-specific identifiers exactly (do not rename or translate): "+
+				strings.Join(s.Opts.ProtectedTerms, ", ")+".")
 	}
 
 	constraints := []string{}
@@ -117,7 +119,10 @@ func (patcherWorker) Run(ctx context.Context, s *State) error {
 		constraints = append(constraints, "Respect current branch context: "+s.Opts.RepoSummary.Branch+".")
 	}
 	if len(s.Opts.RepoSummary.Changes) > 0 {
-		constraints = append(constraints, "Check nearby local changes before editing overlapping files.")
+		// Include actual file list, not just a generic reminder.
+		constraints = append(constraints,
+			"Local changes in this checkout:\n  "+
+				strings.Join(s.Opts.RepoSummary.Changes, "\n  "))
 	}
 
 	draft := &deepschema.PatchDraft{
