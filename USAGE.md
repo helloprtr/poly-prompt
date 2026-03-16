@@ -1,6 +1,8 @@
 # prtr Usage Guide
 
-`prtr` is the fastest way to turn what you mean into a ready-to-send prompt for Claude, Codex, or Gemini.
+`prtr` turns what you mean into the next AI action.
+
+Write in your language. Route to Claude, Codex, or Gemini. Keep the loop moving.
 
 This guide focuses on the current public surface:
 
@@ -16,12 +18,21 @@ Advanced template, role, profile, and history commands are still available, but 
 
 The current working loop is:
 
-- `start` for the first successful send
 - `go` for the first send
-- `swap` for model comparison
-- `take` for next-action prompting
+- `swap` for direct app comparison
+- `take` for answer-to-action prompting
 - `learn` for repo-specific memory
+- `start` for the first successful send
 - `inspect` for expert visibility
+
+## 0. The 30-second loop
+
+```bash
+npm test 2>&1 | prtr go fix "왜 깨지는지 정확한 원인만 찾아줘"
+prtr swap claude
+prtr take patch
+prtr learn
+```
 
 ## 1. First run
 
@@ -134,7 +145,7 @@ prtr server
 prtr server --addr 127.0.0.1:8787
 ```
 
-## 2. The fastest path after start: `prtr go`
+## 2. Start the loop with `prtr go`
 
 Send a request in your own language:
 
@@ -178,6 +189,12 @@ How input works:
 - if you are inside a Git repo, `go` also adds lightweight repo context
 - `--no-context` disables automatic repo context and piped-evidence attachment
 
+Official starter scenarios:
+
+- test failure analysis
+- PR risk review
+- feature design that turns into a patch or a plan
+
 Examples:
 
 ```bash
@@ -191,7 +208,7 @@ Repo context currently includes:
 - current branch
 - changed files summary
 
-## 3. Repeat and compare
+## 3. Compare without rebuilding context
 
 Run the latest flow again:
 
@@ -211,7 +228,7 @@ prtr swap gemini --edit
 prtr swap claude --dry-run
 ```
 
-`swap` keeps the latest request and mode, then recompiles the prompt for the destination app instead of reusing the old app's template blindly.
+`swap` keeps the latest request and mode, then recompiles the prompt for the destination app instead of reusing the old app's template blindly. Use it when the same intent should be compared across apps without rewriting the request.
 
 ## 4. Turn an answer into the next action
 
@@ -219,23 +236,35 @@ Use `take` when you already copied a useful answer and want to move straight int
 
 ```bash
 prtr take patch
+prtr take issue
+prtr take plan
+prtr take summary --edit
 prtr take test --to codex
 prtr take commit --dry-run
-prtr take summary --edit
+prtr take clarify
 ```
 
 Supported actions:
 
 - `patch`
+- `issue`
+- `plan`
+- `summary`
 - `test`
 - `commit`
-- `summary`
+- `clarify`
+
+Answer received -> take action:
+
+- `prtr take patch`
+- `prtr take issue`
+- `prtr take plan`
 
 `take` always reads from the clipboard, generates a fresh English request for the chosen action, then sends or previews it with the same app-aware flow as `go`.
 
-## 5. Teach repo terms with `learn`
+## 5. Teach repo memory with `learn`
 
-Build a repo-local termbook of names that should not be translated away:
+Build repo-local term and memory files so important names and guidance survive future runs:
 
 ```bash
 prtr learn
@@ -246,14 +275,16 @@ prtr learn --reset
 
 What `learn` stores:
 
-- source files used to build the termbook
+- source files used to build the repo memory
 - protected project terms such as `BuildPrompt`, `PRTR_TARGET`, `snake_case`, or `--dry-run`
+- repo summary and guidance extracted from README and docs
 
 Where it stores it:
 
 - `.prtr/termbook.toml` at the repo root
+- `.prtr/memory.toml` at the repo root
 
-Then `prtr go` automatically loads that termbook and protects those names during translation unless you use `--no-context`.
+Then `prtr go`, `prtr swap`, and `prtr take` automatically load that repo memory unless you use `--no-context`.
 
 ## 6. Inspect instead of send
 

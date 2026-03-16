@@ -3,13 +3,24 @@
 [![Project Site](https://img.shields.io/badge/project%20site-live-ff7a1a?style=flat-square)](https://helloprtr.github.io/poly-prompt/)
 [![Docs Hub](https://img.shields.io/badge/docs-pages-58f2c5?style=flat-square)](https://helloprtr.github.io/poly-prompt/docs/)
 
-**Write in your language. Ship the next action.**
+**prtr turns what you mean into the next AI action.**
 
-`prtr` is the beginner-first AI command layer that turns user intent into the next action for Claude, Codex, or Gemini.
+Write in your language. Route to Claude, Codex, or Gemini. Keep the loop moving.
 
 Project site: [helloprtr.github.io/poly-prompt](https://helloprtr.github.io/poly-prompt/)
 
 ![prtr banner](images/prtr-banner.png)
+
+## 30-Second Loop
+
+```bash
+npm test 2>&1 | prtr go fix "왜 깨지는지 정확한 원인만 찾아줘"
+prtr swap claude
+prtr take patch
+prtr learn
+```
+
+One intent. Another app. The next action. Repo memory.
 
 ## Why prtr
 
@@ -24,7 +35,7 @@ They get stuck because:
 
 `prtr` is built to remove that friction.
 
-It is not a prompt-polishing toy.
+It is not a prompt toy.
 It is the command layer between what you mean and what you should do next.
 
 ## Status
@@ -60,21 +71,6 @@ It is the command layer between what you mean and what you should do next.
 - full auto submit is not supported
 - `--submit confirm` is still macOS-only
 
-## 30-Second Example
-
-```bash
-prtr go review "Point out only the risky parts of this PR."
-prtr swap codex
-prtr take patch
-prtr again --edit
-```
-
-You can also pipe evidence directly:
-
-```bash
-npm test 2>&1 | prtr go fix "Find the real reason this is failing."
-```
-
 ## Core Concepts
 
 **app**
@@ -91,7 +87,7 @@ Choose how the action gets executed.
 
 **loop**
 Do not stop at the first answer.
-`go -> swap -> take -> again -> learn`
+`go -> swap -> take -> learn`
 
 ## Quick Start
 
@@ -129,23 +125,24 @@ prtr start
 
 If you want the older full configuration wizard, `prtr setup` still exists as the advanced compatibility path.
 
-## Recommended Start Flow
+## Core Loop
 
-### 1. Just send it
+### 1. Start fast with `go`
 
 ```bash
 prtr go "Explain why this function is slow."
-```
-
-### 2. Pick a mode first
-
-```bash
 prtr go review "Point out only the risky parts of this PR."
 prtr go fix "Find the real reason these tests are failing."
 prtr go design "Design the structure for this feature."
 ```
 
-### 3. Compare another app quickly
+Official starter scenarios:
+
+- test failure analysis
+- PR risk review
+- feature design that turns into a patch or a plan
+
+### 2. Compare instantly with `swap`
 
 ```bash
 prtr swap claude
@@ -153,40 +150,63 @@ prtr swap gemini
 prtr swap codex
 ```
 
-### 4. Turn the first answer into the next action
+`swap` keeps the latest request and mode, then recompiles it for another app instead of making you rewrite the whole thing.
+
+### 3. Turn answers into work with `take`
 
 ```bash
 prtr take patch
-prtr take test
-prtr take commit
-prtr take summary
 prtr take issue
 prtr take plan
+prtr take summary
+prtr take test
+prtr take commit
+prtr take clarify
 ```
 
-### 5. Keep project terms stable
+Answer received -> take action:
+
+```text
+answer received
+  -> prtr take patch
+  -> prtr take issue
+  -> prtr take plan
+```
+
+`take` is the answer-to-action layer. It converts a useful answer into the next prompt you can actually use.
+
+### 4. Remember the project with `learn`
 
 ```bash
 prtr learn
 prtr learn README.md docs
 ```
 
+`learn` updates repo-local term and memory layers so future runs keep your names, symbols, and guidance stable.
+
 ## The Working Surface
 
-The beginner surface is intentionally small:
+The beginner surface is intentionally small and deliberately ordered:
 
 - `app`: `claude`, `gemini`, `codex`
 - `mode`: `ask`, `review`, `fix`, `design`
 - `delivery`: start with `open-copy`
 
-The working loop is the real product surface:
+The real product surface is:
 
 - `go`: send the first request fast
-- `swap`: compare another app with the same request
+- `swap`: compare another app without rebuilding context
 - `take`: turn an answer into the next action
+- `learn`: save repo memory for future runs
+
+Secondary and expert surfaces:
+
+- `start`: first-run onboarding and doctor path
 - `again`: replay the recent flow
-- `learn`: protect repo vocabulary for future runs
 - `inspect`: open the expert path for raw details
+- `sync`: render canonical repo guidance into vendor files
+- `exec`: run the same prompt pipeline headlessly
+- `server`: alpha orchestration surface
 
 The underlying config still uses names such as `target`, `template_preset`, `role`, and `profile`, but the public product language is now organized around `app`, `mode`, `delivery`, and the repeat loop.
 
@@ -219,6 +239,8 @@ These commands are part of the roadmap. They are not implemented in the current 
 ## Release Snapshots
 
 If you need short PR or announcement copy, use the full versioned set in [docs/RELEASE_MESSAGES.md](docs/RELEASE_MESSAGES.md).
+
+Current public release: `v0.5.1`
 
 - `v0.4.1`: `prtr start` became the beginner-first entry and `setup` moved to the advanced compatibility path.
 - `v0.4.2`: `doctor --fix` turned diagnostics into a practical recovery surface.

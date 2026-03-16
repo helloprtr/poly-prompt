@@ -2,6 +2,28 @@
 
 All notable product-facing changes to `prtr` are documented in this file.
 
+## Unreleased
+
+### v0.6.0 - Continuity upgrades
+
+- Added mode-aware next-step suggestions after `prtr go`.
+- Expanded `prtr learn` so default runs now update both `.prtr/termbook.toml` and `.prtr/memory.toml`.
+- Added dual preview output for `prtr learn --dry-run` so termbook and memory are both visible before saving.
+- Added richer `learn` save summaries with new protected term counts, repo summary, and representative guidance lines.
+
+## v0.5.1 - 2026-03-16
+
+### Highlights
+
+- Unified README, usage docs, installation guide, site hero, and CLI help around the same command-layer message.
+- Reordered the public loop around `go -> swap -> take -> learn`.
+- Standardized the public `take` action list to `patch`, `test`, `commit`, `summary`, `clarify`, `issue`, and `plan`.
+- Reframed `swap` as direct app comparison, `take` as the answer-to-action layer, and `learn` as repo memory instead of a narrow termbook helper.
+
+### Why This Release Matters
+
+`v0.5.1` is the release where the public product story finally matches what `prtr` already does well. The docs, site, and help output now explain the same loop in the same order, which makes the first successful use and the follow-up path easier to understand.
+
 ## v0.5.0 - 2026-03-15
 
 ### Highlights

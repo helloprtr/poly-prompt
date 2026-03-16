@@ -5,7 +5,7 @@ const basePath = import.meta.env.BASE_URL.endsWith("/")
   ? import.meta.env.BASE_URL
   : `${import.meta.env.BASE_URL}/`;
 
-const loopSteps = [
+const coreLoopSteps = [
   {
     command: "go",
     summary: "Send the first request fast.",
@@ -19,50 +19,69 @@ const loopSteps = [
   {
     command: "take",
     summary: "Turn the first answer into the next action.",
-    detail: "Use copied output as the seed for a patch, test, summary, issue, or plan prompt instead of stalling after analysis.",
+    detail: "Use copied output as the seed for a patch, issue, plan, summary, test, commit, or clarify prompt instead of stalling after analysis.",
+  },
+  {
+    command: "learn",
+    summary: "Remember the project.",
+    detail: "Update repo-local termbook and memory files so names, guidance, and project language survive translation and future follow-up runs.",
+  },
+];
+
+const supportSurfaces = [
+  {
+    command: "start",
+    summary: "Handle the first-run path.",
   },
   {
     command: "again",
     summary: "Replay the recent flow with control.",
-    detail: "Bring back the latest run with the same app and mode, then optionally edit before delivery when you want a careful repeat loop.",
-  },
-  {
-    command: "learn",
-    summary: "Keep project vocabulary stable.",
-    detail: "Build a repo-local termbook so names, flags, and domain language survive translation and future follow-up runs.",
   },
   {
     command: "inspect",
-    summary: "Open the expert path.",
-    detail: "Inspect the raw composition layer when you want to see how mode, translation, templates, and delivery were resolved.",
+    summary: "Open the expert path for raw details.",
+  },
+  {
+    command: "exec",
+    summary: "Run the same prompt pipeline headlessly.",
   },
 ];
 
 const demos = [
   {
-    title: "Start and doctor",
-    description: "Onboard the baseline, verify delivery capabilities, and confirm the first-run environment before trusting the loop.",
-    note: "This is the activation layer: `start` gets the first send moving and `doctor` confirms the handoff path is ready.",
+    title: "Input to first send",
+    description: "Start from a real request, keep the route visible, and use the shortest path from intent to a sent prompt.",
+    note: "This is the input layer: `go` turns one request into the first app-ready action without forcing prompt rewrites.",
     image: `${basePath}media/prtr-setup-doctor.gif`,
     alt: "Animated demonstration of prtr start, setup, and doctor onboarding",
   },
   {
-    title: "Routing and history",
-    description: "Send multilingual prompts, keep routing decisions visible, and reuse recent work without losing the original intent.",
-    note: "This is the continuity layer: app-aware routing and recent history make the next move cheaper than the first one.",
+    title: "Compare without rebuilding context",
+    description: "Reuse the same request and mode across apps so Claude, Codex, and Gemini can be compared without rebuilding the whole flow.",
+    note: "This is the comparison layer: `swap` keeps intent intact while the destination app changes.",
     image: `${basePath}media/prtr-routing-history.gif`,
     alt: "Animated demonstration of multilingual routing and history commands",
   },
   {
-    title: "Delivery and paste",
-    description: "Launch the target app, copy the final prompt, and hand it off with as little friction as possible.",
-    note: "This is the current delivery layer: `open-copy` stays visible for beginners, `exec` handles headless runs, and `server` remains alpha.",
+    title: "Take action and remember",
+    description: "Turn the first answer into a patch, issue, or plan, then save repo memory so the next run starts smarter.",
+    note: "This is the execution layer: `take` keeps answers moving and `learn` keeps project vocabulary from drifting.",
     image: `${basePath}media/prtr-delivery-paste.gif`,
     alt: "Animated demonstration of prtr delivery and paste flow",
   },
 ];
 
 const timeline = [
+  {
+    version: "Next: v0.6.0",
+    title: "Continuity upgrades",
+    body: "Mode-aware next-step suggestions after `go`, stronger answer-to-action positioning for `take`, and repo memory updates built into `learn`.",
+  },
+  {
+    version: "v0.5.1",
+    title: "Public surface sync",
+    body: "README, docs, site, and CLI help are aligned around one story: `go`, `swap`, `take`, and `learn` are the public loop.",
+  },
   {
     version: "v0.4.1",
     title: "Beginner-first entry",
@@ -91,6 +110,16 @@ const timeline = [
 ];
 
 const releaseMessages = [
+  {
+    version: "v0.5.1",
+    pr: "docs: align public surfaces around the AI command layer loop",
+    announcement: "Unified README, docs, site, and CLI help around one message: `prtr` turns what you mean into the next AI action, with the public loop centered on `go`, `swap`, `take`, and `learn`.",
+  },
+  {
+    version: "Next: v0.6.0",
+    pr: "feat: strengthen take/learn continuity around the next action",
+    announcement: "Added mode-aware next-step suggestions after `go`, expanded `learn` to update repo memory alongside the termbook, and made the answer-to-action loop more visible across docs and help output.",
+  },
   {
     version: "v0.4.1",
     pr: "feat: make start the beginner-first entry",
@@ -136,7 +165,7 @@ const routingPoints = [
 
 <BaseLayout
   title="Next-Action Command Layer"
-  description="prtr is a mode-first command layer for Claude, Gemini, and Codex that helps people turn intent into the next useful AI action."
+  description="prtr turns what you mean into the next AI action across Claude, Codex, and Gemini."
 >
   <main class="page-shell">
     <header class="topbar">
@@ -155,14 +184,10 @@ const routingPoints = [
     <section class="hero">
       <div class="hero-copy">
         <p class="eyebrow">A beginner-first command layer for real AI work.</p>
-        <h1>Write in your language. Ship the next action.</h1>
-        <p class="hero-text">
-          prtr helps people turn intent into the next useful action across Claude, Gemini, and Codex. Start
-          with `prtr start`, move through a mode-first loop, and keep the follow-up moving with `swap`,
-          `take`, `again`, `learn`, and `inspect`.
-        </p>
+        <h1>prtr turns what you mean into the next AI action.</h1>
+        <p class="hero-text">Write in your language. Route to Claude, Codex, or Gemini. Keep the loop moving.</p>
         <div class="hero-actions">
-          <a class="button button-primary" href="https://github.com/helloprtr/poly-prompt#quick-start">Start with prtr start</a>
+          <a class="button button-primary" href="https://github.com/helloprtr/poly-prompt#30-second-loop">See the 30-second loop</a>
           <a class="button button-secondary" href={`${basePath}docs/`}>Open docs hub</a>
           <a class="button button-tertiary" href="https://github.com/helloprtr/poly-prompt/blob/main/docs/PRD_V1.md">Read the PRD</a>
           <a class="button button-ghost" href="https://github.com/helloprtr/poly-prompt/releases">See releases</a>
@@ -183,13 +208,11 @@ const routingPoints = [
             <span class="panel-title">repeatable-work-loop.sh</span>
           </div>
           <div class="panel-body">
-            <p class="panel-caption">From intent to app choice to next action.</p>
+            <p class="panel-caption">Start fast. Swap instantly. Take action. Learn the project.</p>
             <pre><code>npm test 2&gt;&amp;1 | prtr go fix "왜 깨지는지 정확한 원인만 찾아줘"
-prtr swap gemini
+prtr swap claude
 prtr take patch
-prtr again --edit
-prtr learn
-prtr inspect --json "show the route"</code></pre>
+prtr learn</code></pre>
           </div>
         </div>
 
@@ -200,7 +223,7 @@ prtr inspect --json "show the route"</code></pre>
           </div>
           <div class="mini-card">
             <strong>Loop</strong>
-            <span>swap + take + again</span>
+            <span>go -&gt; swap -&gt; take -&gt; learn</span>
           </div>
           <div class="mini-card">
             <strong>Delivery</strong>
@@ -213,21 +236,53 @@ prtr inspect --json "show the route"</code></pre>
     <section class="section" id="loop">
       <div class="section-heading">
         <p class="eyebrow">Core loop</p>
-        <h2>Six commands that make the next step cheaper</h2>
+        <h2>Four commands that keep the loop moving</h2>
         <p>
-          The first request matters, but the second and third steps are where the real cost usually appears.
-          prtr keeps intent, context, and vocabulary moving forward without sending you back to prompt glue.
+          The first request matters, but app comparison, answer-to-action conversion, and repo memory are what
+          make the loop repeatable. prtr keeps those steps close together.
         </p>
       </div>
 
       <div class="loop-grid">
-        {loopSteps.map((step) => (
+        {coreLoopSteps.map((step) => (
           <article class="loop-card">
             <p class="command-tag">prtr {step.command}</p>
             <h3>{step.summary}</h3>
             <p>{step.detail}</p>
           </article>
         ))}
+      </div>
+
+      <div class="mini-grid support-grid" aria-label="Support surfaces">
+        {supportSurfaces.map((step) => (
+          <div class="mini-card">
+            <strong>prtr {step.command}</strong>
+            <span>{step.summary}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-heading">
+        <p class="eyebrow">Answer to action</p>
+        <h2>Do not stop at the first answer</h2>
+        <p>
+          `take` is where a useful answer becomes a patch prompt, issue prompt, or plan prompt instead of
+          turning into another copy-and-paste stall.
+        </p>
+      </div>
+      <div class="panel">
+        <div class="panel-body">
+          <p class="panel-caption">answer received -&gt; take action</p>
+          <pre><code>prtr take patch
+prtr take issue
+prtr take plan
+prtr take summary
+prtr take test
+prtr take commit
+prtr take clarify</code></pre>
+        </div>
       </div>
     </section>
 

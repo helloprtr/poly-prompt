@@ -2,6 +2,8 @@
 
 This guide covers how to install or update `prtr` for the latest published release.
 
+`prtr` turns what you mean into the next AI action.
+
 Release page:
 
 - [helloprtr/poly-prompt releases](https://github.com/helloprtr/poly-prompt/releases)
@@ -243,6 +245,15 @@ Then run:
 prtr start "이 코드 리뷰해줘"
 prtr go "이 에러 원인 분석해줘"
 prtr go review "이 PR에서 위험한 부분만 짚어줘" --dry-run
+```
+
+30-second loop:
+
+```bash
+npm test 2>&1 | prtr go fix "왜 깨지는지 정확한 원인만 찾아줘"
+prtr swap claude --dry-run
+prtr take patch --dry-run
+prtr learn --dry-run
 ```
 
 Optional diagnostic check:
