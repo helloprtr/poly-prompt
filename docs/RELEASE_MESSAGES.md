@@ -10,13 +10,13 @@ Short PR and announcement copy for the current release train.
 **Announcement**
 Unified README, docs, site, and CLI help around one message: `prtr` turns what you mean into the next AI action, with the public loop centered on `go`, `swap`, `take`, and `learn`.
 
-## Upcoming: v0.6.0
+## v0.6.0
 
 **PR title**
 `feat: strengthen take/learn continuity around the next action`
 
 **Announcement**
-Added mode-aware next-step suggestions after `go`, expanded `learn` to update repo memory alongside the termbook, and made the answer-to-action loop more visible across docs and help output.
+Start fast. Swap instantly. Take action. Learn the project. `v0.6.0` adds mode-aware next-step suggestions after `go`, expands `learn` to update repo memory alongside the termbook, and ships the demo asset kit plus launch checklist for a cleaner public rollout.
 
 ## v0.4.1
 

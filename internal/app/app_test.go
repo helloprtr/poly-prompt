@@ -310,7 +310,7 @@ func TestExecuteRootHelp(t *testing.T) {
 	if err := app.Execute(context.Background(), []string{"--help"}, strings.NewReader(""), false); err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
-	if !strings.Contains(stdout.String(), "beginner-first AI command layer") {
+	if !strings.Contains(stdout.String(), "turns what you mean into the next AI action") {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), `prtr go [mode] [message...]`) {
@@ -327,7 +327,7 @@ func TestExecuteGoHelp(t *testing.T) {
 	if err := app.Execute(context.Background(), []string{"go", "--help"}, strings.NewReader(""), false); err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
-	if !strings.Contains(stdout.String(), "`prtr go` is the fastest way to use prtr.") {
+	if !strings.Contains(stdout.String(), "`prtr go` is the fastest way to start the loop.") {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "If you pipe text and also pass a message, the piped text becomes evidence.") {
@@ -364,7 +364,7 @@ func TestExecuteTakeHelp(t *testing.T) {
 	if !strings.Contains(stdout.String(), "prtr take <action>") {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
-	if !strings.Contains(stdout.String(), "patch     Turn the answer into an implementation prompt") {
+	if !strings.Contains(stdout.String(), "issue     Turn the answer into an issue or task prompt") {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
 }
@@ -381,7 +381,7 @@ func TestExecuteLearnHelp(t *testing.T) {
 	if !strings.Contains(stdout.String(), "prtr learn [paths...]") {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
-	if !strings.Contains(stdout.String(), "--dry-run") {
+	if !strings.Contains(stdout.String(), ".prtr/memory.toml") {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
 }
@@ -458,6 +458,9 @@ func TestExecuteGoUsesDeterministicRoutingAndCompactStatus(t *testing.T) {
 	if !strings.Contains(stderr.String(), "-> review | claude | prompt | launch+paste | auto->en") {
 		t.Fatalf("stderr = %q", stderr.String())
 	}
+	if !strings.Contains(stderr.String(), "next: prtr swap <other-app>") {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
 }
 
 func TestExecuteGoAttachesPipedInputAsEvidence(t *testing.T) {
@@ -520,6 +523,9 @@ func TestExecuteGoAttachesRepoContext(t *testing.T) {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
 	if !strings.Contains(stderr.String(), "-> fix | codex | prompt+repo | preview | auto->en") {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "next: prtr take patch") {
 		t.Fatalf("stderr = %q", stderr.String())
 	}
 }
@@ -835,7 +841,16 @@ func TestExecuteLearnDryRun(t *testing.T) {
 		t.Fatalf("Execute() error = %v", err)
 	}
 
+	if !strings.Contains(stdout.String(), "=== .prtr/termbook.toml ===") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
 	if !strings.Contains(stdout.String(), "protected_terms = [") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "=== .prtr/memory.toml ===") {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "repo_summary =") {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "BuildPrompt") {
@@ -843,6 +858,9 @@ func TestExecuteLearnDryRun(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(root, ".prtr", "termbook.toml")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("termbook should not be written, stat err = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".prtr", "memory.toml")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("memory should not be written, stat err = %v", err)
 	}
 }
 
@@ -893,6 +911,16 @@ func TestExecuteLearnWritesTermbook(t *testing.T) {
 	}
 	if !strings.Contains(strings.Join(book.ProtectedTerms, ","), "BuildPrompt") {
 		t.Fatalf("ProtectedTerms = %v", book.ProtectedTerms)
+	}
+	mem, err := memory.Load(root)
+	if err != nil {
+		t.Fatalf("memory load error = %v", err)
+	}
+	if strings.TrimSpace(mem.RepoSummary) == "" {
+		t.Fatalf("RepoSummary = %q", mem.RepoSummary)
+	}
+	if !strings.Contains(stdout.String(), "repo summary:") {
+		t.Fatalf("stdout = %q", stdout.String())
 	}
 }
 

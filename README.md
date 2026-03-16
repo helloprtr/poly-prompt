@@ -95,6 +95,7 @@ Install details live in [INSTALLATION.md](INSTALLATION.md).
 Daily command examples live in [USAGE.md](USAGE.md).
 Product direction lives in [docs/PRD_V1.md](docs/PRD_V1.md) and [docs/BACKLOG_90_DAYS.md](docs/BACKLOG_90_DAYS.md).
 Release-ready PR and announcement copy lives in [docs/RELEASE_MESSAGES.md](docs/RELEASE_MESSAGES.md).
+Demo capture sources live in [docs/DEMO_ASSETS.md](docs/DEMO_ASSETS.md), and release operations live in [docs/LAUNCH_CHECKLIST.md](docs/LAUNCH_CHECKLIST.md).
 
 ### Install
 
@@ -240,8 +241,10 @@ These commands are part of the roadmap. They are not implemented in the current 
 
 If you need short PR or announcement copy, use the full versioned set in [docs/RELEASE_MESSAGES.md](docs/RELEASE_MESSAGES.md).
 
-Current public release: `v0.5.1`
+Current public release: `v0.6.0`
 
+- `v0.6.0`: `go` now suggests stronger next steps, `learn` updates both termbook and repo memory by default, and the release ships demo assets plus launch checklists.
+- `v0.5.1`: README, docs, site, and CLI help were unified around the public `go -> swap -> take -> learn` loop.
 - `v0.4.1`: `prtr start` became the beginner-first entry and `setup` moved to the advanced compatibility path.
 - `v0.4.2`: `doctor --fix` turned diagnostics into a practical recovery surface.
 - `v0.4.3`: `sync`, routing metadata, and repo memory made guidance more portable across apps.

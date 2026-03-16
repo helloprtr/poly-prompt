@@ -359,8 +359,8 @@ func (a *App) runStart(ctx context.Context, args []string, stdin io.Reader, stdi
 	_, _ = fmt.Fprintln(a.stdout, "next actions:")
 	_, _ = fmt.Fprintln(a.stdout, "  prtr swap <app>")
 	_, _ = fmt.Fprintln(a.stdout, "  prtr take patch")
-	_, _ = fmt.Fprintln(a.stdout, "  prtr again")
 	_, _ = fmt.Fprintln(a.stdout, "  prtr learn")
+	_, _ = fmt.Fprintln(a.stdout, "  prtr again")
 	return nil
 }
 
@@ -1145,22 +1145,42 @@ func (a *App) runLearn(args []string) error {
 		return err
 	}
 
-	extraction, err := termbook.Extract(repoRoot, command.paths)
+	termExtraction, err := termbook.Extract(repoRoot, command.paths)
 	if err != nil {
 		return err
 	}
 
-	book := termbook.Book{
+	termbookBook := termbook.Book{
 		GeneratedAt:    time.Now().UTC(),
-		Sources:        extraction.Sources,
-		ProtectedTerms: extraction.Terms,
+		Sources:        termExtraction.Sources,
+		ProtectedTerms: termExtraction.Terms,
 	}
+	memoryBook, err := memory.Extract(repoRoot, command.paths)
+	if err != nil {
+		return err
+	}
+
+	existingTermbook := termbook.Book{}
+	existingMemory := memory.Book{}
+	hasExistingTermbook := false
+	hasExistingMemory := false
 
 	if !command.reset {
 		existing, err := a.loadTermbook(repoRoot)
 		switch {
 		case err == nil:
-			book = termbook.Merge(existing, book)
+			existingTermbook = existing
+			hasExistingTermbook = true
+			termbookBook = termbook.Merge(existing, termbookBook)
+		case errors.Is(err, os.ErrNotExist), errors.Is(err, termbook.ErrNotGitRepo):
+		default:
+			return err
+		}
+		existingMemory, err = a.loadMemory(repoRoot)
+		switch {
+		case err == nil:
+			hasExistingMemory = true
+			memoryBook = memory.Merge(existingMemory, memoryBook)
 		case errors.Is(err, os.ErrNotExist), errors.Is(err, termbook.ErrNotGitRepo):
 		default:
 			return err
@@ -1168,20 +1188,49 @@ func (a *App) runLearn(args []string) error {
 	}
 
 	if command.dryRun {
-		data, err := termbook.Encode(book)
+		termbookData, err := termbook.Encode(termbookBook)
 		if err != nil {
 			return err
 		}
-		_, _ = fmt.Fprintln(a.stdout, string(data))
+		memoryData, err := memory.Encode(memoryBook)
+		if err != nil {
+			return err
+		}
+		_, _ = fmt.Fprintln(a.stdout, "=== .prtr/termbook.toml ===")
+		_, _ = fmt.Fprintln(a.stdout, string(termbookData))
+		_, _ = fmt.Fprintln(a.stdout, "=== .prtr/memory.toml ===")
+		_, _ = fmt.Fprintln(a.stdout, string(memoryData))
 		return nil
 	}
 
-	path, err := termbook.Save(repoRoot, book)
+	termbookPath, err := termbook.Save(repoRoot, termbookBook)
+	if err != nil {
+		return err
+	}
+	memoryPath, err := memory.Save(repoRoot, memoryBook)
 	if err != nil {
 		return err
 	}
 
-	_, _ = fmt.Fprintf(a.stdout, "saved %d protected terms to %s\n", len(book.ProtectedTerms), path)
+	newProtectedTerms := countAddedTerms(existingTermbook.ProtectedTerms, termbookBook.ProtectedTerms)
+	if !hasExistingTermbook {
+		newProtectedTerms = len(termbookBook.ProtectedTerms)
+	}
+	_, _ = fmt.Fprintf(a.stdout, "saved %d protected terms (+%d new) to %s\n", len(termbookBook.ProtectedTerms), newProtectedTerms, termbookPath)
+	_, _ = fmt.Fprintf(a.stdout, "saved repo memory to %s\n", memoryPath)
+	if strings.TrimSpace(memoryBook.RepoSummary) != "" {
+		_, _ = fmt.Fprintf(a.stdout, "repo summary: %s\n", memoryBook.RepoSummary)
+	}
+	guidance := memoryBook.Guidance
+	if len(guidance) == 0 && hasExistingMemory {
+		guidance = existingMemory.Guidance
+	}
+	if len(guidance) > 0 {
+		_, _ = fmt.Fprintln(a.stdout, "guidance:")
+		for _, line := range guidance[:minInt(3, len(guidance))] {
+			_, _ = fmt.Fprintf(a.stdout, "- %s\n", line)
+		}
+	}
 	return nil
 }
 
@@ -1732,6 +1781,46 @@ func (a *App) writeCompactStatus(opts runOptions, run resolvedRun) {
 
 	parts := []string{mode, run.targetName, inputSource, delivery, run.sourceLang + "->" + run.targetLang}
 	_, _ = fmt.Fprintf(a.stderr, "-> %s\n", strings.Join(parts, " | "))
+	for _, suggestion := range compactStatusSuggestions(opts) {
+		_, _ = fmt.Fprintf(a.stderr, "   next: %s\n", suggestion)
+	}
+}
+
+func compactStatusSuggestions(opts runOptions) []string {
+	switch opts.action {
+	case "swap":
+		return []string{"reused the latest request and mode for a direct app comparison"}
+	case "go":
+		switch strings.ToLower(strings.TrimSpace(opts.surfaceMode)) {
+		case "fix":
+			return []string{"prtr take patch", "prtr take test"}
+		case "review":
+			return []string{"prtr swap <other-app>", "prtr take issue"}
+		case "design":
+			return []string{"prtr take plan", "prtr take patch"}
+		default:
+			return []string{"prtr swap <other-app>", "prtr take summary"}
+		}
+	default:
+		return nil
+	}
+}
+
+func countAddedTerms(existing, current []string) int {
+	known := make(map[string]bool, len(existing))
+	for _, term := range existing {
+		known[strings.TrimSpace(term)] = true
+	}
+	added := 0
+	for _, term := range current {
+		term = strings.TrimSpace(term)
+		if term == "" || known[term] {
+			continue
+		}
+		known[term] = true
+		added++
+	}
+	return added
 }
 
 func (a *App) resolveTranslator(apiKey string) translate.Translator {
@@ -2473,9 +2562,9 @@ func usageText() string {
 
 func rootHelpText() string {
 	return strings.Join([]string{
-		"prtr is the beginner-first AI command layer that turns user intent into the next action for Claude, Codex, or Gemini.",
+		"prtr turns what you mean into the next AI action.",
 		"",
-		"Write in your language. Ship the next action.",
+		"Write in your language. Route to Claude, Codex, or Gemini. Keep the loop moving.",
 		"",
 		"Start with:",
 		"  prtr start",
@@ -2483,10 +2572,12 @@ func rootHelpText() string {
 		"Or jump straight to:",
 		`  prtr go "이 에러 원인 분석해줘"`,
 		"",
-		"Then keep moving with:",
+		"Core loop:",
 		"  prtr swap gemini",
 		"  prtr take patch",
 		"  prtr learn",
+		"",
+		"Expert surfaces:",
 		"  prtr again",
 		"  prtr inspect",
 		"",
@@ -2592,13 +2683,13 @@ func startHelpText() string {
 
 func goHelpText() string {
 	return strings.Join([]string{
-		"Send a translated, context-aware prompt to Claude, Codex, or Gemini.",
+		"Turn what you mean into the next AI action.",
 		"",
-		"`prtr go` is the fastest way to use prtr.",
+		"`prtr go` is the fastest way to start the loop.",
 		"",
 		"Write your request in your language.",
-		"prtr translates it to English, adds useful context, opens your AI app,",
-		"and pastes the final prompt so it is ready to send.",
+		"prtr routes it to Claude, Codex, or Gemini, adds useful context,",
+		"and prepares the next action without making you babysit the prompt.",
 		"",
 		"Usage:",
 		"  prtr go [mode] [message...]",
@@ -2623,7 +2714,7 @@ func goHelpText() string {
 		"  4. Applies the selected mode",
 		"  5. Opens Claude, Codex, or Gemini",
 		"  6. Pastes the final prompt",
-		"  7. Saves the run so you can swap or run again",
+		"  7. Saves the run so `swap`, `take`, and `learn` stay close",
 		"",
 		"Examples:",
 		`  prtr go "이 에러 원인 분석해줘"`,
@@ -2642,9 +2733,9 @@ func goHelpText() string {
 		"  -h, --help            Help for go",
 		"",
 		"Next steps:",
-		"  prtr swap <app>       Send the last prompt to another app",
-		"  prtr take <action>    Turn clipboard text into the next action",
-		"  prtr learn            Teach prtr your repo terms and style",
+		"  prtr swap <app>       Compare another app without rebuilding context",
+		"  prtr take <action>    Turn the answer into the next action",
+		"  prtr learn            Save repo memory for future runs",
 		"  prtr again            Run the latest flow again",
 		"  prtr inspect          Inspect the compiled prompt and config",
 	}, "\n")
@@ -2704,10 +2795,10 @@ func againHelpText() string {
 
 func swapHelpText() string {
 	return strings.Join([]string{
-		"Send the latest prompt to another app.",
+		"Compare another app without rewriting the request.",
 		"",
 		"`prtr swap` reuses the latest request and mode, then recompiles it for",
-		"Claude, Codex, or Gemini without rebuilding the flow manually.",
+		"Claude, Codex, or Gemini so you can compare apps without starting over.",
 		"",
 		"Usage:",
 		"  prtr swap <app> [message...]",
@@ -2730,30 +2821,30 @@ func swapHelpText() string {
 
 func takeHelpText() string {
 	return strings.Join([]string{
-		"Turn the latest answer or clipboard text into the next action.",
+		"Turn the latest answer into the next action.",
 		"",
-		"`prtr take` reads from your clipboard, turns that text into a new",
-		"ready-to-send prompt, then sends it to Claude, Codex, or Gemini.",
+		"`prtr take` is the answer-to-action layer.",
+		"It reads from your clipboard, rebuilds the request for the chosen action,",
+		"then sends it to Claude, Codex, or Gemini.",
 		"",
 		"Usage:",
 		"  prtr take <action>",
 		"",
-		"Actions:",
 		"  patch     Turn the answer into an implementation prompt",
-		"  test      Turn the answer into a testing prompt",
-		"  commit    Turn the answer into a commit message prompt",
-		"  summary   Turn the answer into a short reusable summary prompt",
-		"  clarify   Turn the answer into a clarification prompt",
 		"  issue     Turn the answer into an issue or task prompt",
 		"  plan      Turn the answer into an implementation plan prompt",
+		"  summary   Turn the answer into a short reusable summary prompt",
+		"  test      Turn the answer into a testing prompt",
+		"  commit    Turn the answer into a commit message prompt",
+		"  clarify   Turn the answer into a clarification prompt",
 		"",
 		"Examples:",
 		"  prtr take patch",
-		"  prtr take test --to codex",
-		"  prtr take commit --dry-run",
-		"  prtr take summary --edit",
 		"  prtr take issue",
 		"  prtr take plan",
+		"  prtr take summary --edit",
+		"  prtr take test --to codex",
+		"  prtr take commit --dry-run",
 		"",
 		"Flags:",
 		"      --to <app>        Choose the app: claude | codex | gemini",
@@ -2765,10 +2856,10 @@ func takeHelpText() string {
 
 func learnHelpText() string {
 	return strings.Join([]string{
-		"Teach prtr your repo terms and style.",
+		"Teach prtr your repo memory.",
 		"",
-		"`prtr learn` scans your project and builds a local termbook with",
-		"protected project terms that should not be translated away.",
+		"`prtr learn` scans your project and updates both `.prtr/termbook.toml`",
+		"and `.prtr/memory.toml` so repo vocabulary and guidance survive future runs.",
 		"",
 		"Usage:",
 		"  prtr learn [paths...]",
@@ -2782,8 +2873,8 @@ func learnHelpText() string {
 		"  prtr learn --reset",
 		"",
 		"Flags:",
-		"      --dry-run         Show the generated termbook without saving",
-		"      --reset           Rebuild the termbook instead of merging it",
+		"      --dry-run         Show termbook and memory previews without saving",
+		"      --reset           Rebuild termbook and memory instead of merging them",
 		"  -h, --help            Help for learn",
 	}, "\n")
 }

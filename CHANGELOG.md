@@ -4,12 +4,21 @@ All notable product-facing changes to `prtr` are documented in this file.
 
 ## Unreleased
 
-### v0.6.0 - Continuity upgrades
+No unreleased entries yet.
+
+## v0.6.0 - 2026-03-16
+
+### Highlights
 
 - Added mode-aware next-step suggestions after `prtr go`.
 - Expanded `prtr learn` so default runs now update both `.prtr/termbook.toml` and `.prtr/memory.toml`.
 - Added dual preview output for `prtr learn --dry-run` so termbook and memory are both visible before saving.
 - Added richer `learn` save summaries with new protected term counts, repo summary, and representative guidance lines.
+- Added release-ready demo source files and launch checklists so the public loop can be shown and shipped consistently.
+
+### Why This Release Matters
+
+`v0.6.0` is the release where the continuity story becomes visible in both the product and the launch package. The CLI now suggests stronger next steps after `go`, `learn` updates the repo memory layer by default, and the release includes demo assets and operator checklists that make the loop easier to show, ship, and repeat.
 
 ## v0.5.1 - 2026-03-16
 
