@@ -1,5 +1,3 @@
-# prtr watch hook — managed by prtr, do not edit manually
-
 _prtr_debug_trap() {
   _PRTR_CMD="$BASH_COMMAND"
 }

@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"strconv"
@@ -30,10 +31,10 @@ func (a *App) newWatchCommand() *cobra.Command {
 			}
 
 			if off {
-				return stopWatcher(pidPath)
+				return stopWatcher(pidPath, cmd.OutOrStdout())
 			}
 			if status {
-				return printWatcherStatus(pidPath)
+				return printWatcherStatus(pidPath, cmd.OutOrStdout())
 			}
 
 			shellConfig := watcher.DetectShellConfig()
@@ -63,11 +64,11 @@ func (a *App) newWatchCommand() *cobra.Command {
 	return cmd
 }
 
-func stopWatcher(pidPath string) error {
+func stopWatcher(pidPath string, w io.Writer) error {
 	data, err := os.ReadFile(pidPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			fmt.Println("prtr watch: not running")
+			fmt.Fprintln(w, "prtr watch: not running")
 			return nil
 		}
 		return err
@@ -83,22 +84,22 @@ func stopWatcher(pidPath string) error {
 	}
 	_ = proc.Signal(syscall.SIGTERM)
 	_ = os.Remove(pidPath)
-	fmt.Println("prtr watch: stopped")
+	fmt.Fprintln(w, "prtr watch: stopped")
 	return nil
 }
 
-func printWatcherStatus(pidPath string) error {
+func printWatcherStatus(pidPath string, w io.Writer) error {
 	data, err := os.ReadFile(pidPath)
 	if err != nil {
-		fmt.Println("prtr watch: inactive")
+		fmt.Fprintln(w, "prtr watch: inactive")
 		return nil
 	}
 	pid, _ := strconv.Atoi(strings.TrimSpace(string(data)))
 	proc, err := os.FindProcess(pid)
 	if err != nil || proc.Signal(syscall.Signal(0)) != nil {
-		fmt.Println("prtr watch: inactive (stale PID)")
+		fmt.Fprintln(w, "prtr watch: inactive (stale PID)")
 		return nil
 	}
-	fmt.Printf("prtr watch: active (PID %d)\n", pid)
+	fmt.Fprintf(w, "prtr watch: active (PID %d)\n", pid)
 	return nil
 }

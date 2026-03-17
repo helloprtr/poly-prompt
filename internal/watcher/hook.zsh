@@ -1,4 +1,3 @@
-# prtr watch hook — managed by prtr, do not edit manually
 # Installed by: prtr watch
 
 _prtr_preexec() {

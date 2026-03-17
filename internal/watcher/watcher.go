@@ -120,6 +120,9 @@ func processEvents(ctx context.Context, events <-chan shellEvent) error {
 }
 
 func handleEvent(ctx context.Context, ev shellEvent) error {
+	// Note: output is only available if the user's shell captures it to ev.OutputFile.
+	// In v0.8, the shell hook does not capture output automatically (requires tee-based wrapping).
+	// Exit-code detection and git conflict detection remain functional.
 	output, _ := repoctx.LastTestOutput(ev.OutputFile)
 	action := DetectEvent(ev.ExitCode, output)
 	if action == "" {

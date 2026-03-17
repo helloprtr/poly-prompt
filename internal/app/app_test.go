@@ -1166,7 +1166,7 @@ func TestExecuteTakeDeepWritesArtifactsAndHistoryMetadata(t *testing.T) {
 	if !strings.Contains(stderr.String(), "-> take:patch --deep | codex | clipboard | preview | en->en | completed") {
 		t.Fatalf("stderr = %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "step: patch (2/5)") {
+	if !strings.Contains(stderr.String(), "step: patcher (2/5)") {
 		t.Fatalf("stderr = %q", stderr.String())
 	}
 	if !strings.Contains(stderr.String(), "artifact: "+filepath.Join(repoRoot, ".prtr", "runs")) {

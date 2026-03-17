@@ -568,11 +568,11 @@ func TestSystemS4_DeepDryRunCLIUXOutput(t *testing.T) {
 		step  string
 		index string
 	}{
-		{"plan", "1/5"},
-		{"patch", "2/5"},
-		{"critique", "3/5"},
-		{"tests", "4/5"},
-		{"reconcile", "5/5"},
+		{"planner", "1/5"},
+		{"patcher", "2/5"},
+		{"critic", "3/5"},
+		{"tester", "4/5"},
+		{"reconciler", "5/5"},
 	}
 	for _, w := range wantSteps {
 		want := "step: " + w.step + " (" + w.index + ")"

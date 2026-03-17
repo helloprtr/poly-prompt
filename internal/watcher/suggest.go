@@ -22,6 +22,9 @@ func WriteSuggest(path string, s Suggestion) error {
 	if err != nil {
 		return fmt.Errorf("marshal suggestion: %w", err)
 	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("create suggest dir: %w", err)
+	}
 	tmp := path + ".tmp"
 	if err := os.WriteFile(tmp, data, 0o600); err != nil {
 		return fmt.Errorf("write suggest tmp: %w", err)
