@@ -119,9 +119,6 @@ func (m PipelineModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case progressMsg:
 		p := deeprun.Progress(msg)
 		// Mark previous running stage as done.
-		copied := make([]Stage, len(m.stages))
-		copy(copied, m.stages)
-		m.stages = copied
 		for i, s := range m.stages {
 			if s.State == StageRunning {
 				m.stages[i].State = StageDone

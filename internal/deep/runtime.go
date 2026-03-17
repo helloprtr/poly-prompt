@@ -3,12 +3,14 @@ package deep
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"regexp"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/x/term"
 	"github.com/helloprtr/poly-prompt/internal/deep/artifact"
 	deepevent "github.com/helloprtr/poly-prompt/internal/deep/event"
 	"github.com/helloprtr/poly-prompt/internal/deep/llm"
@@ -203,20 +205,12 @@ func executePatchRunWithGraph(
 		files = []string{inspectChangedFiles}
 	}
 
-	// ── Progress helper ─────────────────────────────────────────────────────
-	emit := func(step string, idx int, msg string) {
-		if opts.Progress != nil {
-			opts.Progress(Progress{Step: step, Index: idx, Total: 5, Message: msg})
-		}
-	}
-
 	// ── Planning phase ──────────────────────────────────────────────────────
 	run.Status = RunStatusPlanning
 	run.UpdatedAt = time.Now().UTC()
 	if err := aw.WriteManifest(run); err != nil {
 		return Result{}, err
 	}
-	emit("plan", 1, "capturing the run plan")
 
 	// ── Graph execution ─────────────────────────────────────────────────────
 	run.Status = RunStatusRunning
@@ -225,7 +219,36 @@ func executePatchRunWithGraph(
 		return Result{}, err
 	}
 
+	// ── TUI wiring ──────────────────────────────────────────────────────────
+	ch := make(chan deeprun.Progress, 10)
+	isTTY := term.IsTerminal(os.Stdout.Fd())
+
+	tuiDone := make(chan struct{})
+	if isTTY {
+		go func() {
+			defer close(tuiDone)
+			_ = RunPipelineTUI(ch, []string{"planner", "patcher", "critic", "tester", "reconciler"})
+		}()
+	} else {
+		close(tuiDone)
+	}
+
+	// Override Progress callback to feed the TUI channel.
+	userProgress := opts.Progress
+	opts.Progress = func(p deeprun.Progress) {
+		if isTTY {
+			ch <- p
+		} else {
+			fmt.Fprintf(os.Stderr, "[%d/%d] %s: %s\n", p.Index, p.Total, p.Step, p.Message)
+		}
+		if userProgress != nil {
+			userProgress(p)
+		}
+	}
+
 	gr, err := graphFactory().Run(ctx, opts, aw, files)
+	close(ch)
+	<-tuiDone
 	if err != nil {
 		// Hard blocker failure — mark run as failed.
 		run.Status = RunStatusFailed
