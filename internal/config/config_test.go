@@ -313,6 +313,28 @@ func TestWatchConfigLoaded(t *testing.T) {
 	}
 }
 
+func TestMemoryConfigDefaults(t *testing.T) {
+	cfg, err := Load()
+	if err != nil {
+		t.Skipf("no config available: %v", err)
+	}
+	if !cfg.Memory.Enabled {
+		t.Error("Memory.Enabled should default to true")
+	}
+	if !cfg.Memory.AutoSave {
+		t.Error("Memory.AutoSave should default to true")
+	}
+	if cfg.Memory.CapsuleRetentionDays != 30 {
+		t.Errorf("CapsuleRetentionDays: got %d, want 30", cfg.Memory.CapsuleRetentionDays)
+	}
+	if cfg.Memory.AutosaveRetentionDays != 14 {
+		t.Errorf("AutosaveRetentionDays: got %d, want 14", cfg.Memory.AutosaveRetentionDays)
+	}
+	if cfg.Memory.StoreDiff != "stat" {
+		t.Errorf("StoreDiff: got %q, want %q", cfg.Memory.StoreDiff, "stat")
+	}
+}
+
 func stringPtr(value string) *string {
 	v := value
 	return &v

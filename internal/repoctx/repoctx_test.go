@@ -2,6 +2,7 @@ package repoctx
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -78,6 +79,24 @@ func TestCollectReturnsNotGitRepo(t *testing.T) {
 	}
 	if err != ErrNotGitRepo {
 		t.Fatalf("Collect() error = %v, want %v", err, ErrNotGitRepo)
+	}
+}
+
+func TestCollectIncludesHeadSHA(t *testing.T) {
+	ctx := context.Background()
+	c := New()
+	summary, err := c.Collect(ctx)
+	if errors.Is(err, ErrNotGitRepo) {
+		t.Skip("not in a git repo")
+	}
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	if summary.HeadSHA == "" {
+		t.Error("HeadSHA should be non-empty in a git repo")
+	}
+	if len(summary.HeadSHA) < 7 {
+		t.Errorf("HeadSHA should be at least 7 chars (short SHA), got %d: %q", len(summary.HeadSHA), summary.HeadSHA)
 	}
 }
 

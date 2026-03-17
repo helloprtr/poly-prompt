@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/helloprtr/poly-prompt/internal/automation"
+	"github.com/helloprtr/poly-prompt/internal/capsule"
 	"github.com/helloprtr/poly-prompt/internal/clipboard"
 	"github.com/helloprtr/poly-prompt/internal/config"
 	"github.com/helloprtr/poly-prompt/internal/deep"
@@ -280,7 +281,9 @@ func (a *App) shouldRunRootDirect(args []string) bool {
 	}
 
 	switch first {
-	case "init", "version", "start", "setup", "lang", "doctor", "templates", "profiles", "history", "rerun", "pin", "favorite", "go", "demo", "again", "swap", "take", "learn", "inspect", "watch":
+	case "init", "version", "start", "setup", "lang", "doctor", "templates", "profiles", "history", "rerun", "pin", "favorite", "go", "demo", "again", "swap", "take", "learn", "inspect", "watch",
+		"save", "resume", "status", "list", "prune",
+		"dip", "taste", "plate", "marinate", "prep":
 		return false
 	}
 
@@ -1424,6 +1427,14 @@ func (a *App) executePrompt(ctx context.Context, opts runOptions, text, shortcut
 		return err
 	}
 
+	// Auto-save capsule after successful run.
+	// Use context.Background() — the command's ctx may be cancelled before
+	// the goroutine finishes, which would silently drop the auto-save.
+	if latestEntry, err := a.historyStore.Latest(); err == nil {
+		entry := latestEntry // capture loop variable
+		go a.tryAutoSave(context.Background(), &entry)
+	}
+
 	if opts.jsonOutput {
 		payload := map[string]any{
 			"original":             resolved.original,
@@ -1571,6 +1582,15 @@ func (a *App) executeStoredPrompt(ctx context.Context, opts runOptions, entry hi
 	if err := a.appendHistory(run); err != nil {
 		return err
 	}
+
+	// Auto-save capsule after successful run.
+	// Use context.Background() — the command's ctx may be cancelled before
+	// the goroutine finishes, which would silently drop the auto-save.
+	if latestEntry, err := a.historyStore.Latest(); err == nil {
+		entry := latestEntry // capture loop variable
+		go a.tryAutoSave(context.Background(), &entry)
+	}
+
 	if opts.compactStatus {
 		a.writeCompactStatus(opts, run)
 	}
@@ -3074,4 +3094,415 @@ func resolvedLLMAPIKey(cmd takeCommandOptions, cfg config.Config) string {
 		return cfg.LLMAPIKey
 	}
 	return ""
+}
+
+func (a *App) runSave(label, note string) error {
+	cfg, err := a.configLoader()
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+	if !cfg.Memory.Enabled {
+		_, _ = fmt.Fprintln(a.stdout, "capsules are disabled (memory.enabled = false)")
+		return nil
+	}
+
+	repoRoot, err := a.resolveRepoRoot()
+	if err != nil {
+		return fmt.Errorf("find repo root: %w", err)
+	}
+
+	ctx := context.Background()
+	repoSummary, err := a.repoContext.Collect(ctx)
+	if err != nil {
+		return fmt.Errorf("collect repo context: %w", err)
+	}
+
+	// Latest history entry is optional — proceed without it on error.
+	var histEntry *history.Entry
+	if a.historyStore != nil {
+		if e, err := a.historyStore.Latest(); err == nil {
+			histEntry = &e
+		}
+	}
+
+	in := capsule.BuildInput{
+		Label:        label,
+		Note:         note,
+		Kind:         capsule.KindManual,
+		HistoryEntry: histEntry,
+		RepoSummary:  repoSummary,
+		RepoRoot:     repoRoot,
+	}
+	c := capsule.Build(in)
+
+	dir, err := capsule.DefaultDir(repoRoot)
+	if err != nil {
+		return fmt.Errorf("resolve capsule dir: %w", err)
+	}
+	store := capsule.NewStore(dir)
+	if err := store.Save(c); err != nil {
+		return fmt.Errorf("save capsule: %w", err)
+	}
+
+	todoCount := len(c.Work.Todos)
+	displayLabel := c.Label
+	if displayLabel == "" {
+		displayLabel = "[auto]"
+	}
+	_, _ = fmt.Fprintf(a.stdout, "✓ capsule saved  %s  %s\n  branch: %s  sha: %s  %d todos\n",
+		c.ID, displayLabel, c.Repo.Branch, c.Repo.HeadSHA, todoCount)
+
+	if cfg.Memory.PruneOnWrite {
+		_ = a.runPrune("", false) // best-effort, ignore error
+	}
+
+	return nil
+}
+
+func (a *App) runResume(ctx context.Context, id, to string, dryRun bool) error {
+	repoRoot, err := a.resolveRepoRoot()
+	if err != nil {
+		return fmt.Errorf("find repo root: %w", err)
+	}
+
+	dir, err := capsule.DefaultDir(repoRoot)
+	if err != nil {
+		return fmt.Errorf("resolve capsule dir: %w", err)
+	}
+	store := capsule.NewStore(dir)
+
+	var c capsule.Capsule
+	if id == "" {
+		c, err = store.Latest()
+	} else {
+		c, err = store.Load(id)
+	}
+	if err != nil {
+		if errors.Is(err, capsule.ErrNotFound) {
+			return fmt.Errorf("no capsules found for this repo — run `prtr save` first")
+		}
+		return fmt.Errorf("load capsule: %w", err)
+	}
+
+	// Detect drift
+	current, _ := a.repoContext.Collect(ctx)
+	drift := capsule.DetectDrift(c, current)
+
+	// Resolve target
+	target := to
+	if target == "" {
+		target = c.Session.TargetApp
+	}
+	if target == "" {
+		cfg, _ := a.configLoader()
+		target = cfg.DefaultTarget
+	}
+	if target == "" {
+		target = "claude"
+	}
+
+	// Render resume prompt
+	prompt := capsule.RenderResumePrompt(c, target, drift)
+
+	if dryRun {
+		_, _ = fmt.Fprintln(a.stdout, prompt)
+		return nil
+	}
+
+	// Deliver: copy to clipboard + launch target app
+	if err := a.clipboard.Copy(ctx, prompt); err != nil {
+		return fmt.Errorf("copy to clipboard: %w", err)
+	}
+
+	cfg, err := a.configLoader()
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+	launcherCfg, hasLauncher := cfg.Launchers[target]
+	if hasLauncher && strings.TrimSpace(launcherCfg.Command) != "" && a.launcher != nil {
+		if err := a.launcher.Launch(ctx, launcher.Request{
+			Command: launcherCfg.Command,
+			Args:    launcherCfg.Args,
+		}); err != nil {
+			return fmt.Errorf("launch %s: %w", target, err)
+		}
+	}
+
+	displayLabel := c.Label
+	if displayLabel == "" {
+		displayLabel = "[auto]"
+	}
+	_, _ = fmt.Fprintf(a.stdout, "✓ resume prompt copied  %s  → %s\n", displayLabel, target)
+	if drift.HasDrift() {
+		_, _ = fmt.Fprintln(a.stdout, "  ⚠ repo has drifted since save — review the warning in the prompt")
+	}
+
+	if cfg.Memory.PruneOnResume {
+		_ = a.runPrune("", false)
+	}
+
+	return nil
+}
+
+func (a *App) runCapsuleStatus() error {
+	repoRoot, err := a.resolveRepoRoot()
+	if err != nil {
+		return fmt.Errorf("find repo root: %w", err)
+	}
+
+	dir, err := capsule.DefaultDir(repoRoot)
+	if err != nil {
+		return fmt.Errorf("resolve capsule dir: %w", err)
+	}
+	store := capsule.NewStore(dir)
+
+	c, err := store.Latest()
+	if err != nil {
+		if errors.Is(err, capsule.ErrNotFound) {
+			_, _ = fmt.Fprintln(a.stdout, "no capsules saved for this repo")
+			return nil
+		}
+		return fmt.Errorf("load latest capsule: %w", err)
+	}
+
+	ctx := context.Background()
+	current, _ := a.repoContext.Collect(ctx)
+
+	drift := capsule.DetectDrift(c, current)
+
+	displayLabel := c.Label
+	if displayLabel == "" {
+		displayLabel = "[auto]"
+	}
+	_, _ = fmt.Fprintf(a.stdout, "last save:  %s  %s\n",
+		c.CreatedAt.Local().Format("2006-01-02 15:04"), displayLabel)
+
+	if drift.BranchChanged {
+		_, _ = fmt.Fprintf(a.stdout, "branch:     %s → %s  ⚠ branch changed\n",
+			drift.SavedBranch, drift.CurrentBranch)
+	} else {
+		_, _ = fmt.Fprintf(a.stdout, "branch:     %s  (no drift)\n", c.Repo.Branch)
+	}
+
+	if drift.SHAChanged {
+		_, _ = fmt.Fprintf(a.stdout, "sha:        %s → %s  ⚠ commits since save\n",
+			drift.SavedSHA, drift.CurrentSHA)
+	} else {
+		_, _ = fmt.Fprintf(a.stdout, "sha:        %s  (no drift)\n", c.Repo.HeadSHA)
+	}
+
+	open, done := 0, 0
+	for _, t := range c.Work.Todos {
+		if t.Status == "completed" {
+			done++
+		} else {
+			open++
+		}
+	}
+	_, _ = fmt.Fprintf(a.stdout, "todos:      %d open, %d done\n", open, done)
+	_, _ = fmt.Fprintf(a.stdout, "target:     %s\n", c.Session.TargetApp)
+
+	return nil
+}
+
+func (a *App) runCapsuleList() error {
+	repoRoot, err := a.resolveRepoRoot()
+	if err != nil {
+		return fmt.Errorf("find repo root: %w", err)
+	}
+
+	dir, err := capsule.DefaultDir(repoRoot)
+	if err != nil {
+		return fmt.Errorf("resolve capsule dir: %w", err)
+	}
+	store := capsule.NewStore(dir)
+
+	caps, err := store.List()
+	if err != nil {
+		return fmt.Errorf("list capsules: %w", err)
+	}
+
+	if len(caps) == 0 {
+		_, _ = fmt.Fprintln(a.stdout, "no capsules saved for this repo")
+		return nil
+	}
+
+	for _, c := range caps {
+		label := c.Label
+		if label == "" {
+			label = "[auto]"
+		}
+		pinMark := ""
+		if c.Pinned {
+			pinMark = "  📌"
+		}
+		_, _ = fmt.Fprintf(a.stdout, "%s  %s  %-30s  %-8s  %dt%s\n",
+			c.ID,
+			c.CreatedAt.Local().Format("2006-01-02 15:04"),
+			label,
+			c.Session.TargetApp,
+			len(c.Work.Todos),
+			pinMark,
+		)
+	}
+
+	return nil
+}
+
+func (a *App) runPrune(olderThan string, dryRun bool) error {
+	repoRoot, err := a.resolveRepoRoot()
+	if err != nil {
+		return fmt.Errorf("find repo root: %w", err)
+	}
+
+	dir, err := capsule.DefaultDir(repoRoot)
+	if err != nil {
+		return fmt.Errorf("resolve capsule dir: %w", err)
+	}
+	store := capsule.NewStore(dir)
+
+	caps, err := store.List()
+	if err != nil {
+		return fmt.Errorf("list capsules: %w", err)
+	}
+
+	var toDelete []string
+	if olderThan != "" {
+		d, err := parseDuration(olderThan)
+		if err != nil {
+			return fmt.Errorf("parse --older-than: %w", err)
+		}
+		toDelete = capsule.ApplyOlderThan(caps, d)
+	} else {
+		cfg, err := a.configLoader()
+		if err != nil {
+			return fmt.Errorf("load config: %w", err)
+		}
+		toDelete = capsule.ApplyRetentionPolicy(caps, cfg.Memory)
+	}
+
+	if len(toDelete) == 0 {
+		_, _ = fmt.Fprintln(a.stdout, "nothing to prune")
+		return nil
+	}
+
+	if dryRun {
+		_, _ = fmt.Fprintf(a.stdout, "would delete %d capsule(s):\n", len(toDelete))
+		for _, id := range toDelete {
+			_, _ = fmt.Fprintf(a.stdout, "  %s\n", id)
+		}
+		return nil
+	}
+
+	for _, id := range toDelete {
+		if err := store.Delete(id); err != nil {
+			_, _ = fmt.Fprintf(a.stderr, "warning: failed to delete %s: %v\n", id, err)
+		}
+	}
+	_, _ = fmt.Fprintf(a.stdout, "pruned %d capsule(s)\n", len(toDelete))
+	return nil
+}
+
+// parseDuration parses a duration string like "30d", "14d", "7d".
+// Only day units are supported.
+func parseDuration(s string) (time.Duration, error) {
+	s = strings.TrimSpace(s)
+	if strings.HasSuffix(s, "d") {
+		n := 0
+		if _, err := fmt.Sscanf(s[:len(s)-1], "%d", &n); err != nil {
+			return 0, fmt.Errorf("invalid day count in %q", s)
+		}
+		return time.Duration(n) * 24 * time.Hour, nil
+	}
+	return 0, fmt.Errorf("unsupported duration format %q — use Nd (e.g. 30d)", s)
+}
+
+// tryAutoSave creates or deduplicates an auto-save capsule after a successful run.
+// Errors are non-fatal — auto-save must never block the main flow.
+func (a *App) tryAutoSave(ctx context.Context, histEntry *history.Entry) {
+	if a.configLoader == nil || a.repoContext == nil {
+		return
+	}
+
+	cfg, err := a.configLoader()
+	if err != nil || !cfg.Memory.Enabled || !cfg.Memory.AutoSave {
+		return
+	}
+
+	repoRoot, err := a.resolveRepoRoot()
+	if err != nil {
+		return
+	}
+
+	repoSummary, err := a.repoContext.Collect(ctx)
+	if err != nil {
+		return
+	}
+
+	dir, err := capsule.DefaultDir(repoRoot)
+	if err != nil {
+		return
+	}
+	store := capsule.NewStore(dir)
+
+	in := capsule.BuildInput{
+		Kind:         capsule.KindAuto,
+		HistoryEntry: histEntry,
+		RepoSummary:  repoSummary,
+		RepoRoot:     repoRoot,
+	}
+	c := capsule.Build(in)
+
+	// Dedup: check if we have a recent auto-save with the same key fields.
+	if existing := findDedupeTarget(store, c); existing != nil {
+		_ = store.Update(existing.ID, func(old *capsule.Capsule) {
+			old.Repo = c.Repo
+			old.Session = c.Session
+			old.Work = c.Work
+		})
+		return
+	}
+
+	_ = store.Save(c)
+
+	if cfg.Memory.PruneOnWrite {
+		_ = a.runPrune("", false)
+	}
+}
+
+// findDedupeTarget returns the existing auto-save capsule to update, or nil
+// if no dedup target is found. Dedup condition: same repo + branch +
+// normalized_goal + target_app, and created within the last 10 minutes.
+func findDedupeTarget(store *capsule.Store, incoming capsule.Capsule) *capsule.Capsule {
+	caps, err := store.List()
+	if err != nil {
+		return nil
+	}
+	cutoff := time.Now().UTC().Add(-10 * time.Minute)
+	for i := range caps {
+		c := &caps[i]
+		if c.Kind != capsule.KindAuto {
+			continue
+		}
+		if c.Pinned {
+			continue // never update a pinned auto-save
+		}
+		if c.CreatedAt.Before(cutoff) {
+			continue
+		}
+		if c.Repo.Name != incoming.Repo.Name {
+			continue
+		}
+		if c.Repo.Branch != incoming.Repo.Branch {
+			continue
+		}
+		if c.Work.NormalizedGoal != incoming.Work.NormalizedGoal {
+			continue
+		}
+		if c.Session.TargetApp != incoming.Session.TargetApp {
+			continue
+		}
+		return c
+	}
+	return nil
 }
