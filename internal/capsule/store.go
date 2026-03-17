@@ -162,6 +162,62 @@ func writeAtomic(path string, data []byte) error {
 	return nil
 }
 
-// renderSummaryMD is defined in store.go after Task 2.3 adds the real implementation.
-// Temporary stub to allow compilation:
-func renderSummaryMD(c Capsule) string { return "" }
+func renderSummaryMD(c Capsule) string {
+	var b strings.Builder
+
+	label := c.Label
+	if label == "" {
+		label = "[auto]"
+	}
+	fmt.Fprintf(&b, "# %s\n", label)
+	fmt.Fprintf(&b, "**Saved:** %s · branch: %s · sha: %s\n\n",
+		c.CreatedAt.Format("2006-01-02 15:04"), c.Repo.Branch, c.Repo.HeadSHA)
+
+	if c.Work.OriginalRequest != "" {
+		fmt.Fprintf(&b, "## What was being worked on\n%s\n\n", c.Work.OriginalRequest)
+	}
+
+	if len(c.Work.Todos) > 0 {
+		fmt.Fprintf(&b, "## Progress\n")
+		for _, t := range c.Work.Todos {
+			mark := "○"
+			if t.Status == "completed" {
+				mark = "✓"
+			} else if t.Status == "failed" {
+				mark = "✕"
+			}
+			fmt.Fprintf(&b, "- %s %s\n", mark, t.Title)
+		}
+		fmt.Fprintln(&b)
+	}
+
+	if len(c.Work.Decisions) > 0 {
+		fmt.Fprintf(&b, "## Decisions made\n")
+		for _, d := range c.Work.Decisions {
+			fmt.Fprintf(&b, "- %s\n", d)
+		}
+		fmt.Fprintln(&b)
+	}
+
+	if len(c.Work.OpenQuestions) > 0 {
+		fmt.Fprintf(&b, "## Open questions\n")
+		for _, q := range c.Work.OpenQuestions {
+			fmt.Fprintf(&b, "- %s\n", q)
+		}
+		fmt.Fprintln(&b)
+	}
+
+	if len(c.Work.Risks) > 0 {
+		fmt.Fprintf(&b, "## Risks\n")
+		for _, r := range c.Work.Risks {
+			fmt.Fprintf(&b, "- %s\n", r)
+		}
+		fmt.Fprintln(&b)
+	}
+
+	if c.Work.NextAction != "" {
+		fmt.Fprintf(&b, "## Next action\n%s\n", c.Work.NextAction)
+	}
+
+	return b.String()
+}

@@ -1,6 +1,8 @@
 package capsule_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -119,3 +121,16 @@ func TestStoreDelete(t *testing.T) {
 }
 
 // Note: TestStoreSummaryFileWritten is added in Task 2.3 after renderSummaryMD exists.
+
+func TestStoreSummaryFileWritten(t *testing.T) {
+	dir := t.TempDir()
+	store := capsule.NewStore(dir)
+
+	c := newTestCapsule("cap_001", "test", capsule.KindManual)
+	_ = store.Save(c)
+
+	summaryPath := filepath.Join(dir, "cap_001", "summary.md")
+	if _, err := os.Stat(summaryPath); err != nil {
+		t.Errorf("summary.md not written: %v", err)
+	}
+}
