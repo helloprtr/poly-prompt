@@ -3087,7 +3087,7 @@ func (a *App) runSave(label, note string) error {
 		return nil
 	}
 
-	repoRoot, err := a.repoRootFinder()
+	repoRoot, err := a.resolveRepoRoot()
 	if err != nil {
 		return fmt.Errorf("find repo root: %w", err)
 	}
@@ -3141,7 +3141,7 @@ func (a *App) runSave(label, note string) error {
 }
 
 func (a *App) runResume(ctx context.Context, id, to string, dryRun bool) error {
-	repoRoot, err := a.repoRootFinder()
+	repoRoot, err := a.resolveRepoRoot()
 	if err != nil {
 		return fmt.Errorf("find repo root: %w", err)
 	}
@@ -3226,7 +3226,7 @@ func (a *App) runResume(ctx context.Context, id, to string, dryRun bool) error {
 }
 
 func (a *App) runCapsuleStatus() error {
-	repoRoot, err := a.repoRootFinder()
+	repoRoot, err := a.resolveRepoRoot()
 	if err != nil {
 		return fmt.Errorf("find repo root: %w", err)
 	}
@@ -3287,7 +3287,7 @@ func (a *App) runCapsuleStatus() error {
 }
 
 func (a *App) runCapsuleList() error {
-	repoRoot, err := a.repoRootFinder()
+	repoRoot, err := a.resolveRepoRoot()
 	if err != nil {
 		return fmt.Errorf("find repo root: %w", err)
 	}
@@ -3331,7 +3331,7 @@ func (a *App) runCapsuleList() error {
 }
 
 func (a *App) runPrune(olderThan string, dryRun bool) error {
-	repoRoot, err := a.repoRootFinder()
+	repoRoot, err := a.resolveRepoRoot()
 	if err != nil {
 		return fmt.Errorf("find repo root: %w", err)
 	}
@@ -3401,7 +3401,7 @@ func parseDuration(s string) (time.Duration, error) {
 // tryAutoSave creates or deduplicates an auto-save capsule after a successful run.
 // Errors are non-fatal — auto-save must never block the main flow.
 func (a *App) tryAutoSave(ctx context.Context, histEntry *history.Entry) {
-	if a.configLoader == nil || a.repoRootFinder == nil || a.repoContext == nil {
+	if a.configLoader == nil || a.repoContext == nil {
 		return
 	}
 
@@ -3410,7 +3410,7 @@ func (a *App) tryAutoSave(ctx context.Context, histEntry *history.Entry) {
 		return
 	}
 
-	repoRoot, err := a.repoRootFinder()
+	repoRoot, err := a.resolveRepoRoot()
 	if err != nil {
 		return
 	}
