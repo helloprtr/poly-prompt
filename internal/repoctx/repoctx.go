@@ -15,6 +15,7 @@ var ErrNotGitRepo = errors.New("not a git repository")
 type Summary struct {
 	RepoName  string
 	Branch    string
+	HeadSHA   string
 	Changes   []string
 	Truncated int
 }
@@ -46,6 +47,14 @@ func (c *GitCollector) Collect(ctx context.Context) (Summary, error) {
 		return Summary{}, err
 	}
 
+	headSHA, err := gitOutput(ctx, "rev-parse", "--short", "HEAD")
+	if err != nil {
+		if isNotGitRepo(err) {
+			return Summary{}, ErrNotGitRepo
+		}
+		return Summary{}, err
+	}
+
 	status, err := gitOutput(ctx, "status", "--short", "--untracked-files=normal")
 	if err != nil {
 		if isNotGitRepo(err) {
@@ -58,6 +67,7 @@ func (c *GitCollector) Collect(ctx context.Context) (Summary, error) {
 	summary := Summary{
 		RepoName: filepath.Base(strings.TrimSpace(root)),
 		Branch:   strings.TrimSpace(branch),
+		HeadSHA:  strings.TrimSpace(headSHA),
 	}
 
 	const maxChanges = 20
