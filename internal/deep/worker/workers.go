@@ -11,6 +11,24 @@ import (
 	deepschema "github.com/helloprtr/poly-prompt/internal/deep/schema"
 )
 
+// inspectChangedFiles is the sentinel placeholder used when no concrete file
+// path can be extracted from the source text.
+const inspectChangedFiles = "<inspect-changed-files>"
+
+// resultTypeFor returns the bundle type name for the given action.
+func resultTypeFor(action string) string {
+	switch strings.TrimSpace(action) {
+	case "test":
+		return "TestBundle"
+	case "debug":
+		return "DebugBundle"
+	case "refactor":
+		return "RefactorBundle"
+	default:
+		return "PatchBundle"
+	}
+}
+
 // ---------------------------------------------------------------------------
 // plannerWorker — hard blocker
 // Inputs:  source.md, evidence/repo_context.json, evidence/history.json,
@@ -83,7 +101,7 @@ func (plannerWorker) Run(ctx context.Context, s *State) error {
 	plan := &deepplan.WorkPlan{
 		Version:      1,
 		Action:       s.Opts.Action,
-		ResultType:   "PatchBundle",
+		ResultType:   resultTypeFor(s.Opts.Action),
 		Summary:      planSummaryFor(s.Opts.Action),
 		EvidenceRefs: []string{"source.md", "evidence/repo_context.json", "evidence/history.json", "evidence/memory.json", "evidence/git.diff"},
 		Todos:        todos,
@@ -129,7 +147,7 @@ func (patcherWorker) Run(ctx context.Context, s *State) error {
 				strings.Join(s.Opts.ProtectedTerms, ", ")+".")
 	}
 
-	constraints := []string{}
+	var constraints []string
 	if s.Opts.RepoSummary.Branch != "" {
 		constraints = append(constraints, "Respect current branch context: "+s.Opts.RepoSummary.Branch+".")
 	}
@@ -289,7 +307,7 @@ func detectSourceRisks(source string, files []string) []deepschema.RiskItem {
 		})
 	}
 
-	if len(files) > 0 && files[0] != "<inspect-changed-files>" {
+	if len(files) > 0 && files[0] != inspectChangedFiles {
 		risks = append(risks, deepschema.RiskItem{
 			Title:      "Local Context Risk",
 			Severity:   "medium",
@@ -395,7 +413,7 @@ func buildTestCases(source string, files []string, repoRoot string) []string {
 		}
 	}
 
-	if len(files) > 0 && files[0] != "<inspect-changed-files>" {
+	if len(files) > 0 && files[0] != inspectChangedFiles {
 		primary := files[0]
 		testFile := findTestFile(repoRoot, primary)
 		if testFile != "" {
@@ -461,7 +479,7 @@ func (reconcilerWorker) Run(ctx context.Context, s *State) error {
 	tests := safeTests(s.Tests)
 
 	warnings := []string{}
-	if len(s.Patch.TouchedFiles) == 0 || (len(s.Patch.TouchedFiles) == 1 && s.Patch.TouchedFiles[0] == "<inspect-changed-files>") {
+	if len(s.Patch.TouchedFiles) == 0 || (len(s.Patch.TouchedFiles) == 1 && s.Patch.TouchedFiles[0] == inspectChangedFiles) {
 		warnings = append(warnings, "No concrete file path was confidently extracted from the source material.")
 	}
 	if s.Risks == nil {
@@ -508,11 +526,17 @@ func (reconcilerWorker) Run(ctx context.Context, s *State) error {
 // ---------------------------------------------------------------------------
 
 func writeWorkerRequest(s *State, name string, req any) error {
-	return s.AW.WriteJSON("workers/"+name+"/request.json", req)
+	if err := s.AW.WriteJSON("workers/"+name+"/request.json", req); err != nil {
+		return fmt.Errorf("write %s request: %w", name, err)
+	}
+	return nil
 }
 
 func writeWorkerResult(s *State, name string, result any) error {
-	return s.AW.WriteJSON("workers/"+name+"/result.json", result)
+	if err := s.AW.WriteJSON("workers/"+name+"/result.json", result); err != nil {
+		return fmt.Errorf("write %s result: %w", name, err)
+	}
+	return nil
 }
 
 func safeRisks(r *deepschema.RiskReport) []deepschema.RiskItem {
@@ -563,8 +587,9 @@ func summarize(text string) string {
 
 func buildDraftDiff(files []string) string {
 	if len(files) == 0 {
-		return "diff --git a/<inspect-changed-files> b/<inspect-changed-files>\n" +
-			"--- a/<inspect-changed-files>\n+++ b/<inspect-changed-files>\n@@\n" +
+		s := inspectChangedFiles
+		return "diff --git a/" + s + " b/" + s + "\n" +
+			"--- a/" + s + "\n+++ b/" + s + "\n@@\n" +
 			"- review the existing implementation\n+ apply the planned fix and add regression coverage"
 	}
 	parts := make([]string, 0, len(files))

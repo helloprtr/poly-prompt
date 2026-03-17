@@ -79,6 +79,13 @@ const (
 	EventLLMEnhanceFailed  EventType = deepevent.LLMEnhanceFailed
 )
 
+// inspectChangedFiles is the sentinel placeholder used when no concrete file
+// path can be extracted from the source text.
+const inspectChangedFiles = "<inspect-changed-files>"
+
+// fileRefRe matches relative file paths (e.g. "handlers/user.go").
+var fileRefRe = regexp.MustCompile(`(?:[A-Za-z0-9_.-]+/)*[A-Za-z0-9_.-]+\.[A-Za-z0-9]+`)
+
 // AppendEvent appends a structured event to the run's event log.
 func AppendEvent(path string, e Event) error {
 	return deepevent.Append(path, e)
@@ -193,7 +200,7 @@ func executePatchRunWithGraph(
 		files = inferFilesFromHistory(opts.HistoryEntry)
 	}
 	if len(files) == 0 {
-		files = []string{"<inspect-changed-files>"}
+		files = []string{inspectChangedFiles}
 	}
 
 	// ── Progress helper ─────────────────────────────────────────────────────
@@ -338,7 +345,6 @@ func buildDeliveryPrompt(plan WorkPlan, bundle PatchBundle, source, provider str
 
 func buildClaudePrompt(plan WorkPlan, bundle PatchBundle, source string) string {
 	topRisk := topRiskLine(bundle.Risks)
-	firstTest := firstTestCase(bundle.TestPlan.TestCases)
 	lines := []string{
 		"<role>",
 		"You are an expert software engineer implementing a precise code change.",
@@ -383,7 +389,15 @@ func buildClaudePrompt(plan WorkPlan, bundle PatchBundle, source string) string 
 		"",
 		"<validation>",
 		"<test_cases>",
-		"  <test>"+firstTest+"</test>",
+	)
+	if len(bundle.TestPlan.TestCases) == 0 {
+		lines = append(lines, "  <test>Add a regression test covering the primary failure path.</test>")
+	} else {
+		for _, tc := range bundle.TestPlan.TestCases {
+			lines = append(lines, "  <test>"+tc+"</test>")
+		}
+	}
+	lines = append(lines,
 		"</test_cases>",
 		"<verification_steps>",
 		"  <step>Run the smallest targeted test command first.</step>",
@@ -539,21 +553,14 @@ func topRiskLine(risks []RiskItem) string {
 	return fmt.Sprintf(`<risk severity=%q>%s: %s</risk>`, strings.ToLower(r.Severity), r.Title, r.Detail)
 }
 
-func firstTestCase(cases []string) string {
-	if len(cases) == 0 {
-		return "Add a regression test covering the primary failure path."
-	}
-	return cases[0]
-}
-
 func formatNumberedList(values []string) string {
 	if len(values) == 0 {
 		return "1. Run the targeted test command."
 	}
 	lines := make([]string, 0, len(values))
-	for i, v := range values {
+	for _, v := range values {
 		if t := strings.TrimSpace(v); t != "" {
-			lines = append(lines, fmt.Sprintf("%d. %s", i+1, t))
+			lines = append(lines, fmt.Sprintf("%d. %s", len(lines)+1, t))
 		}
 	}
 	if len(lines) == 0 {
@@ -607,8 +614,7 @@ func formatRiskBullets(items []RiskItem) string {
 // ---------------------------------------------------------------------------
 
 func extractFileRefs(text string) []string {
-	re := regexp.MustCompile(`(?:[A-Za-z0-9_.-]+/)*[A-Za-z0-9_.-]+\.[A-Za-z0-9]+`)
-	matches := re.FindAllString(text, -1)
+	matches := fileRefRe.FindAllString(text, -1)
 	out := make([]string, 0, len(matches))
 	seen := map[string]bool{}
 	for _, match := range matches {
