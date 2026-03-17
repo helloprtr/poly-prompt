@@ -281,7 +281,8 @@ func (a *App) shouldRunRootDirect(args []string) bool {
 
 	switch first {
 	case "init", "version", "start", "setup", "lang", "doctor", "templates", "profiles", "history", "rerun", "pin", "favorite", "go", "demo", "again", "swap", "take", "learn", "inspect",
-		"save", "resume", "status", "list", "prune":
+		"save", "resume", "status", "list", "prune",
+		"dip", "taste", "plate", "marinate", "prep":
 		return false
 	}
 

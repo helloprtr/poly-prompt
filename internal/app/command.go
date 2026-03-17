@@ -59,6 +59,10 @@ func (a *App) Command(ctx context.Context, stdin io.Reader, stdinPiped bool) *co
 	root.AddCommand(a.newShortcutCommand(ctx, "fix", stdin, stdinPiped))
 	root.AddCommand(a.newShortcutCommand(ctx, "design", stdin, stdinPiped))
 
+	for _, cmd := range a.newEasterEggCommands(ctx, stdin, stdinPiped) {
+		root.AddCommand(cmd)
+	}
+
 	return root
 }
 
@@ -469,6 +473,73 @@ func (a *App) newShortcutCommand(ctx context.Context, name string, stdin io.Read
 				return a.newGoCommand(ctx, stdin, stdinPiped).Help()
 			}
 			return a.runShortcut(ctx, name, args, stdin, stdinPiped)
+		},
+	}
+}
+
+// newEasterEggCommands returns hidden culinary-themed aliases.
+// These do not appear in --help output.
+func (a *App) newEasterEggCommands(ctx context.Context, stdin io.Reader, stdinPiped bool) []*cobra.Command {
+	return []*cobra.Command{
+		// dip → take --deep
+		{
+			Use:                "dip [action]",
+			Hidden:             true,
+			DisableFlagParsing: true,
+			RunE: func(cmd *cobra.Command, args []string) error {
+				if wantsHelp(args) {
+					return a.newTakeCommand(ctx).Help()
+				}
+				return a.runTake(ctx, append([]string{"--deep"}, args...))
+			},
+		},
+		// taste → inspect
+		{
+			Use:                "taste [flags] [message...]",
+			Hidden:             true,
+			DisableFlagParsing: true,
+			RunE: func(cmd *cobra.Command, args []string) error {
+				if wantsHelp(args) {
+					return a.newInspectCommand(ctx, stdin, stdinPiped).Help()
+				}
+				return a.runInspect(ctx, args, stdin, stdinPiped)
+			},
+		},
+		// plate → swap
+		{
+			Use:                "plate <app> [message...]",
+			Hidden:             true,
+			DisableFlagParsing: true,
+			RunE: func(cmd *cobra.Command, args []string) error {
+				if wantsHelp(args) {
+					return a.newSwapCommand(ctx, stdin, stdinPiped).Help()
+				}
+				return a.runSwap(ctx, args, stdin, stdinPiped)
+			},
+		},
+		// marinate → learn
+		{
+			Use:                "marinate [paths...]",
+			Hidden:             true,
+			DisableFlagParsing: true,
+			RunE: func(cmd *cobra.Command, args []string) error {
+				if wantsHelp(args) {
+					return a.newLearnCommand().Help()
+				}
+				return a.runLearn(args)
+			},
+		},
+		// prep → start
+		{
+			Use:                "prep [message...]",
+			Hidden:             true,
+			DisableFlagParsing: true,
+			RunE: func(cmd *cobra.Command, args []string) error {
+				if wantsHelp(args) {
+					return a.newStartCommand(ctx, stdin, stdinPiped).Help()
+				}
+				return a.runStart(ctx, args, stdin, stdinPiped)
+			},
 		},
 	}
 }
