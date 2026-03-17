@@ -1407,6 +1407,14 @@ func (a *App) executePrompt(ctx context.Context, opts runOptions, text, shortcut
 		return err
 	}
 
+	// Auto-save capsule after successful run.
+	// Use context.Background() — the command's ctx may be cancelled before
+	// the goroutine finishes, which would silently drop the auto-save.
+	if latestEntry, err := a.historyStore.Latest(); err == nil {
+		entry := latestEntry // capture loop variable
+		go a.tryAutoSave(context.Background(), &entry)
+	}
+
 	if opts.jsonOutput {
 		payload := map[string]any{
 			"original":             resolved.original,
@@ -1554,6 +1562,15 @@ func (a *App) executeStoredPrompt(ctx context.Context, opts runOptions, entry hi
 	if err := a.appendHistory(run); err != nil {
 		return err
 	}
+
+	// Auto-save capsule after successful run.
+	// Use context.Background() — the command's ctx may be cancelled before
+	// the goroutine finishes, which would silently drop the auto-save.
+	if latestEntry, err := a.historyStore.Latest(); err == nil {
+		entry := latestEntry // capture loop variable
+		go a.tryAutoSave(context.Background(), &entry)
+	}
+
 	if opts.compactStatus {
 		a.writeCompactStatus(opts, run)
 	}
@@ -3383,6 +3400,10 @@ func parseDuration(s string) (time.Duration, error) {
 // tryAutoSave creates or deduplicates an auto-save capsule after a successful run.
 // Errors are non-fatal — auto-save must never block the main flow.
 func (a *App) tryAutoSave(ctx context.Context, histEntry *history.Entry) {
+	if a.configLoader == nil || a.repoRootFinder == nil || a.repoContext == nil {
+		return
+	}
+
 	cfg, err := a.configLoader()
 	if err != nil || !cfg.Memory.Enabled || !cfg.Memory.AutoSave {
 		return
