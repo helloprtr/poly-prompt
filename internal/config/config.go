@@ -207,6 +207,7 @@ type Config struct {
 	ProjectPath           string
 	HasUserConfig         bool
 	HasProjectConfig      bool
+	Watch                 WatchConfig
 	DefaultTargetSource   string
 	DefaultRoleSource     string
 	DefaultPresetSource   string
@@ -265,6 +266,12 @@ type LauncherConfig struct {
 	SubmitMode   string   `toml:"submit_mode"`
 }
 
+type WatchConfig struct {
+	Enabled       bool `toml:"enabled"`
+	Notify        bool `toml:"notify"`
+	MediumSignals bool `toml:"medium_signals"`
+}
+
 type DefaultsUpdate struct {
 	APIKey                *string
 	TranslationSourceLang *string
@@ -289,6 +296,7 @@ type fileConfig struct {
 	Profiles              map[string]ProfileConfig        `toml:"profiles"`
 	Shortcuts             map[string]ShortcutConfig       `toml:"shortcuts"`
 	Launchers             map[string]fileLauncherConfig   `toml:"launchers"`
+	Watch                 *WatchConfig                    `toml:"watch"`
 }
 
 type fileRoleConfig struct {
@@ -692,6 +700,11 @@ func applyFileConfig(cfg *Config, raw fileConfig, source string, includeAPIKey b
 			return errors.New("config launcher names cannot be empty")
 		}
 		cfg.Launchers[trimmedName] = normalizeLauncher(cfg.Launchers[trimmedName], launcher)
+	}
+
+	// Watch config — direct assignment from file (last file wins)
+	if raw.Watch != nil {
+		cfg.Watch = *raw.Watch
 	}
 
 	return nil

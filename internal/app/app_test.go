@@ -1166,7 +1166,7 @@ func TestExecuteTakeDeepWritesArtifactsAndHistoryMetadata(t *testing.T) {
 	if !strings.Contains(stderr.String(), "-> take:patch --deep | codex | clipboard | preview | en->en | completed") {
 		t.Fatalf("stderr = %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "step: patch (2/5)") {
+	if !strings.Contains(stderr.String(), "step: patcher (2/5)") {
 		t.Fatalf("stderr = %q", stderr.String())
 	}
 	if !strings.Contains(stderr.String(), "artifact: "+filepath.Join(repoRoot, ".prtr", "runs")) {
@@ -2116,5 +2116,14 @@ func TestServerDeepExecRequestNotApproved(t *testing.T) {
 	}
 	if resp.Approved {
 		t.Error("Approved = true, want false")
+	}
+}
+
+func TestRunGoContextEnrichmentDisabledByNoContext(t *testing.T) {
+	// When --no-context is set, repoSuffix and enrichment suffix must both be empty.
+	a := &App{repoContext: repoctx.New()}
+	suffix, _ := a.resolveRepoContext(context.Background(), "prompt", true /* disabled */)
+	if suffix != "" {
+		t.Errorf("expected empty suffix with noContext=true, got %q", suffix)
 	}
 }
