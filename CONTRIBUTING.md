@@ -11,6 +11,20 @@ This project accepts outside contributions, but we keep the contribution flow in
 - Product ideas or early discussion: use GitHub Discussions first.
 - Security problems: do not open a public issue. Follow [SECURITY.md](SECURITY.md) and use private vulnerability reporting.
 
+## Find a starter task
+
+- Start with [`good first issue`](https://github.com/helloprtr/poly-prompt/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22) if you want a small, intentionally scoped first contribution.
+- Check [`help wanted`](https://github.com/helloprtr/poly-prompt/issues?q=is%3Aopen+is%3Aissue+label%3A%22help+wanted%22) for broader maintainer-approved work.
+- Use [GitHub Discussions](https://github.com/helloprtr/poly-prompt/discussions) when you have a workflow idea that is still fuzzy.
+
+Maintainers should keep starter issues small and current. The best `good first issue` tickets include:
+
+- a concrete title
+- 2 to 4 sentences describing the user pain
+- explicit done criteria
+- one local verification command
+- a screenshot or terminal transcript when it helps
+
 ## Before you open a PR
 
 - Open or link an issue first for any non-trivial change.
@@ -75,4 +89,3 @@ Repo files can define templates and CI, but branch protection itself must still 
 By participating, you agree to follow [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
 If you are unsure whether something is ready, open a Discussion or draft PR. Clear context is always more helpful than a larger patch with missing rationale.
-
