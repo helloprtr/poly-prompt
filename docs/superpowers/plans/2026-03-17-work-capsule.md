@@ -4,7 +4,7 @@
 
 **Goal:** Add `prtr save` / `prtr resume` / `prtr status` / `prtr list` / `prtr prune` commands that capture and restore AI work state locally as Work Capsules.
 
-**Architecture:** Five independent chunks: (1) config + repoctx additions, (2) capsule package types + store + builder + prune, (3) render package, (4) app command wiring, (5) auto-save hooks. Each chunk is independently testable. Chunks 2–5 require Chunk 1; Chunk 4 requires Chunks 2–3; Chunk 5 requires Chunk 4.
+**Architecture:** Six independent chunks: (1) config + repoctx additions, (2) capsule package types + store + builder + prune, (3) render package, (4) app command wiring, (5) auto-save hooks, (6) easter egg aliases. Each chunk is independently testable. Chunks 2–5 require Chunk 1; Chunk 4 requires Chunks 2–3; Chunk 5 requires Chunk 4. Chunk 6 is fully independent.
 
 **Tech Stack:** Go 1.24, cobra, encoding/json, github.com/helloprtr/poly-prompt (existing module). No new external dependencies.
 
@@ -2385,4 +2385,145 @@ Expected: each command runs without error or panic
 ```bash
 git add .
 git commit -m "feat: Work Capsule MVP — save/resume/status/list/prune commands"
+```
+
+---
+
+## Chunk 6: Easter Egg Aliases (independent, no blockers)
+
+Hidden culinary-themed command aliases. These do not appear in `--help` output.
+
+| Alias | Maps to | Rationale |
+|---|---|---|
+| `dip` | `take --deep` | most natural |
+| `taste` | `inspect` | taste before you send |
+| `plate` | `swap` | same ingredients, different plating |
+| `marinate` | `learn` | let repo terms soak in |
+| `prep` | `start` | prep before the real run |
+
+---
+
+### Task 6.1: Add easter egg aliases
+
+**Files:**
+- Modify: `internal/app/command.go`
+
+No new tests needed — these are thin wrappers over already-tested commands.
+
+- [ ] **Step 1: Add `newEasterEggCommands` helper to `command.go`**
+
+Add after `newShortcutCommand`:
+
+```go
+// newEasterEggCommands returns hidden culinary-themed aliases.
+// These do not appear in --help output.
+func (a *App) newEasterEggCommands(ctx context.Context, stdin io.Reader, stdinPiped bool) []*cobra.Command {
+    return []*cobra.Command{
+        // dip → take --deep
+        {
+            Use:                "dip [action]",
+            Hidden:             true,
+            DisableFlagParsing: true,
+            RunE: func(cmd *cobra.Command, args []string) error {
+                if wantsHelp(args) {
+                    return a.newTakeCommand(ctx).Help()
+                }
+                return a.runTake(ctx, append([]string{"--deep"}, args...))
+            },
+        },
+        // taste → inspect
+        {
+            Use:                "taste [flags] [message...]",
+            Hidden:             true,
+            DisableFlagParsing: true,
+            RunE: func(cmd *cobra.Command, args []string) error {
+                if wantsHelp(args) {
+                    return a.newInspectCommand(ctx, stdin, stdinPiped).Help()
+                }
+                return a.runInspect(ctx, args, stdin, stdinPiped)
+            },
+        },
+        // plate → swap
+        {
+            Use:                "plate <app> [message...]",
+            Hidden:             true,
+            DisableFlagParsing: true,
+            RunE: func(cmd *cobra.Command, args []string) error {
+                if wantsHelp(args) {
+                    return a.newSwapCommand(ctx, stdin, stdinPiped).Help()
+                }
+                return a.runSwap(ctx, args, stdin, stdinPiped)
+            },
+        },
+        // marinate → learn
+        {
+            Use:                "marinate [paths...]",
+            Hidden:             true,
+            DisableFlagParsing: true,
+            RunE: func(cmd *cobra.Command, args []string) error {
+                if wantsHelp(args) {
+                    return a.newLearnCommand().Help()
+                }
+                return a.runLearn(args)
+            },
+        },
+        // prep → start
+        {
+            Use:                "prep [message...]",
+            Hidden:             true,
+            DisableFlagParsing: true,
+            RunE: func(cmd *cobra.Command, args []string) error {
+                if wantsHelp(args) {
+                    return a.newStartCommand(ctx, stdin, stdinPiped).Help()
+                }
+                return a.runStart(ctx, args, stdin, stdinPiped)
+            },
+        },
+    }
+}
+```
+
+- [ ] **Step 2: Register the aliases in `Command()`**
+
+In `Command()`, after the existing `newShortcutCommand` registrations, add:
+
+```go
+for _, cmd := range a.newEasterEggCommands(ctx, stdin, stdinPiped) {
+    root.AddCommand(cmd)
+}
+```
+
+- [ ] **Step 3: Build to confirm it compiles**
+
+```bash
+go build ./...
+```
+
+Expected: SUCCESS
+
+- [ ] **Step 4: Smoke test each alias**
+
+```bash
+/tmp/prtr-test taste --help       # should show inspect help
+/tmp/prtr-test plate --help       # should show swap help
+/tmp/prtr-test marinate --help    # should show learn help
+/tmp/prtr-test prep --help        # should show start help
+/tmp/prtr-test dip --help         # should show take help
+```
+
+Expected: each prints the underlying command's help
+
+- [ ] **Step 5: Confirm aliases are hidden from root help**
+
+```bash
+/tmp/prtr-test --help | grep -E "dip|taste|plate|marinate|prep"
+```
+
+Expected: no output (all hidden)
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add internal/app/command.go
+git commit -m "feat(app): add culinary easter egg aliases (dip/taste/plate/marinate/prep)"
 ```
