@@ -266,6 +266,12 @@ type LauncherConfig struct {
 	SubmitMode   string   `toml:"submit_mode"`
 }
 
+type WatchConfig struct {
+	Enabled       bool `toml:"enabled"`
+	Notify        bool `toml:"notify"`
+	MediumSignals bool `toml:"medium_signals"`
+}
+
 type DefaultsUpdate struct {
 	APIKey                *string
 	TranslationSourceLang *string
@@ -290,7 +296,7 @@ type fileConfig struct {
 	Profiles              map[string]ProfileConfig        `toml:"profiles"`
 	Shortcuts             map[string]ShortcutConfig       `toml:"shortcuts"`
 	Launchers             map[string]fileLauncherConfig   `toml:"launchers"`
-	Watch                 WatchConfig                     `toml:"watch"`
+	Watch                 *WatchConfig                    `toml:"watch"`
 }
 
 type fileRoleConfig struct {
@@ -304,12 +310,6 @@ type fileLauncherConfig struct {
 	Args         []string `toml:"args"`
 	PasteDelayMS *int     `toml:"paste_delay_ms"`
 	SubmitMode   string   `toml:"submit_mode"`
-}
-
-type WatchConfig struct {
-	Enabled       bool `toml:"enabled"`
-	Notify        bool `toml:"notify"`
-	MediumSignals bool `toml:"medium_signals"`
 }
 
 func Load() (Config, error) {
@@ -703,8 +703,8 @@ func applyFileConfig(cfg *Config, raw fileConfig, source string, includeAPIKey b
 	}
 
 	// Watch config — direct assignment from file (last file wins)
-	if raw.Watch.Enabled || raw.Watch.Notify || raw.Watch.MediumSignals {
-		cfg.Watch = raw.Watch
+	if raw.Watch != nil {
+		cfg.Watch = *raw.Watch
 	}
 
 	return nil

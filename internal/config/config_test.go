@@ -285,8 +285,31 @@ func TestWatchConfigDefaults(t *testing.T) {
 	if exists {
 		t.Fatal("expected file to not exist")
 	}
-	if cfg.Watch.Enabled != false {
+	if cfg.Watch != nil && cfg.Watch.Enabled {
 		t.Errorf("want Watch.Enabled=false, got %v", cfg.Watch.Enabled)
+	}
+}
+
+func TestWatchConfigLoaded(t *testing.T) {
+	dir := t.TempDir()
+	cfgFile := filepath.Join(dir, "config.toml")
+	err := os.WriteFile(cfgFile, []byte("[watch]\nenabled = true\n"), 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Use loadFile directly to test fileConfig parsing
+	raw, exists, err := loadFile(cfgFile)
+	if err != nil {
+		t.Fatalf("loadFile error: %v", err)
+	}
+	if !exists {
+		t.Fatal("expected file to exist")
+	}
+	if raw.Watch == nil {
+		t.Fatal("expected Watch section to be parsed")
+	}
+	if !raw.Watch.Enabled {
+		t.Error("expected Watch.Enabled=true")
 	}
 }
 
