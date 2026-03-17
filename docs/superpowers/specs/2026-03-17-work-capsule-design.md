@@ -84,11 +84,11 @@ prtr resume cap_1773720001 --to gemini --dry-run    # print prompt, do not send
 ```
 
 Behavior:
-1. Load capsule.json
+1. Load capsule.json — if no capsules exist for the repo, print error and exit non-zero
 2. Detect drift (branch changed, sha changed, changed files differ)
 3. Render resume prompt (template-based; LLM-enhanced if `llm_provider` is configured)
 4. If drift exists, prepend a drift warning section to the prompt
-5. Route through existing `prtr go` clipboard+launch path
+5. Copy prompt to clipboard and launch target app via the existing internal deliver helper (same layer `runGo` calls after prompt assembly) — bypasses translation and template pipeline to avoid double-wrapping the pre-rendered prompt
 6. `--dry-run` prints prompt to stdout and exits
 
 ### `prtr prune`
@@ -103,7 +103,9 @@ prtr prune --dry-run             # list what would be deleted
 
 Triggered automatically after successful: `prtr go`, `prtr swap`, `prtr again`, `prtr take`, `prtr take --deep`.
 
-**Dedup rule:** if same repo + branch + normalized_goal + target_app and last auto-save within 10 minutes → update existing auto-save instead of creating new capsule.
+**Dedup rule:** if same repo + branch + normalized_goal + target_app and last auto-save within 10 minutes → update existing auto-save in-place (same `id`, bumped `updated_at`, replaced content). If the matched auto-save is pinned, skip dedup and create a new capsule instead.
+
+Note: auto-save only fires from commands that always resolve a target (`prtr go`, `prtr swap`, `prtr again`, `prtr take`, `prtr take --deep`), so `session.target_app` is always populated in the auto-save path. The dedup key is always well-defined.
 
 Auto-save failures are silent (logged at debug level). They never block the main flow.
 
@@ -161,7 +163,7 @@ Auto-save failures are silent (logged at debug level). They never block the main
 
 ### `.prtr/capsules/<id>/summary.md`
 
-Human-readable summary. Same format as `prtr resume --dry-run` output.
+Human-readable plain-Markdown summary written at save time. Useful for quick inspection via any text editor or `cat`. This is **not** the same as `prtr resume --dry-run` output — dry-run outputs the target-AI-optimized resume prompt (potentially XML-wrapped for claude, codex-formatted for codex, etc.), while summary.md is a stable human-readable record.
 
 ```markdown
 # auth refactor paused
@@ -207,6 +209,10 @@ Directory: `.prtr/capsules/cap_1773720001234567000/`
 
 Retention rules and dedup logic branch on this field.
 
+### Session Fields
+
+All `session` block fields are optional (`omitempty` in JSON). `builder.go` handles `history.ErrNotFound` gracefully — if there is no prior history entry or deep run, the session block is left empty or partially populated without returning an error. A capsule with an empty session block is still valid and useful (it captures git state, original request, and branch).
+
 ---
 
 ## Config Shape
@@ -235,12 +241,14 @@ store_diff = "stat"
 | Value | Stored |
 |---|---|
 | `"stat"` (default) | `"3 files changed, +47/-12"` — one line summary |
-| `"full"` | Actual git diff saved to `capsule/diff.patch` |
+| `"full"` | Actual git diff (`git diff HEAD`) saved by `builder.go` to `.prtr/capsules/<id>/diff.patch` |
 | `"none"` | No diff information |
 
-### Go Struct
+### Go Structs
 
 ```go
+// internal/config/config.go
+
 type MemoryConfig struct {
     Enabled               bool   `toml:"enabled"`
     AutoSave              bool   `toml:"auto_save"`
@@ -253,9 +261,21 @@ type MemoryConfig struct {
     MaxStorageMBPerRepo   int    `toml:"max_storage_mb_per_repo"`
     StoreDiff             string `toml:"store_diff"`
 }
+
+// Add to Config struct:
+type Config struct {
+    // ... existing fields ...
+    Memory MemoryConfig
+}
+
+// Add to fileConfig struct:
+type fileConfig struct {
+    // ... existing fields ...
+    Memory MemoryConfig `toml:"memory"`
+}
 ```
 
-Defaults provided by `defaultMemoryConfig()`.
+`defaultMemoryConfig()` returns the zero-value defaults shown in the TOML above. `Load()` initializes `cfg.Memory = defaultMemoryConfig()` before applying file overrides, matching the pattern of all other config sections.
 
 ### Retention Rules
 
@@ -287,10 +307,10 @@ internal/capsule/
 
 | File | Change |
 |---|---|
-| `internal/config/config.go` | Add `MemoryConfig`, `defaultMemoryConfig()`, wire into `Load()` |
+| `internal/config/config.go` | Add `MemoryConfig`, `defaultMemoryConfig()`, add `Memory` field to `Config` and `fileConfig`, wire into `Load()` |
 | `internal/app/app.go` | Implement `runSave`, `runResume`, `runCapsuleStatus`, `runCapsuleList`, `runPrune` |
-| `internal/app/command.go` | Register `save`, `resume`, `status`, `list`, `prune` cobra commands |
-| `internal/repoctx/repoctx.go` | Add `HeadSHA()` for drift detection |
+| `internal/app/command.go` | Register `save`, `resume`, `status`, `list` (capsule-scoped, top-level only), `prune` cobra commands |
+| `internal/repoctx/repoctx.go` | Add `HeadSHA string` to `Summary` struct; populate in `GitCollector.Collect()` via `git rev-parse --short HEAD` |
 
 ### Package Dependency Graph
 
@@ -354,7 +374,7 @@ Failure is silent and non-blocking. Capsule store injected as interface for test
 Default: lowercase normalization of first 100 chars of `original_request` (deterministic, no LLM needed). LLM path: one-sentence summary when `llm_provider` is set. Deterministic default is safer for dedup key use.
 
 **③ Resume delivery path**
-`render.go` generates the prompt string → reuses existing `runGo` clipboard+launch path. `--dry-run` prints to stdout and exits. No new delivery infrastructure needed.
+`render.go` generates the prompt string → calls the internal deliver helper directly (same layer `runGo` uses after prompt assembly), bypassing translation and template pipeline. This avoids double-wrapping the pre-rendered prompt. `--dry-run` prints to stdout and exits.
 
 **④ Runs directory retention**
 Runs referenced by any capsule are exempt from `run_retention_days` auto-deletion. Pinned capsule references are permanent.
