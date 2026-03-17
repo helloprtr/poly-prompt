@@ -276,6 +276,20 @@ command = "claude-dev"
 	}
 }
 
+func TestWatchConfigDefaults(t *testing.T) {
+	// loadFile returns (fileConfig, bool, error) — three values
+	cfg, exists, err := loadFile("/nonexistent/path")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if exists {
+		t.Fatal("expected file to not exist")
+	}
+	if cfg.Watch.Enabled != false {
+		t.Errorf("want Watch.Enabled=false, got %v", cfg.Watch.Enabled)
+	}
+}
+
 func stringPtr(value string) *string {
 	v := value
 	return &v
