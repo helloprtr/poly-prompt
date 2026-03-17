@@ -18,6 +18,7 @@ import (
 	"github.com/helloprtr/poly-prompt/internal/launcher"
 	"github.com/helloprtr/poly-prompt/internal/repoctx"
 	"github.com/helloprtr/poly-prompt/internal/translate"
+	"github.com/helloprtr/poly-prompt/internal/watcher"
 )
 
 var version = "dev"
@@ -68,6 +69,11 @@ func main() {
 	if len(args) == 0 && !stdinPiped {
 		cfg, _ := config.Load()
 		watchStatus := "inactive"
+		if pidPath, err := watcher.PIDPath(); err == nil {
+			if _, err := os.Stat(pidPath); err == nil {
+				watchStatus = "active"
+			}
+		}
 		branch := ""
 		if s, err := repoctx.New().Collect(context.Background()); err == nil {
 			branch = s.Branch

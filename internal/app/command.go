@@ -48,6 +48,7 @@ func (a *App) Command(ctx context.Context, stdin io.Reader, stdinPiped bool) *co
 	root.AddCommand(a.newFavoriteCommand())
 	root.AddCommand(a.newLangCommand(stdin))
 	root.AddCommand(a.newInitCommand())
+	root.AddCommand(a.newWatchCommand())
 	root.AddCommand(a.newShortcutCommand(ctx, "ask", stdin, stdinPiped))
 	root.AddCommand(a.newShortcutCommand(ctx, "review", stdin, stdinPiped))
 	root.AddCommand(a.newShortcutCommand(ctx, "fix", stdin, stdinPiped))
