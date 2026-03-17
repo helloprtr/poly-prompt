@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -279,7 +280,7 @@ func (a *App) shouldRunRootDirect(args []string) bool {
 	}
 
 	switch first {
-	case "init", "version", "start", "setup", "lang", "doctor", "templates", "profiles", "history", "rerun", "pin", "favorite", "go", "demo", "again", "swap", "take", "learn", "inspect":
+	case "init", "version", "start", "setup", "lang", "doctor", "templates", "profiles", "history", "rerun", "pin", "favorite", "go", "demo", "again", "swap", "take", "learn", "inspect", "watch":
 		return false
 	}
 
@@ -917,6 +918,24 @@ func (a *App) runGo(ctx context.Context, args []string, stdin io.Reader, stdinPi
 	}
 	repoSuffix, inputSource := a.resolveRepoContext(ctx, inputSource, command.noContext)
 	protectedTerms, protectedSuffix := a.resolveLearnedTerms(command.noContext)
+
+	if !command.noContext {
+		if repoRoot, err := a.resolveRepoRoot(); err == nil && repoRoot != "" {
+			patterns := repoctx.LoadIgnorePatterns(repoRoot)
+
+			if diff, err := repoctx.GitDiff(ctx, repoRoot); err == nil && diff != "" {
+				filtered := repoctx.FilterDiffHunks(diff, patterns)
+				if filtered != "" {
+					repoSuffix += "\n\nGit diff:\n" + filtered
+				}
+			}
+
+			testOutputPath := filepath.Join(os.TempDir(), "prtr-last-output")
+			if out, err := repoctx.LastTestOutput(testOutputPath); err == nil && out != "" {
+				repoSuffix += "\n\nLast test output:\n" + out
+			}
+		}
+	}
 
 	target := strings.TrimSpace(command.app)
 	if target == "" {

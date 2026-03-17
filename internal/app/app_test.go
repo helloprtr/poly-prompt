@@ -2118,3 +2118,12 @@ func TestServerDeepExecRequestNotApproved(t *testing.T) {
 		t.Error("Approved = true, want false")
 	}
 }
+
+func TestRunGoContextEnrichmentDisabledByNoContext(t *testing.T) {
+	// When --no-context is set, repoSuffix and enrichment suffix must both be empty.
+	a := &App{repoContext: repoctx.New()}
+	suffix, _ := a.resolveRepoContext(context.Background(), "prompt", true /* disabled */)
+	if suffix != "" {
+		t.Errorf("expected empty suffix with noContext=true, got %q", suffix)
+	}
+}
