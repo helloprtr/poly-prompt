@@ -29,7 +29,10 @@ for line in d.get('context_lines', []):
 
   if [[ -n "$_PRTR_CMD" ]]; then
     local sock="$HOME/.config/prtr/watch.sock"
-    local payload="{\"exit_code\":$exit_code,\"cmd\":\"$_PRTR_CMD\",\"output_file\":\"$TMPDIR/prtr-last-output\"}"
+    # Escape cmd for JSON: backslash then double-quote sequences
+    local escaped_cmd="${_PRTR_CMD//\\/\\\\}"
+    escaped_cmd="${escaped_cmd//\"/\\\"}"
+    local payload="{\"exit_code\":$exit_code,\"cmd\":\"$escaped_cmd\",\"output_file\":\"$TMPDIR/prtr-last-output\"}"
 
     if command -v socat &>/dev/null && [[ -S "$sock" ]]; then
       printf '%s\n' "$payload" | socat - UNIX-CONNECT:"$sock" 2>/dev/null || true
