@@ -225,11 +225,6 @@ func executePatchRunWithGraph(
 		return Result{}, err
 	}
 
-	emit("patch", 2, "building a patch draft")
-	emit("critique", 3, "reviewing risks")
-	emit("tests", 4, "drafting verification steps")
-	emit("reconcile", 5, "packaging the bundle")
-
 	gr, err := graphFactory().Run(ctx, opts, aw, files)
 	if err != nil {
 		// Hard blocker failure — mark run as failed.
