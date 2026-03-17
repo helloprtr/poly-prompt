@@ -2,6 +2,7 @@ package repoctx
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -105,4 +106,27 @@ func containsPrefix(values []string, want string) bool {
 		}
 	}
 	return false
+}
+
+func TestGitDiffTruncates(t *testing.T) {
+	// Build a fake diff > 200 lines
+	var sb strings.Builder
+	for i := 0; i < 300; i++ {
+		fmt.Fprintf(&sb, "+line %d\n", i)
+	}
+	result := TruncateDiff(sb.String(), 200)
+	lines := strings.Split(strings.TrimSpace(result), "\n")
+	if len(lines) > 201 { // 200 lines + possible truncation note
+		t.Errorf("expected ≤201 lines, got %d", len(lines))
+	}
+}
+
+func TestLastTestOutputMissing(t *testing.T) {
+	output, err := LastTestOutput("/nonexistent/prtr-last-output")
+	if err != nil {
+		t.Errorf("expected nil error for missing file, got %v", err)
+	}
+	if output != "" {
+		t.Errorf("expected empty output for missing file, got %q", output)
+	}
 }
