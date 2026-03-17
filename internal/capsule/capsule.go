@@ -1,6 +1,7 @@
 package capsule
 
 import (
+	"strings"
 	"time"
 
 	"github.com/helloprtr/poly-prompt/internal/repoctx"
@@ -87,6 +88,28 @@ func (d DriftReport) HasDrift() bool {
 
 // DetectDrift compares a saved capsule's repo state to the current repoctx summary.
 func DetectDrift(c Capsule, current repoctx.Summary) DriftReport {
+	// Build a set from current changed files (strip git status prefix like "M ")
+	currentFiles := make(map[string]bool, len(current.Changes))
+	for _, line := range current.Changes {
+		parts := strings.Fields(line)
+		if len(parts) >= 2 {
+			currentFiles[parts[len(parts)-1]] = true
+		}
+	}
+
+	// Check if any saved touched files are no longer in the current changed set
+	filesChanged := false
+	for _, f := range c.Repo.TouchedFiles {
+		if !currentFiles[f] {
+			filesChanged = true
+			break
+		}
+	}
+	// Also check if there are new files not in the saved set
+	if !filesChanged && len(current.Changes) != len(c.Repo.TouchedFiles) {
+		filesChanged = true
+	}
+
 	return DriftReport{
 		BranchChanged: c.Repo.Branch != current.Branch,
 		SavedBranch:   c.Repo.Branch,
@@ -94,5 +117,6 @@ func DetectDrift(c Capsule, current repoctx.Summary) DriftReport {
 		SHAChanged:    c.Repo.HeadSHA != current.HeadSHA,
 		SavedSHA:      c.Repo.HeadSHA,
 		CurrentSHA:    current.HeadSHA,
+		FilesChanged:  filesChanged,
 	}
 }
