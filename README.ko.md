@@ -2,7 +2,7 @@
 
 [![Project Site](https://img.shields.io/badge/project%20site-live-ff7a1a?style=flat-square)](https://helloprtr.github.io/poly-prompt/)
 [![Docs Hub](https://img.shields.io/badge/docs-pages-58f2c5?style=flat-square)](https://helloprtr.github.io/poly-prompt/docs/)
-[![Latest Release](https://img.shields.io/badge/release-v0.6.3-1b2c49?style=flat-square)](https://github.com/helloprtr/poly-prompt/releases/tag/v0.6.3)
+[![Latest Release](https://img.shields.io/badge/release-v0.7.0-1b2c49?style=flat-square)](https://github.com/helloprtr/poly-prompt/releases/tag/v0.7.0)
 
 [English README](README.md) · [한국어 README](README.ko.md) · [문서 허브](https://helloprtr.github.io/poly-prompt/docs/) · [릴리스](https://github.com/helloprtr/poly-prompt/releases)
 
