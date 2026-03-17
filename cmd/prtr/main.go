@@ -62,7 +62,24 @@ func main() {
 		HistoryStore:    history.New(historyPath),
 	})
 
-	if err := application.Execute(context.Background(), os.Args[1:], os.Stdin, stdinPiped); err != nil {
+	args := os.Args[1:]
+
+	// No-args + no stdin → launch dashboard
+	if len(args) == 0 && !stdinPiped {
+		cfg, _ := config.Load()
+		watchStatus := "inactive"
+		branch := ""
+		if s, err := repoctx.New().Collect(context.Background()); err == nil {
+			branch = s.Branch
+		}
+		if err := runDashboard(cfg.DefaultTarget, watchStatus, branch); err != nil {
+			fmt.Fprintln(os.Stderr, "prtr:", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	if err := application.Execute(context.Background(), args, os.Stdin, stdinPiped); err != nil {
 		if errors.Is(err, editor.ErrCanceled) {
 			os.Exit(130)
 		}
