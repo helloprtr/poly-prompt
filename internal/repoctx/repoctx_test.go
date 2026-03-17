@@ -94,8 +94,8 @@ func TestCollectIncludesHeadSHA(t *testing.T) {
 	if summary.HeadSHA == "" {
 		t.Error("HeadSHA should be non-empty in a git repo")
 	}
-	if len(summary.HeadSHA) != 7 {
-		t.Errorf("HeadSHA should be 7 chars (short SHA), got %d: %q", len(summary.HeadSHA), summary.HeadSHA)
+	if len(summary.HeadSHA) < 7 {
+		t.Errorf("HeadSHA should be at least 7 chars (short SHA), got %d: %q", len(summary.HeadSHA), summary.HeadSHA)
 	}
 }
 

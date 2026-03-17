@@ -711,7 +711,8 @@ func applyFileConfig(cfg *Config, raw fileConfig, source string, includeAPIKey b
 	}
 
 	if raw.Memory.CapsuleRetentionDays != 0 || raw.Memory.AutosaveRetentionDays != 0 ||
-		raw.Memory.StoreDiff != "" || raw.Memory.MaxCapsulesPerRepo != 0 {
+		raw.Memory.StoreDiff != "" || raw.Memory.MaxCapsulesPerRepo != 0 ||
+		raw.Memory.RunRetentionDays != 0 || raw.Memory.MaxStorageMBPerRepo != 0 {
 		if raw.Memory.CapsuleRetentionDays != 0 {
 			cfg.Memory.CapsuleRetentionDays = raw.Memory.CapsuleRetentionDays
 		}
