@@ -149,7 +149,7 @@ Watcher respects `.prtrignore` at repo root (simplified glob syntax — see Sect
 - Shell hook template stored as a Go embed in `internal/watcher/hook.zsh` and `hook.bash`
 - Context collection reuses existing `repoctx` and `input` packages
 - Test output stored by shell hook to `$TMPDIR/prtr-last-output`; `internal/watcher` reads this path
-- `socat` used for socket IPC; polling fallback via temp file if `socat` not available
+- Socket IPC uses `socat` in the shell hook when available; if `socat` is absent, the hook falls back to writing a JSON line to `$TMPDIR/prtr-watch-event` and the watcher polls that file every 500ms (checking mtime). The hook detects `socat` presence via `command -v socat` at hook-install time and writes the appropriate variant into `~/.zshrc`/`~/.bashrc`.
 - No new Go module dependencies
 - Windows: `prtr watch` prints "not supported on Windows" and exits 0
 
@@ -174,11 +174,11 @@ When `prtr go` fires (or `prtr watch` pre-collects), the context engine auto-ass
 
 ### Wiring into `prtr go`
 
-The new context is injected at the `prepareRun` stage in `internal/app/app.go`. Specifically:
+Repo context is collected in `runGo` (and `runMain`) via `resolveRepoContext`, then appended as `promptSuffix` before `prepareRun` is called. The new context sources follow the same pattern:
 
 1. `internal/repoctx` gains two new exported functions: `GitDiff(root string) (string, error)` and `LastTestOutput() (string, error)`
-2. `prepareRun` calls both, applies `.prtrignore` filtering, and appends the results to the existing `RepoContext` string before it is passed to `internal/template`
-3. The `--no-context` flag continues to disable all automatic context including these new sources
+2. In `runGo` (alongside the existing `resolveRepoContext` call), call both new functions, apply `.prtrignore` filtering, and append results to `promptSuffix`
+3. The `--no-context` flag guard that already wraps `resolveRepoContext` also wraps these new calls — no separate flag needed
 
 ### `.prtrignore` Parser
 
@@ -192,6 +192,10 @@ Syntax: simplified glob only — no directory traversal patterns, no negation. S
 ```
 
 Implemented without external dependencies using Go's `path.Match` per filename segment. A comment in the parser documents the unsupported gitignore features (negation `!`, `**`, directory-only `/`).
+
+### `.prtrignore` Applied to Git Diff
+
+When filtering git diff output, the parser operates on file paths extracted from diff headers (`+++ b/path/to/file` lines). If a file path matches an ignore pattern, the **entire diff hunk** for that file is suppressed (not individual lines). The filtered output replaces the hunk with a one-line note: `[excluded by .prtrignore: path/to/file]`.
 
 ### Transparency via `prtr inspect`
 
@@ -239,7 +243,8 @@ patcher: 변경 범위 분석 중 (3s)
 
 - Prerequisite: refactor `runtime.go` to move `emit()` calls inside workers (before the TUI work begins)
 - New file: `internal/deep/ui.go` — bubbletea model with a `chan deeprun.Progress` field (package path: `internal/deep/run`)
-- `runtime.go` constructs the bubbletea program, passes its channel as `run.Options.Progress` callback
+- `run.Options.Progress` remains typed as `func(Progress)`. The bridge: `runtime.go` creates a `chan deeprun.Progress`, starts the bubbletea program in a goroutine, and passes a closure `func(p Progress) { ch <- p }` as `Options.Progress`. The bubbletea model reads from the channel via a `tea.Cmd` that blocks on receive.
+- `runtime.go` constructs the channel and bubbletea program before calling `graphFactory().Run()`
 - Uses `charmbracelet/bubbles` progress bar (already in `go.mod`)
 - Uses `charmbracelet/lipgloss` for stage token colors (already in `go.mod`)
 - Falls back to plain sequential log lines when `--no-color` flag is set or stdout is not a TTY (`!term.IsTerminal(os.Stdout.Fd())`)
@@ -253,7 +258,7 @@ patcher: 변경 범위 분석 중 (3s)
 
 Running `prtr` with no arguments and no stdin currently routes to `runMain` via `shouldRunRootDirect`. Inside `runMain`, `input.Resolve` returns a `usageError` when no prompt text is present.
 
-**Required routing change in `app.go`:** In the `Execute()` entry point, intercept the no-args + no-stdin case **before** calling `shouldRunRootDirect`. If `len(os.Args) == 1` and stdin is not a pipe (`!term.IsTerminal(os.Stdin.Fd())` is false), launch the dashboard TUI directly and return. This avoids touching `shouldRunRootDirect` logic.
+**Required routing change in `app.go`:** In the `Execute(args []string)` entry point, intercept the no-args + no-stdin case **before** calling `shouldRunRootDirect`. The correct check is `len(args) == 0` (since `Execute` already receives `os.Args[1:]`) combined with `!stdinPiped` (already available as a parameter in the same scope). If both are true, launch the dashboard TUI directly and return. This avoids touching `shouldRunRootDirect` logic.
 
 Additionally, add `"watch"` to the known-subcommands switch inside `shouldRunRootDirect` so `prtr watch` is not misrouted as a shortcut prompt.
 
@@ -288,7 +293,7 @@ Pressing a key (e.g., `g`) exits the dashboard TUI and **exec-replaces the proce
 - New file: `cmd/prtr/dashboard.go` — bubbletea model
 - Reads `config.Load()` for target, llm_provider
 - Reads `~/.config/prtr/watch.pid` existence for watch status
-- Key dispatch: bubbletea model's `Update` returns a `tea.Quit` command, then after `p.Run()` returns, `syscall.Exec` is called to replace the process with `prtr <command>` (Unix/macOS)
+- Key dispatch: bubbletea model's `Update` returns a `tea.Quit` command along with the chosen subcommand string. After `p.Run()` returns, resolve the binary path via `os.Executable()`, then call `syscall.Exec(binaryPath, []string{"prtr", subcommand}, os.Environ())`. If `os.Executable()` fails, fall back to searching `"prtr"` on `PATH` via `exec.LookPath`.
 - Windows limitation (known, acceptable for v0.8): `syscall.Exec` is not available on Windows. On Windows, the dashboard exits and spawns `prtr <command>` as a child process via `os.StartProcess`, then waits for it. The behavior differs slightly (parent process briefly visible) but is functionally correct.
 - **`internal/config` struct change required:** add `Watch WatchConfig` field to `fileConfig` struct, where `WatchConfig` has `Enabled bool`, `Notify bool`, `MediumSignals bool` with TOML keys `enabled`, `notify`, `medium_signals`
 
