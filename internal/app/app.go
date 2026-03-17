@@ -3379,3 +3379,89 @@ func parseDuration(s string) (time.Duration, error) {
 	}
 	return 0, fmt.Errorf("unsupported duration format %q — use Nd (e.g. 30d)", s)
 }
+
+// tryAutoSave creates or deduplicates an auto-save capsule after a successful run.
+// Errors are non-fatal — auto-save must never block the main flow.
+func (a *App) tryAutoSave(ctx context.Context, histEntry *history.Entry) {
+	cfg, err := a.configLoader()
+	if err != nil || !cfg.Memory.Enabled || !cfg.Memory.AutoSave {
+		return
+	}
+
+	repoRoot, err := a.repoRootFinder()
+	if err != nil {
+		return
+	}
+
+	repoSummary, err := a.repoContext.Collect(ctx)
+	if err != nil {
+		return
+	}
+
+	dir, err := capsule.DefaultDir(repoRoot)
+	if err != nil {
+		return
+	}
+	store := capsule.NewStore(dir)
+
+	in := capsule.BuildInput{
+		Kind:         capsule.KindAuto,
+		HistoryEntry: histEntry,
+		RepoSummary:  repoSummary,
+		RepoRoot:     repoRoot,
+	}
+	c := capsule.Build(in)
+
+	// Dedup: check if we have a recent auto-save with the same key fields.
+	if existing := findDedupeTarget(store, c); existing != nil {
+		_ = store.Update(existing.ID, func(old *capsule.Capsule) {
+			old.Repo = c.Repo
+			old.Session = c.Session
+			old.Work = c.Work
+		})
+		return
+	}
+
+	_ = store.Save(c)
+
+	if cfg.Memory.PruneOnWrite {
+		_ = a.runPrune("", false)
+	}
+}
+
+// findDedupeTarget returns the existing auto-save capsule to update, or nil
+// if no dedup target is found. Dedup condition: same repo + branch +
+// normalized_goal + target_app, and created within the last 10 minutes.
+func findDedupeTarget(store *capsule.Store, incoming capsule.Capsule) *capsule.Capsule {
+	caps, err := store.List()
+	if err != nil {
+		return nil
+	}
+	cutoff := time.Now().UTC().Add(-10 * time.Minute)
+	for i := range caps {
+		c := &caps[i]
+		if c.Kind != capsule.KindAuto {
+			continue
+		}
+		if c.Pinned {
+			continue // never update a pinned auto-save
+		}
+		if c.CreatedAt.Before(cutoff) {
+			continue
+		}
+		if c.Repo.Name != incoming.Repo.Name {
+			continue
+		}
+		if c.Repo.Branch != incoming.Repo.Branch {
+			continue
+		}
+		if c.Work.NormalizedGoal != incoming.Work.NormalizedGoal {
+			continue
+		}
+		if c.Session.TargetApp != incoming.Session.TargetApp {
+			continue
+		}
+		return c
+	}
+	return nil
+}
