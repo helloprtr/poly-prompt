@@ -2,12 +2,13 @@ package app
 
 import "strings"
 
+// isUIHeavy reports whether text is likely about UI/UX design topics.
+// Reserved for future auto-mode detection in runMain.
 func isUIHeavy(text string) bool {
 	text = strings.ToLower(text)
 	if text == "" {
 		return false
 	}
-	// Check for UI/UX as standalone words (space-bounded)
 	if strings.HasPrefix(text, "ui ") || strings.HasPrefix(text, "ux ") {
 		return true
 	}
@@ -29,6 +30,8 @@ func isUIHeavy(text string) bool {
 	return false
 }
 
+// isCodeHeavy reports whether text is likely about code/engineering topics.
+// Reserved for future auto-mode detection in runMain.
 func isCodeHeavy(text string) bool {
 	text = strings.ToLower(text)
 	if text == "" {

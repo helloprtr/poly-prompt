@@ -217,7 +217,7 @@ var targetLangOptions = []languageOption{
 const (
 	demoOriginalRequest = "왜 깨지는지 정확한 원인만 찾아줘"
 	demoTranslatedGoal  = "Find only the precise root cause of why this npm test run is failing. Do not suggest fixes yet."
-	demoEvidence        = `> poly-prompt@0.6.2 test
+	demoEvidence        = `> prtr@0.7.0 test
 > go test ./...
 
 --- FAIL: TestExecuteTakePatch (0.02s)
@@ -1064,7 +1064,7 @@ func (a *App) runAgain(ctx context.Context, args []string, stdin io.Reader, stdi
 		surfaceMode:     blankDefault(entry.Shortcut, "ask"),
 		surfaceInput:    inputSource,
 		surfaceDelivery: surfaceDeliveryLabel(command.dryRun),
-		engine:          blankDefault(entry.Engine, "classic"),
+		engine:          "classic",
 		parentID:        entry.ID,
 	}
 
@@ -1828,7 +1828,6 @@ func (a *App) applyDelivery(ctx context.Context, opts runOptions, run *resolvedR
 			Command: launcherCfg.Command,
 			Args:    launcherCfg.Args,
 		}); err != nil {
-			run.launchedTarget = run.targetName
 			return err
 		}
 		run.launched = true
@@ -1992,10 +1991,6 @@ func parseGoCommand(args []string, builtInShortcuts map[string]bool) (goCommandO
 			command.prompt = append(command.prompt, arg)
 		}
 	}
-	if command.noCopy && !command.dryRun {
-		return goCommandOptions{}, usageError{message: "--no-copy currently requires --dry-run with `prtr go`", helpText: goHelpText()}
-	}
-
 	return command, nil
 }
 
@@ -2077,10 +2072,6 @@ func parseReplayCommand(args []string, requireApp bool) (replayCommandOptions, e
 	if requireApp && strings.TrimSpace(command.app) == "" {
 		return replayCommandOptions{}, usageError{message: "swap requires a target app such as claude, codex, or gemini", helpText: swapHelpText()}
 	}
-	if command.noCopy && !command.dryRun {
-		return replayCommandOptions{}, usageError{message: "--no-copy currently requires --dry-run", helpText: swapHelpText()}
-	}
-
 	return command, nil
 }
 
@@ -2534,6 +2525,7 @@ func promptChoice(reader *bufio.Reader, output io.Writer, label string, choices 
 			return value, nil
 		}
 	}
+	_, _ = fmt.Fprintf(output, "  unrecognized value %q — using default %q\n", value, defaultValue)
 	return defaultValue, nil
 }
 
