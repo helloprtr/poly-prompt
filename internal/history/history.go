@@ -161,8 +161,15 @@ func (s *Store) Latest() (Entry, error) {
 	if len(entries) == 0 {
 		return Entry{}, ErrNotFound
 	}
-	// Entries are appended in chronological order; last is always newest.
-	return entries[len(entries)-1], nil
+	// Find the entry with the maximum CreatedAt rather than relying on append
+	// order, which is not guaranteed to be monotone (e.g. after an Update call).
+	latest := entries[0]
+	for _, e := range entries[1:] {
+		if e.CreatedAt.After(latest.CreatedAt) {
+			latest = e
+		}
+	}
+	return latest, nil
 }
 
 func (s *Store) Search(query string) ([]Entry, error) {
