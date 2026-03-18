@@ -3235,6 +3235,15 @@ func (a *App) runResume(ctx context.Context, id, to string, dryRun bool) error {
 		}
 	}
 
+	// Persist the target that was actually used so that `prtr status` and the
+	// next resume show the correct app, especially when --to overrode the
+	// capsule's saved target.
+	if target != c.Session.TargetApp {
+		_ = store.Update(c.ID, func(cap *capsule.Capsule) {
+			cap.Session.TargetApp = target
+		})
+	}
+
 	displayLabel := c.Label
 	if displayLabel == "" {
 		displayLabel = "[auto]"
@@ -3281,6 +3290,7 @@ func (a *App) runCapsuleStatus() error {
 	if displayLabel == "" {
 		displayLabel = "[auto]"
 	}
+	_, _ = fmt.Fprintf(a.stdout, "store:      %s\n", dir)
 	_, _ = fmt.Fprintf(a.stdout, "last save:  %s  %s\n",
 		c.CreatedAt.Local().Format("2006-01-02 15:04"), displayLabel)
 

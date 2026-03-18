@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/helloprtr/poly-prompt/internal/watcher"
 	"github.com/spf13/cobra"
@@ -20,7 +21,7 @@ import (
 func (a *App) newWatchCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "watch",
-		Short: "Start background event watcher (zsh/bash only)",
+		Short: "Start foreground event watcher (zsh/bash only — run in a separate terminal or with &)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			off, _ := cmd.Flags().GetBool("off")
 			status, _ := cmd.Flags().GetBool("status")
@@ -83,6 +84,18 @@ func stopWatcher(pidPath string, w io.Writer) error {
 		return nil
 	}
 	_ = proc.Signal(syscall.SIGTERM)
+
+	// Wait up to 2 s for the process to exit before removing the PID file.
+	// Without this wait, a rapid `prtr watch` restart can race against the
+	// still-bound Unix socket and fail with "address already in use".
+	const maxWait = 20
+	for i := 0; i < maxWait; i++ {
+		if proc.Signal(syscall.Signal(0)) != nil {
+			break // process has exited
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
 	_ = os.Remove(pidPath)
 	fmt.Fprintln(w, "prtr watch: stopped")
 	return nil

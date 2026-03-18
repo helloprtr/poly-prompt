@@ -11,6 +11,10 @@ import (
 	"time"
 )
 
+// corruptWarningWriter is the writer used to surface corrupt-entry warnings
+// from List(). Defaults to os.Stderr; overridable in tests.
+var corruptWarningWriter = os.Stderr
+
 var ErrNotFound = errors.New("capsule not found")
 
 // Store manages capsules under <repoRoot>/.prtr/capsules/.
@@ -90,7 +94,8 @@ func (s *Store) List() ([]Capsule, error) {
 		}
 		c, err := s.Load(e.Name())
 		if err != nil {
-			continue // skip corrupt entries silently
+			fmt.Fprintf(corruptWarningWriter, "prtr: skipping corrupt capsule %s: %v\n", e.Name(), err)
+			continue
 		}
 		caps = append(caps, c)
 	}

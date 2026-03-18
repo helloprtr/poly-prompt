@@ -41,13 +41,23 @@ func InstallHook(shellConfig string) error {
 }
 
 // DetectShellConfig returns the user's primary shell config path.
+// For zsh it honours $ZDOTDIR when set, matching zsh's own lookup order.
 func DetectShellConfig() string {
 	home, _ := os.UserHomeDir()
 	shell := os.Getenv("SHELL")
 	if strings.Contains(shell, "zsh") {
-		return filepath.Join(home, ".zshrc")
+		base := os.Getenv("ZDOTDIR")
+		if base == "" {
+			base = home
+		}
+		return filepath.Join(base, ".zshrc")
 	}
-	return filepath.Join(home, ".bashrc")
+	// Prefer ~/.bashrc; fall back to ~/.bash_profile for login-only shells.
+	bashrc := filepath.Join(home, ".bashrc")
+	if _, err := os.Stat(bashrc); err == nil {
+		return bashrc
+	}
+	return filepath.Join(home, ".bash_profile")
 }
 
 func hookForShell(configPath string) string {

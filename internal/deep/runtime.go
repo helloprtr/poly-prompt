@@ -85,8 +85,11 @@ const (
 // path can be extracted from the source text.
 const inspectChangedFiles = "<inspect-changed-files>"
 
-// fileRefRe matches relative file paths (e.g. "handlers/user.go").
-var fileRefRe = regexp.MustCompile(`(?:[A-Za-z0-9_.-]+/)*[A-Za-z0-9_.-]+\.[A-Za-z0-9]+`)
+// fileRefRe matches relative file paths that contain at least one directory
+// component (e.g. "handlers/user.go").  Requiring a "/" prevents version
+// strings ("v0.8.0"), plain words ("README.md"), and date tokens
+// ("2024-01-15") from being mistaken for source-file references.
+var fileRefRe = regexp.MustCompile(`[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+\.[A-Za-z0-9]+`)
 
 // AppendEvent appends a structured event to the run's event log.
 func AppendEvent(path string, e Event) error {
@@ -202,17 +205,17 @@ func executePatchRunWithGraph(
 		files = inferFilesFromHistory(opts.HistoryEntry)
 	}
 	if len(files) == 0 {
+		// No concrete file path found in source or history.  Fall back to the
+		// sentinel so workers can still operate using git diff as context, but
+		// surface a visible warning so the user knows file targeting is absent.
+		fmt.Fprintf(os.Stderr, "prtr: no file references found in source — workers will use git diff as context\n")
 		files = []string{inspectChangedFiles}
 	}
 
-	// ── Planning phase ──────────────────────────────────────────────────────
-	run.Status = RunStatusPlanning
-	run.UpdatedAt = time.Now().UTC()
-	if err := aw.WriteManifest(run); err != nil {
-		return Result{}, err
-	}
-
 	// ── Graph execution ─────────────────────────────────────────────────────
+	// Set status to Running immediately before handing off to the graph.
+	// A separate Planning status is not written here because it would be
+	// overwritten synchronously before any external reader could observe it.
 	run.Status = RunStatusRunning
 	run.UpdatedAt = time.Now().UTC()
 	if err := aw.WriteManifest(run); err != nil {
