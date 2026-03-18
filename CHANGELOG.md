@@ -2,6 +2,23 @@
 
 All notable product-facing changes to `prtr` are documented in this file.
 
+## v0.8.1 - 2026-03-19
+
+### Bug Fixes
+
+- **Deep pipeline — file-reference extraction**: `fileRefRe` now requires at least one directory separator (`/`) before matching, eliminating false positives from version strings (`v0.8.0`), dates (`2024-01-15`), and plain filenames without a path component.
+- **Deep pipeline — silent fallback**: when no file references can be extracted from source or history, a stderr warning is now emitted (`"no file references found — workers will use git diff as context"`) instead of silently substituting the sentinel.
+- **Deep pipeline — redundant status write**: removed the immediately-overwritten `RunStatusPlanning` manifest write; the manifest is now written once with `RunStatusRunning` immediately before `graph.Run`.
+- **`history.Latest()`**: now scans all entries for the maximum `CreatedAt` instead of relying on append order, which is not guaranteed to be monotone after `Update` calls.
+- **`prtr watch` help text**: corrected `Short` description from "background" to "foreground"; adds guidance to run in a separate terminal or with `&`.
+- **`prtr watch --off` socket race**: now waits up to 2 s for the process to exit before removing the PID file, preventing `address already in use` on rapid restart.
+- **`prtr resume --to` target not persisted**: `runResume` now updates `Session.TargetApp` in the capsule when `--to` overrides the saved target, so `prtr status` and subsequent resumes reflect the app that was actually used.
+- **Corrupt capsule silent skip**: `capsule.Store.List()` now logs corrupt entries to stderr (`"skipping corrupt capsule <id>: <err>"`) instead of dropping them silently.
+- **`prtr status` missing store path**: `runCapsuleStatus` now prints the capsule store directory as the first output line.
+- **Shell hook `ZDOTDIR` support**: `DetectShellConfig` now honours `$ZDOTDIR` for zsh users; also falls back to `~/.bash_profile` when `~/.bashrc` is absent.
+
+---
+
 ## v0.8.0 - 2026-03-18
 
 ### Highlights
