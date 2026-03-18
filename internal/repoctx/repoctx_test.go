@@ -2,6 +2,8 @@ package repoctx
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -80,6 +82,24 @@ func TestCollectReturnsNotGitRepo(t *testing.T) {
 	}
 }
 
+func TestCollectIncludesHeadSHA(t *testing.T) {
+	ctx := context.Background()
+	c := New()
+	summary, err := c.Collect(ctx)
+	if errors.Is(err, ErrNotGitRepo) {
+		t.Skip("not in a git repo")
+	}
+	if err != nil {
+		t.Fatalf("Collect: %v", err)
+	}
+	if summary.HeadSHA == "" {
+		t.Error("HeadSHA should be non-empty in a git repo")
+	}
+	if len(summary.HeadSHA) < 7 {
+		t.Errorf("HeadSHA should be at least 7 chars (short SHA), got %d: %q", len(summary.HeadSHA), summary.HeadSHA)
+	}
+}
+
 func runGit(t *testing.T, dir string, args ...string) {
 	t.Helper()
 
@@ -105,4 +125,27 @@ func containsPrefix(values []string, want string) bool {
 		}
 	}
 	return false
+}
+
+func TestGitDiffTruncates(t *testing.T) {
+	// Build a fake diff > 200 lines
+	var sb strings.Builder
+	for i := 0; i < 300; i++ {
+		fmt.Fprintf(&sb, "+line %d\n", i)
+	}
+	result := TruncateDiff(sb.String(), 200)
+	lines := strings.Split(strings.TrimSpace(result), "\n")
+	if len(lines) > 201 { // 200 lines + possible truncation note
+		t.Errorf("expected ≤201 lines, got %d", len(lines))
+	}
+}
+
+func TestLastTestOutputMissing(t *testing.T) {
+	output, err := LastTestOutput("/nonexistent/prtr-last-output")
+	if err != nil {
+		t.Errorf("expected nil error for missing file, got %v", err)
+	}
+	if output != "" {
+		t.Errorf("expected empty output for missing file, got %q", output)
+	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -48,10 +49,20 @@ func (a *App) Command(ctx context.Context, stdin io.Reader, stdinPiped bool) *co
 	root.AddCommand(a.newFavoriteCommand())
 	root.AddCommand(a.newLangCommand(stdin))
 	root.AddCommand(a.newInitCommand())
+	root.AddCommand(a.newWatchCommand())
+	root.AddCommand(a.newSaveCommand())
+	root.AddCommand(a.newResumeCommand(ctx))
+	root.AddCommand(a.newCapsuleStatusCommand())
+	root.AddCommand(a.newCapsuleListCommand())
+	root.AddCommand(a.newPruneCommand())
 	root.AddCommand(a.newShortcutCommand(ctx, "ask", stdin, stdinPiped))
 	root.AddCommand(a.newShortcutCommand(ctx, "review", stdin, stdinPiped))
 	root.AddCommand(a.newShortcutCommand(ctx, "fix", stdin, stdinPiped))
 	root.AddCommand(a.newShortcutCommand(ctx, "design", stdin, stdinPiped))
+
+	for _, cmd := range a.newEasterEggCommands(ctx, stdin, stdinPiped) {
+		root.AddCommand(cmd)
+	}
 
 	return root
 }
@@ -381,6 +392,77 @@ func (a *App) newInitCommand() *cobra.Command {
 	}
 }
 
+func (a *App) newSaveCommand() *cobra.Command {
+	var note string
+	cmd := &cobra.Command{
+		Use:   "save [label]",
+		Short: "Save the current work state as a capsule.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			label := ""
+			if len(args) > 0 {
+				label = strings.Join(args, " ")
+			}
+			return a.runSave(label, note)
+		},
+	}
+	cmd.Flags().StringVar(&note, "note", "", "Short annotation (e.g. decisions, open questions)")
+	return cmd
+}
+
+func (a *App) newResumeCommand(ctx context.Context) *cobra.Command {
+	var to string
+	var dryRun bool
+	cmd := &cobra.Command{
+		Use:   "resume [capsule-id|latest]",
+		Short: "Restore a saved work capsule and continue.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			id := ""
+			if len(args) > 0 && args[0] != "latest" {
+				id = args[0]
+			}
+			return a.runResume(ctx, id, to, dryRun)
+		},
+	}
+	cmd.Flags().StringVar(&to, "to", "", "Target app to render the resume prompt for (claude|codex|gemini)")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the resume prompt without sending it")
+	return cmd
+}
+
+func (a *App) newCapsuleStatusCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "status",
+		Short: "Show the latest capsule state and detect repo drift.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.runCapsuleStatus()
+		},
+	}
+}
+
+func (a *App) newCapsuleListCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "list",
+		Short: "List saved work capsules for this repo.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.runCapsuleList()
+		},
+	}
+}
+
+func (a *App) newPruneCommand() *cobra.Command {
+	var olderThan string
+	var dryRun bool
+	cmd := &cobra.Command{
+		Use:   "prune",
+		Short: "Delete old capsules according to retention policy.",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.runPrune(olderThan, dryRun)
+		},
+	}
+	cmd.Flags().StringVar(&olderThan, "older-than", "", "Delete capsules older than this duration (e.g. 30d)")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print what would be deleted without deleting")
+	return cmd
+}
+
 func (a *App) newShortcutCommand(ctx context.Context, name string, stdin io.Reader, stdinPiped bool) *cobra.Command {
 	return &cobra.Command{
 		Use:                name + " [message...]",
@@ -392,6 +474,73 @@ func (a *App) newShortcutCommand(ctx context.Context, name string, stdin io.Read
 				return a.newGoCommand(ctx, stdin, stdinPiped).Help()
 			}
 			return a.runShortcut(ctx, name, args, stdin, stdinPiped)
+		},
+	}
+}
+
+// newEasterEggCommands returns hidden culinary-themed aliases.
+// These do not appear in --help output.
+func (a *App) newEasterEggCommands(ctx context.Context, stdin io.Reader, stdinPiped bool) []*cobra.Command {
+	return []*cobra.Command{
+		// dip → take --deep
+		{
+			Use:                "dip [action]",
+			Hidden:             true,
+			DisableFlagParsing: true,
+			RunE: func(cmd *cobra.Command, args []string) error {
+				if wantsHelp(args) {
+					return a.newTakeCommand(ctx).Help()
+				}
+				return a.runTake(ctx, append([]string{"--deep"}, args...))
+			},
+		},
+		// taste → inspect
+		{
+			Use:                "taste [flags] [message...]",
+			Hidden:             true,
+			DisableFlagParsing: true,
+			RunE: func(cmd *cobra.Command, args []string) error {
+				if wantsHelp(args) {
+					return a.newInspectCommand(ctx, stdin, stdinPiped).Help()
+				}
+				return a.runInspect(ctx, args, stdin, stdinPiped)
+			},
+		},
+		// plate → swap
+		{
+			Use:                "plate <app> [message...]",
+			Hidden:             true,
+			DisableFlagParsing: true,
+			RunE: func(cmd *cobra.Command, args []string) error {
+				if wantsHelp(args) {
+					return a.newSwapCommand(ctx, stdin, stdinPiped).Help()
+				}
+				return a.runSwap(ctx, args, stdin, stdinPiped)
+			},
+		},
+		// marinate → learn
+		{
+			Use:                "marinate [paths...]",
+			Hidden:             true,
+			DisableFlagParsing: true,
+			RunE: func(cmd *cobra.Command, args []string) error {
+				if wantsHelp(args) {
+					return a.newLearnCommand().Help()
+				}
+				return a.runLearn(args)
+			},
+		},
+		// prep → start
+		{
+			Use:                "prep [message...]",
+			Hidden:             true,
+			DisableFlagParsing: true,
+			RunE: func(cmd *cobra.Command, args []string) error {
+				if wantsHelp(args) {
+					return a.newStartCommand(ctx, stdin, stdinPiped).Help()
+				}
+				return a.runStart(ctx, args, stdin, stdinPiped)
+			},
 		},
 	}
 }

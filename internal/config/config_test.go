@@ -276,6 +276,65 @@ command = "claude-dev"
 	}
 }
 
+func TestWatchConfigDefaults(t *testing.T) {
+	// loadFile returns (fileConfig, bool, error) — three values
+	cfg, exists, err := loadFile("/nonexistent/path")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if exists {
+		t.Fatal("expected file to not exist")
+	}
+	if cfg.Watch != nil && cfg.Watch.Enabled {
+		t.Errorf("want Watch.Enabled=false, got %v", cfg.Watch.Enabled)
+	}
+}
+
+func TestWatchConfigLoaded(t *testing.T) {
+	dir := t.TempDir()
+	cfgFile := filepath.Join(dir, "config.toml")
+	err := os.WriteFile(cfgFile, []byte("[watch]\nenabled = true\n"), 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Use loadFile directly to test fileConfig parsing
+	raw, exists, err := loadFile(cfgFile)
+	if err != nil {
+		t.Fatalf("loadFile error: %v", err)
+	}
+	if !exists {
+		t.Fatal("expected file to exist")
+	}
+	if raw.Watch == nil {
+		t.Fatal("expected Watch section to be parsed")
+	}
+	if !raw.Watch.Enabled {
+		t.Error("expected Watch.Enabled=true")
+	}
+}
+
+func TestMemoryConfigDefaults(t *testing.T) {
+	cfg, err := Load()
+	if err != nil {
+		t.Skipf("no config available: %v", err)
+	}
+	if !cfg.Memory.Enabled {
+		t.Error("Memory.Enabled should default to true")
+	}
+	if !cfg.Memory.AutoSave {
+		t.Error("Memory.AutoSave should default to true")
+	}
+	if cfg.Memory.CapsuleRetentionDays != 30 {
+		t.Errorf("CapsuleRetentionDays: got %d, want 30", cfg.Memory.CapsuleRetentionDays)
+	}
+	if cfg.Memory.AutosaveRetentionDays != 14 {
+		t.Errorf("AutosaveRetentionDays: got %d, want 14", cfg.Memory.AutosaveRetentionDays)
+	}
+	if cfg.Memory.StoreDiff != "stat" {
+		t.Errorf("StoreDiff: got %q, want %q", cfg.Memory.StoreDiff, "stat")
+	}
+}
+
 func stringPtr(value string) *string {
 	v := value
 	return &v

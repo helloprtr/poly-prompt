@@ -2,6 +2,54 @@
 
 All notable product-facing changes to `prtr` are documented in this file.
 
+## v0.8.0 - 2026-03-18
+
+### Highlights
+
+- Introduced the **Work Capsule** system: `prtr save`, `prtr resume`, `prtr status`, `prtr list`, and `prtr prune` let you capture and restore work state across sessions and AI tools.
+- Auto-save after every successful `go`, `swap`, `again`, and `take` run — work is never lost between context switches.
+- Drift detection on resume: if the repo branch, HEAD, or working tree changed since the capsule was saved, a warning is embedded in the resume prompt.
+- Added `prtr watch`: a background context watcher with a shell hook for automatic repo context tracking.
+- Easter egg aliases: `dip` → `take --deep`, `taste` → `inspect`, `plate` → `swap`, `marinate` → `learn`, `prep` → `start`.
+
+### Why This Release Matters
+
+`v0.8.0` solves the context-switching problem in multi-session AI work. When you break from a task mid-way and return hours or days later — possibly to a different AI tool — prtr can now reconstruct exactly where you left off: the branch, the last prompt, the open todos, and a diff of what's changed since. The result is a structured resume prompt delivered directly to the AI app of your choice, drift warnings included.
+
+### What Changed
+
+**Work Capsule (`prtr save` / `prtr resume` / `prtr status` / `prtr list` / `prtr prune`)**
+- `prtr save [label] [--note]` — capture repo branch, HEAD SHA, last run session, and open todos as a capsule
+- `prtr resume [id] [--to app] [--dry-run]` — restore a capsule, compute drift, deliver a structured resume prompt
+- `prtr status` — show the latest capsule and current repo drift at a glance
+- `prtr list` — list all capsules for the current repo (most recent first, pinned marked with ★)
+- `prtr prune [--older-than 30d] [--dry-run]` — retention-policy cleanup; pinned capsules are never deleted
+- Auto-save goroutine in `executePrompt`: every successful run writes or deduplicates an `[auto]` capsule
+- Dedup window: same repo + branch + normalized goal + target app within 10 minutes updates the existing auto-capsule instead of creating a new one
+- Config keys: `memory.enabled`, `memory.retention`, `memory.prune_on_write`, `memory.prune_on_resume`
+
+**Context watcher (`prtr watch`)**
+- Installs a shell hook in `~/.zshrc` or `~/.bashrc` on first start
+- Runs as a foreground daemon; `prtr watch --off` sends SIGTERM and removes the PID file
+- `prtr watch --status` reports active/inactive state and PID
+- Not available on Windows (stub via build tag)
+
+**Easter egg command aliases**
+- `dip` → `take --deep`
+- `taste` → `inspect`
+- `plate` → `swap`
+- `marinate` → `learn`
+- `prep` → `start`
+
+### Product Value
+
+- No more manual context reconstruction when resuming work
+- Drift-aware resume prompt catches branch switches and uncommitted changes automatically
+- Retention policy prevents capsule accumulation without manual cleanup
+- Shell hook keeps repo context fresh without manual `prtr learn` runs
+
+---
+
 ## v0.7.0 - 2026-03-17
 
 ### Highlights
