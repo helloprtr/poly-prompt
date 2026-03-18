@@ -25,6 +25,16 @@
 | `prtr templates show <name>` | Show a template preset's content |
 | `prtr profiles list` | List saved profiles |
 | `prtr profiles use <name>` | Apply a profile's settings as new defaults |
+| `prtr watch` | Start the background context watcher (v0.8) |
+| `prtr watch --off` | Stop the background watcher (v0.8) |
+| `prtr watch --status` | Show watcher state (v0.8) |
+| `prtr save [label]` | Save current work state as a capsule (v0.8) |
+| `prtr resume [id]` | Restore a saved capsule and continue (v0.8) |
+| `prtr status` | Show latest capsule state and drift (v0.8) |
+| `prtr list` | List all capsules for this repo (v0.8) |
+| `prtr prune` | Delete old capsules per retention policy (v0.8) |
+
+> **v0.8 note:** Context watcher and Work Capsule commands require `memory.enabled = true` in your config (the default). Set `memory.enabled = false` to disable all capsule operations.
 
 ---
 
@@ -390,3 +400,162 @@ All artifacts are written to `.prtr/runs/<run-id>/` relative to your repo root. 
 | `memory.suggested` | New terms were suggested for the termbook |
 | `run.completed` | Run finished successfully (or with warnings) |
 | `run.failed` | Run failed due to a hard blocker |
+
+---
+
+## prtr watch (v0.8)
+
+Start a background context watcher that tracks shell activity and keeps repo context current for fast `prtr go` runs.
+
+**Usage:**
+
+```bash
+prtr watch
+prtr watch --off
+prtr watch --status
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--off` | bool | false | Stop the running watcher |
+| `--status` | bool | false | Print watcher state (active/inactive and PID) |
+
+**Behavior:**
+
+- On start, installs a shell hook in the detected shell config file (`~/.zshrc` or `~/.bashrc`) and prints instructions to reload the shell.
+- Runs as a foreground process; use `prtr watch --off` or `SIGTERM` to stop it.
+- On `--off`: sends `SIGTERM` to the recorded PID and removes the PID file. If the watcher is not running, prints `prtr watch: not running`.
+- On `--status`: prints `prtr watch: active (PID <n>)` or `prtr watch: inactive`.
+- Not available on Windows.
+
+---
+
+## prtr save (v0.8)
+
+Capture the current work state as a capsule: repo branch, HEAD SHA, last AI run, open todos, and session metadata.
+
+**Usage:**
+
+```bash
+prtr save [label] [flags]
+```
+
+**Arguments:**
+
+| Argument | Description |
+|---|---|
+| `[label]` | Optional human-readable label for the capsule |
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--note <text>` | string | `""` | Attach a free-text note to the capsule |
+
+**Behavior:**
+
+- Requires `memory.enabled = true` (config default).
+- Capsules are saved to `.prtr/capsules/` at the repo root (or `~/Library/Application Support/prtr/capsules/` when no repo is found).
+- If `prune_on_write = true`, runs `prtr prune` automatically after saving.
+- Prints: `✓ capsule saved  <id>  <label>  branch: <branch>  sha: <sha>  <n> todos`
+- prtr also saves a capsule automatically after every successful `go`, `swap`, `again`, or `take` run. Auto-saved capsules have a blank label shown as `[auto]`.
+
+---
+
+## prtr resume (v0.8)
+
+Restore a saved capsule and build a structured resume prompt, then deliver it to an AI app.
+
+**Usage:**
+
+```bash
+prtr resume [id] [flags]
+```
+
+**Arguments:**
+
+| Argument | Description |
+|---|---|
+| `[id]` | Capsule ID prefix to restore; omit to use the latest capsule |
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--to <app>` | string | capsule's recorded app | Target AI app to deliver the resume prompt to |
+| `--dry-run` | bool | false | Print the resume prompt; skip clipboard and launch |
+
+**Behavior:**
+
+- Loads the specified capsule (or the most recent one if no ID is given).
+- Computes repo drift: if the current branch, HEAD SHA, or working tree differs from the saved state, appends a drift warning to the resume prompt.
+- Prints: `✓ resume prompt copied  <label>  → <app>` and a drift warning if applicable.
+- If `prune_on_resume = true`, runs `prtr prune` automatically after resuming.
+
+---
+
+## prtr status (v0.8)
+
+Show the latest capsule and current repo drift.
+
+**Usage:**
+
+```bash
+prtr status
+```
+
+Prints the most recent capsule's ID, label, timestamp, branch, HEAD SHA, open/done todo counts, and target app. If the repo has drifted since the save, prints a drift summary.
+
+---
+
+## prtr list (v0.8)
+
+List all capsules saved for the current repo.
+
+**Usage:**
+
+```bash
+prtr list
+```
+
+Prints each capsule as one line: `<id>  <timestamp>  <label>  <todos>  <pin-mark>`. Pinned capsules are marked with `★`. Most recent first.
+
+---
+
+## prtr prune (v0.8)
+
+Delete old capsules according to the retention policy.
+
+**Usage:**
+
+```bash
+prtr prune [flags]
+```
+
+**Flags:**
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--older-than <duration>` | string | config `retention` | Delete capsules older than this duration (e.g. `30d`, `7d`) |
+| `--dry-run` | bool | false | Print capsules that would be deleted; do not delete |
+
+**Behavior:**
+
+- Pinned capsules are never deleted by prune.
+- Default retention comes from `memory.retention` in config (default: `30d`).
+- Prints each deleted capsule ID and label, and a summary count.
+
+---
+
+## Work Capsule config fields (v0.8)
+
+These fields live under `[memory]` in `config.toml` or `.prtr.toml`.
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `memory.enabled` | bool | `true` | Enable or disable all capsule operations |
+| `memory.retention` | string | `"30d"` | Default retention window for `prtr prune` |
+| `memory.prune_on_write` | bool | `false` | Auto-prune after every `prtr save` |
+| `memory.prune_on_resume` | bool | `false` | Auto-prune after every `prtr resume` |
