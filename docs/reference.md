@@ -250,12 +250,18 @@ prtr inspect [flags] <prompt>
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
-| `-t <app>` | string | default target | Resolve for this target app |
-| `-r <role>` | string | default role | Resolve with this role |
+| `-t, --target <name>` | string | default target | Target profile name (`claude`, `codex`, `gemini`) |
+| `-r, --role <alias>` | string | default role | Role profile alias |
 | `--template <preset>` | string | default preset | Use this template preset |
+| `--lang <code>` | string | config default | Target language override (`en`, `ja`, `zh`, ...) |
+| `--source-lang <code>` | string | `auto` | Source language override |
+| `--translation-mode` | string | `auto` | `auto`, `force`, or `skip` |
 | `--explain` | bool | false | Print how each setting was resolved |
 | `--diff` | bool | true | Show before/after translation diff |
 | `--json` | bool | false | Output the full resolved run as JSON |
+| `--no-copy` | bool | false | Print translated prompt without copying |
+
+> **Note:** `--lang` replaces the old `--to` flag for inspect. `--to` still works but is deprecated. In `prtr go`/`take`/`swap`/`again`, `--to` means target AI app — not a language.
 
 `inspect` never copies, launches, or pastes.
 

@@ -2238,7 +2238,8 @@ func parseRunOptions(args []string) (runOptions, []string, error) {
 	fs.StringVar(&opts.target, "target", "", "target profile name")
 	fs.StringVar(&opts.target, "t", "", "target profile name")
 	fs.StringVar(&opts.sourceLang, "source-lang", "", "source language code or auto")
-	fs.StringVar(&opts.targetLang, "to", "", "target language code")
+	fs.StringVar(&opts.targetLang, "lang", "", "target language code (e.g. en, ja, zh)")
+	fs.StringVar(&opts.targetLang, "to", "", "target language code (deprecated: use --lang)")
 	fs.StringVar(&opts.role, "role", "", "role profile alias")
 	fs.StringVar(&opts.role, "r", "", "role profile alias")
 	fs.StringVar(&opts.templatePreset, "template", "", "template preset name")
@@ -3011,11 +3012,12 @@ func inspectHelpText() string {
 		`  prtr inspect "이 PR 리뷰해줘"`,
 		`  prtr inspect --json "이 에러 분석해줘"`,
 		`  prtr inspect -t codex --template codex-implement -r be "이 함수 개선해줘"`,
+		`  prtr inspect --lang ja "이 에러 일본어로 설명해줘"`,
 		"",
 		"Flags:",
 		"  -t, --target <name>    target profile name",
 		"      --source-lang <code> advanced source language override",
-		"      --to <code>        target language override",
+		"      --lang <code>      target language override (e.g. en, ja, zh)",
 		"  -r, --role <alias>     role profile alias",
 		"      --template <name>  template preset name",
 		"      --translation-mode auto|force|skip",
