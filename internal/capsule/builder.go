@@ -14,7 +14,7 @@ type BuildInput struct {
 	Label        string
 	Note         string
 	Kind         string
-	HistoryEntry *history.Entry  // optional — nil if no prior run
+	HistoryEntry *history.Entry // optional — nil if no prior run
 	RepoSummary  repoctx.Summary
 	RepoRoot     string
 	Todos        []TodoItem // optional override; if nil, extracted from history entry
