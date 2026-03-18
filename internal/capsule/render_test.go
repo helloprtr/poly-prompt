@@ -45,13 +45,13 @@ func TestRenderPromptContainsKeyFields(t *testing.T) {
 	prompt := capsule.RenderResumePrompt(c, "claude", capsule.DriftReport{})
 
 	checks := []string{
-		"implement JWT auth",     // original request
-		"Token refresh",          // todo item
-		"Use JWT",                // decision
-		"Refresh interval?",      // open question
-		"No revocation",          // risk
-		"add token refresh",      // next action
-		"fix/auth",               // branch
+		"implement JWT auth", // original request
+		"Token refresh",      // todo item
+		"Use JWT",            // decision
+		"Refresh interval?",  // open question
+		"No revocation",      // risk
+		"add token refresh",  // next action
+		"fix/auth",           // branch
 	}
 	for _, s := range checks {
 		if !strings.Contains(prompt, s) {
