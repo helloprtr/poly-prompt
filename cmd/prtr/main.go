@@ -15,6 +15,7 @@ import (
 	"github.com/helloprtr/poly-prompt/internal/editor"
 	"github.com/helloprtr/poly-prompt/internal/history"
 	"github.com/helloprtr/poly-prompt/internal/input"
+	"github.com/helloprtr/poly-prompt/internal/lastresponse"
 	"github.com/helloprtr/poly-prompt/internal/launcher"
 	"github.com/helloprtr/poly-prompt/internal/repoctx"
 	"github.com/helloprtr/poly-prompt/internal/translate"
@@ -32,6 +33,12 @@ func main() {
 	historyPath, err := history.DefaultPath()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to resolve history path: %v\n", err)
+		os.Exit(1)
+	}
+
+	lastResponsePath, err := lastresponse.DefaultPath()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to resolve last-response path: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -59,7 +66,8 @@ func main() {
 		Launcher:        launcher.New(),
 		Automator:       automation.New(),
 		SubmitConfirmer: app.NewTTYConfirmer(os.Stderr),
-		HistoryStore:    history.New(historyPath),
+		HistoryStore:      history.New(historyPath),
+		LastResponseStore: lastresponse.New(lastResponsePath),
 	})
 
 	if err := application.Execute(context.Background(), os.Args[1:], os.Stdin, stdinPiped); err != nil {

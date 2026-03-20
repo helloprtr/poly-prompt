@@ -20,6 +20,7 @@ import (
 	"github.com/helloprtr/poly-prompt/internal/editor"
 	"github.com/helloprtr/poly-prompt/internal/history"
 	"github.com/helloprtr/poly-prompt/internal/input"
+	"github.com/helloprtr/poly-prompt/internal/lastresponse"
 	"github.com/helloprtr/poly-prompt/internal/launcher"
 	"github.com/helloprtr/poly-prompt/internal/repoctx"
 	prompttemplate "github.com/helloprtr/poly-prompt/internal/template"
@@ -49,6 +50,7 @@ type Dependencies struct {
 	ConfigInit        ConfigInit
 	LookupEnv         LookupEnv
 	HistoryStore      *history.Store
+	LastResponseStore *lastresponse.Store
 	RepoContext       repoctx.Collector
 	RepoRootFinder    RepoRootFinder
 	TermbookLoader    TermbookLoader
@@ -69,6 +71,7 @@ type App struct {
 	configInit        ConfigInit
 	lookupEnv         LookupEnv
 	historyStore      *history.Store
+	lastResponseStore *lastresponse.Store
 	repoContext       repoctx.Collector
 	repoRootFinder    RepoRootFinder
 	termbookLoader    TermbookLoader
@@ -247,6 +250,7 @@ func New(deps Dependencies) *App {
 		configInit:        deps.ConfigInit,
 		lookupEnv:         deps.LookupEnv,
 		historyStore:      store,
+		lastResponseStore: deps.LastResponseStore,
 		repoContext:       deps.RepoContext,
 		repoRootFinder:    deps.RepoRootFinder,
 		termbookLoader:    deps.TermbookLoader,
@@ -1002,6 +1006,33 @@ func (a *App) loadTermbook(repoRoot string) (termbook.Book, error) {
 		return a.termbookLoader(repoRoot)
 	}
 	return termbook.Load(repoRoot)
+}
+
+// readLastResponse returns (responseText, source, error).
+// It tries lastResponseStore first (if configured), then falls back to clipboard.
+// Emits a warning to stderr when the stored response is >= 5 minutes old.
+// Returns ("", "", nil) when lastResponseStore is absent and clipboard is empty.
+func (a *App) readLastResponse(ctx context.Context) (text, source string, err error) {
+	if a.lastResponseStore != nil {
+		entry, ok, readErr := a.lastResponseStore.Read()
+		if readErr != nil {
+			return "", "", fmt.Errorf("read last-response: %w", readErr)
+		}
+		if ok && strings.TrimSpace(entry.Response) != "" {
+			age := time.Since(entry.CapturedAt)
+			if age >= 5*time.Minute {
+				_, _ = fmt.Fprintf(a.stderr, "Using response from %s ago\n",
+					age.Round(time.Minute).String())
+			}
+			return strings.TrimSpace(entry.Response), entry.Source, nil
+		}
+	}
+	// Fallback: clipboard
+	clipText, clipErr := a.clipboard.Read(ctx)
+	if clipErr != nil {
+		return "", "", clipErr
+	}
+	return strings.TrimSpace(clipText), "clipboard", nil
 }
 
 func (a *App) runAgain(ctx context.Context, args []string, stdin io.Reader, stdinPiped bool) error {

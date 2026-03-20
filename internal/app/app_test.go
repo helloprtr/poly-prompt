@@ -19,6 +19,7 @@ import (
 	"github.com/helloprtr/poly-prompt/internal/config"
 	"github.com/helloprtr/poly-prompt/internal/editor"
 	"github.com/helloprtr/poly-prompt/internal/history"
+	"github.com/helloprtr/poly-prompt/internal/lastresponse"
 	"github.com/helloprtr/poly-prompt/internal/launcher"
 	"github.com/helloprtr/poly-prompt/internal/repoctx"
 	"github.com/helloprtr/poly-prompt/internal/termbook"
@@ -2117,4 +2118,11 @@ func TestServerDeepExecRequestNotApproved(t *testing.T) {
 	if resp.Approved {
 		t.Error("Approved = true, want false")
 	}
+}
+
+func TestDependenciesAcceptsLastResponseStore(t *testing.T) {
+	dir := t.TempDir()
+	store := lastresponse.New(filepath.Join(dir, "last-response.json"))
+	deps := Dependencies{LastResponseStore: store}
+	_ = deps // compile-time field existence check
 }
