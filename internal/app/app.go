@@ -1131,13 +1131,12 @@ func (a *App) runTake(ctx context.Context, args []string) error {
 		return err
 	}
 
-	clipboardText, err := a.clipboard.Read(ctx)
+	responseText, responseSource, err := a.readLastResponse(ctx)
 	if err != nil {
 		return err
 	}
-	clipboardText = strings.TrimSpace(clipboardText)
-	if clipboardText == "" {
-		return errors.New("clipboard is empty; copy an answer and try again")
+	if responseText == "" {
+		return errors.New("No response captured yet. Run prtr go first, then copy the AI's response.")
 	}
 
 	target := strings.TrimSpace(command.app)
@@ -1180,11 +1179,11 @@ func (a *App) runTake(ctx context.Context, args []string) error {
 		envLLMProvider, _ := a.lookupEnv("PRTR_LLM_PROVIDER")
 		llmProvider := config.ResolveLLMProvider(command.llmProvider, cfg, envLLMProvider)
 
-		_, _ = fmt.Fprintf(a.stderr, "-> take:%s --deep | %s | clipboard | running\n", command.action, target)
+		_, _ = fmt.Fprintf(a.stderr, "-> take:%s --deep | %s | %s | running\n", command.action, target, responseSource)
 		result, err := deep.ExecutePatchRun(ctx, deep.Options{
 			Action:          command.action,
-			Source:          clipboardText,
-			SourceKind:      "clipboard",
+			Source:          responseText,
+			SourceKind:      responseSource,
 			TargetApp:       target,
 			RepoRoot:        repoRoot,
 			ParentHistoryID: parentHistoryID,
@@ -1218,7 +1217,7 @@ func (a *App) runTake(ctx context.Context, args []string) error {
 			paste:                !command.dryRun,
 			compactStatus:        true,
 			surfaceMode:          "take:" + command.action + " --deep",
-			surfaceInput:         "clipboard",
+			surfaceInput:         responseSource,
 			surfaceDelivery:      surfaceDeliveryLabel(command.dryRun),
 			preferTargetTemplate: true,
 			engine:               "deep",
@@ -1251,13 +1250,13 @@ func (a *App) runTake(ctx context.Context, args []string) error {
 		paste:                !command.dryRun,
 		compactStatus:        true,
 		surfaceMode:          "take:" + command.action,
-		surfaceInput:         "clipboard",
+		surfaceInput:         responseSource,
 		surfaceDelivery:      surfaceDeliveryLabel(command.dryRun),
 		preferTargetTemplate: true,
 		engine:               "classic",
 	}
 
-	return a.executePrompt(ctx, opts, takePrompt(command.action, clipboardText), "take:"+command.action)
+	return a.executePrompt(ctx, opts, takePrompt(command.action, responseText), "take:"+command.action)
 }
 
 func (a *App) runLearn(args []string) error {

@@ -1230,7 +1230,7 @@ func TestExecuteTakeRejectsEmptyClipboard(t *testing.T) {
 	if err == nil {
 		t.Fatal("Execute() expected an error, got nil")
 	}
-	if !strings.Contains(err.Error(), "clipboard is empty; copy an answer and try again") {
+	if !strings.Contains(err.Error(), "No response captured") {
 		t.Fatalf("error = %v", err)
 	}
 }
@@ -2125,4 +2125,136 @@ func TestDependenciesAcceptsLastResponseStore(t *testing.T) {
 	store := lastresponse.New(filepath.Join(dir, "last-response.json"))
 	deps := Dependencies{LastResponseStore: store}
 	_ = deps // compile-time field existence check
+}
+
+func TestRunTakeUsesLastResponseWhenAvailable(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	lrPath := filepath.Join(dir, "last-response.json")
+	lrStore := lastresponse.New(lrPath)
+	_ = lrStore.Write("clipboard", "This is the AI response text from lastresponse store.")
+
+	var stdout, stderr bytes.Buffer
+	app := New(Dependencies{
+		Version:           "test",
+		Stdout:            &stdout,
+		Stderr:            &stderr,
+		Clipboard:         &stubClipboard{read: "old clipboard content"},
+		Launcher:          &stubLauncher{desc: "Terminal.app"},
+		Automator:         &stubAutomator{desc: "Terminal.app"},
+		SubmitConfirmer:   &stubConfirmer{},
+		ConfigLoader:      config.Load,
+		ConfigInit:        config.Init,
+		LookupEnv:         func(string) (string, bool) { return "", false },
+		HistoryStore:      history.New(filepath.Join(dir, "history.json")),
+		LastResponseStore: lrStore,
+		RepoContext:       &stubRepoContext{},
+		RepoRootFinder:    func() (string, error) { return "", termbook.ErrNotGitRepo },
+	})
+
+	err := app.Execute(context.Background(), []string{"take", "--dry-run", "patch"}, nil, false)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "AI response text from lastresponse") {
+		t.Errorf("stdout = %q, want it to contain lastresponse content", stdout.String())
+	}
+}
+
+func TestRunTakeFallsBackToClipboard(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	var stdout, stderr bytes.Buffer
+	app := New(Dependencies{
+		Version:         "test",
+		Stdout:          &stdout,
+		Stderr:          &stderr,
+		Clipboard:       &stubClipboard{read: "clipboard fallback response content here."},
+		Launcher:        &stubLauncher{desc: "Terminal.app"},
+		Automator:       &stubAutomator{desc: "Terminal.app"},
+		SubmitConfirmer: &stubConfirmer{},
+		ConfigLoader:    config.Load,
+		ConfigInit:      config.Init,
+		LookupEnv:       func(string) (string, bool) { return "", false },
+		HistoryStore:    history.New(filepath.Join(dir, "history.json")),
+		RepoContext:     &stubRepoContext{},
+		// LastResponseStore is nil — no JSON file wired, clipboard fallback expected
+		RepoRootFinder: func() (string, error) { return "", termbook.ErrNotGitRepo },
+	})
+
+	err := app.Execute(context.Background(), []string{"take", "--dry-run", "patch"}, nil, false)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "clipboard fallback response content") {
+		t.Errorf("stdout = %q, want clipboard content", stdout.String())
+	}
+}
+
+func TestRunTakeErrorWhenNothingCaptured(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	app := New(Dependencies{
+		Version:         "test",
+		Stdout:          &bytes.Buffer{},
+		Stderr:          &bytes.Buffer{},
+		Clipboard:       &stubClipboard{read: ""},
+		Launcher:        &stubLauncher{desc: "Terminal.app"},
+		Automator:       &stubAutomator{desc: "Terminal.app"},
+		SubmitConfirmer: &stubConfirmer{},
+		ConfigLoader:    config.Load,
+		ConfigInit:      config.Init,
+		LookupEnv:       func(string) (string, bool) { return "", false },
+		HistoryStore:    history.New(filepath.Join(dir, "history.json")),
+		RepoContext:     &stubRepoContext{},
+		RepoRootFinder:  func() (string, error) { return "", termbook.ErrNotGitRepo },
+	})
+
+	err := app.Execute(context.Background(), []string{"take", "patch"}, nil, false)
+	if err == nil {
+		t.Fatal("Execute() error = nil, want error")
+	}
+	if !strings.Contains(err.Error(), "No response captured") {
+		t.Errorf("error = %q, want 'No response captured'", err.Error())
+	}
+}
+
+func TestRunTakeWarnsStaleness(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	// Write a last-response entry with a backdated timestamp
+	lrPath := filepath.Join(dir, "last-response.json")
+	oldEntry := `{"captured_at":"2020-01-01T00:00:00Z","source":"clipboard","response":"old AI response content here for staleness test."}`
+	_ = os.WriteFile(lrPath, []byte(oldEntry), 0o600)
+	lrStore := lastresponse.New(lrPath)
+
+	var stdout, stderr bytes.Buffer
+	app := New(Dependencies{
+		Version:           "test",
+		Stdout:            &stdout,
+		Stderr:            &stderr,
+		Clipboard:         &stubClipboard{},
+		Launcher:          &stubLauncher{desc: "Terminal.app"},
+		Automator:         &stubAutomator{desc: "Terminal.app"},
+		SubmitConfirmer:   &stubConfirmer{},
+		ConfigLoader:      config.Load,
+		ConfigInit:        config.Init,
+		LookupEnv:         func(string) (string, bool) { return "", false },
+		HistoryStore:      history.New(filepath.Join(dir, "history.json")),
+		LastResponseStore: lrStore,
+		RepoContext:       &stubRepoContext{},
+		RepoRootFinder:    func() (string, error) { return "", termbook.ErrNotGitRepo },
+	})
+
+	err := app.Execute(context.Background(), []string{"take", "--dry-run", "patch"}, nil, false)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(stderr.String(), "ago") {
+		t.Errorf("stderr = %q, want staleness warning containing 'ago'", stderr.String())
+	}
 }

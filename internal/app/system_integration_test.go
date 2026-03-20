@@ -812,8 +812,8 @@ func TestSystemS5_EmptyClipboardForDeepRun(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for empty clipboard, got nil")
 	}
-	if !strings.Contains(err.Error(), "clipboard is empty") {
-		t.Errorf("error = %q, want 'clipboard is empty'", err.Error())
+	if !strings.Contains(err.Error(), "No response captured") {
+		t.Errorf("error = %q, want 'No response captured'", err.Error())
 	}
 }
 
