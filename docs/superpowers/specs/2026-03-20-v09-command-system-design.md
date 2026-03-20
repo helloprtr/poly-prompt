@@ -44,7 +44,7 @@ prtr resume "더 자세히 설명해줘"
 prtr resume              # no-arg: re-runs the last prompt (same as current `again`)
 ```
 
-**Prompt construction:**
+**Prompt construction (with message):**
 
 ```
 [last-response content]
@@ -53,7 +53,7 @@ prtr resume              # no-arg: re-runs the last prompt (same as current `aga
 [user message]
 ```
 
-When called with no arguments, `resume` re-runs the last stored prompt verbatim (preserving current `again` behavior).
+**No-arg behavior:** When called with no arguments, `resume` re-runs the last stored prompt verbatim. It reads the last prompt from the existing history store (same source that `again` uses today). It does **not** consult `last-response.json` — there is no response context needed for a plain re-run. If no prior prompt exists in history, `resume` exits with: `No previous prompt found. Run prtr go first.`
 
 **Delivery:** same mechanism as `go` — opens the AI app and pastes the composed prompt.
 
@@ -78,25 +78,44 @@ prtr take "테스트도 짜줘"
   → falls back to clipboard if not
 ```
 
+**Prompt construction:**
+
+```
+The following is an AI response:
+
+[last-response content]
+
+Using the above as context: [user action]
+```
+
 **`take` vs `resume` distinction:**
 
-| Command | Intent | Prompt shape |
-|---------|--------|-------------|
-| `take "테스트 짜줘"` | Use AI response as *material* for a new task | response as context + new task |
-| `resume "더 자세히"` | *Continue* the same conversation thread | response as context + follow-up message |
+| Command | Intent | Prompt framing |
+|---------|--------|----------------|
+| `take "테스트 짜줘"` | Use AI response as *material* for a new task | "Using the above as context: [action]" |
+| `resume "더 자세히"` | *Continue* the same conversation thread | response + `---` separator + follow-up message |
 
-The mechanical difference is framing: `take` starts a new task, `resume` continues a thread.
+Both read from the same `last-response.json` source. The difference is in how the prompt is framed: `take` presents the response as reference material for a new task; `resume` presents it as prior conversation context.
 
 ### 1.4 `prtr inspect --response` — new flag
 
-Previews the currently captured response.
+Previews the currently captured response. The `Source` label displays the raw `source` field value from `last-response.json` (`terminal` or `clipboard`).
+
+```
+$ prtr inspect --response
+Source:      terminal
+Captured:    2 minutes ago
+───────────────────────────────
+토큰 갱신 로직은 refresh token이 만료되기 전에...
+(truncated at 500 chars — full content in ~/.config/prtr/last-response.json)
+```
 
 ```
 $ prtr inspect --response
 Source:      clipboard
-Captured:    2 minutes ago
+Captured:    8 minutes ago
 ───────────────────────────────
-토큰 갱신 로직은 refresh token이 만료되기 전에...
+Here's the updated auth middleware...
 (truncated at 500 chars — full content in ~/.config/prtr/last-response.json)
 ```
 
@@ -112,9 +131,9 @@ No response captured yet. Run prtr go, then copy or let prtr capture the AI's re
 
 ### 2.1 Terminal AI path
 
-When `prtr go` launches a terminal AI (claude-code, gemini-cli, codex), the v0.8 `watch` shell hook is extended to also capture that command's output.
+When `prtr go` launches a terminal AI (claude-code, gemini-cli, codex), the v0.8 `watch` shell hook is extended to capture that command's stdout+stderr output in full via tee into a temp file. The hook's `precmd` callback reads the temp file and writes its entire contents to `last-response.json` after the AI command exits.
 
-The hook writes the output to a temp file, and the hook's `precmd` callback writes to `last-response.json` after the AI command exits.
+The full stdout+stderr of the AI command is captured — no trimming, no delimiter detection. These tools write their final answer as the last portion of their output; downstream consumers (`take`, `resume`) receive everything and the AI app itself handles presentation.
 
 **Source field value:** `"terminal"`
 
@@ -127,9 +146,18 @@ When `prtr go` targets a GUI AI (Claude.app, browser), prtr starts a background 
 - Detects a new AI response when: clipboard content changed AND length > 100 chars AND differs from the prompt just sent
 - On detection: writes to `last-response.json` and exits
 - Hard timeout: 5 minutes after `prtr go`, watcher exits regardless
-- `prtr resume` or `prtr take` execution also signals the watcher to exit
+- `prtr resume` or `prtr take` execution also signals the watcher to exit (via the PID file — see below)
 
-**Deduplication:** watcher checks for a PID file at `~/.config/prtr/clipboard-watcher.pid` before starting. If the process is alive, it does not start a second instance.
+**Deduplication and stale PID handling:**
+
+Before starting, the watcher checks `~/.config/prtr/clipboard-watcher.pid`:
+
+1. If the file does not exist → start the watcher, write PID file.
+2. If the file exists → read the PID and run `kill -0 <pid>` to check liveness.
+   - Process alive → do not start a second instance, exit silently.
+   - Process dead (stale PID file) → delete the stale file, start fresh, write new PID file.
+
+On normal exit (detection, timeout, or signal), the watcher deletes the PID file.
 
 **Source field value:** `"clipboard"`
 
@@ -151,6 +179,8 @@ When `prtr go` targets a GUI AI (Claude.app, browser), prtr starts a background 
 
 ### 2.4 Freshness and fallback
 
+The §2.4 table applies when `take` or `resume` (with a message argument) reads a response. `resume` with no arguments bypasses this table entirely — it reads from history, not from `last-response.json`.
+
 | Condition | Behavior |
 |-----------|----------|
 | `last-response.json` present, < 5 minutes old | Use as-is |
@@ -164,11 +194,13 @@ When `prtr go` targets a GUI AI (Claude.app, browser), prtr starts a background 
 
 ### 3.1 Post-capture hint (beginner UX)
 
-After `prtr go` completes and a response is captured (either path), prtr prints a single hint line:
+For the **terminal AI path**, `prtr go` waits for the AI command to exit, then the shell hook writes `last-response.json`. The hint is printed by `prtr go` synchronously after the command exits:
 
 ```
 ✓ Response captured — prtr resume to continue · prtr take to reuse
 ```
+
+For the **clipboard watcher path**, `prtr go` returns immediately and the watcher runs in the background. The watcher cannot write directly to the user's terminal. Instead, it uses the same IPC mechanism defined in v0.8 `watch`: on detection it writes a notification file at `~/.config/prtr/watch-suggest`, and the shell's `precmd` hook reads and prints it on the next prompt draw. The notification content is the same hint line above.
 
 This hint is suppressed if `prtr go` is piped or if `--quiet` is set.
 
