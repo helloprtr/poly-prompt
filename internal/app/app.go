@@ -9,11 +9,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"runtime"
 	"strings"
 	"time"
 
 	"github.com/helloprtr/poly-prompt/internal/automation"
+	"github.com/helloprtr/poly-prompt/internal/clipwatcher"
 	"github.com/helloprtr/poly-prompt/internal/clipboard"
 	"github.com/helloprtr/poly-prompt/internal/config"
 	"github.com/helloprtr/poly-prompt/internal/deep"
@@ -951,7 +953,15 @@ func (a *App) runGo(ctx context.Context, args []string, stdin io.Reader, stdinPi
 		preferTargetTemplate: true,
 	}
 
-	return a.executePrompt(ctx, opts, text, command.mode)
+	if err := a.executePrompt(ctx, opts, text, command.mode); err != nil {
+		return err
+	}
+	// Spawn clipboard watcher to capture AI response in the background.
+	// Fails silently; take and resume fall back to clipboard if nothing is captured.
+	if !command.dryRun && !command.noCopy {
+		a.spawnClipboardWatcher()
+	}
+	return nil
 }
 
 func (a *App) resolveRepoContext(ctx context.Context, inputSource string, disabled bool) (string, string) {
@@ -1040,6 +1050,49 @@ func (a *App) readLastResponse(ctx context.Context) (text, source string, err er
 		return "", "", clipErr
 	}
 	return strings.TrimSpace(clipText), "clipboard", nil
+}
+
+// runWatcher is the entry point for the hidden `prtr _watcher` subprocess.
+// It runs the clipboard watcher until capture, timeout, or context cancellation.
+func (a *App) runWatcher(ctx context.Context) error {
+	if a.lastResponseStore == nil {
+		return errors.New("last-response store not configured")
+	}
+
+	pidPath, err := clipwatcher.DefaultPIDFile()
+	if err != nil {
+		return err
+	}
+
+	if clipwatcher.IsRunning(pidPath) {
+		return nil // another instance is already running
+	}
+
+	w := clipwatcher.New(a.lastResponseStore, pidPath, a.clipboard)
+	return w.Run(ctx)
+}
+
+// spawnClipboardWatcher detaches a background `prtr _watcher` subprocess.
+// Failures are silently ignored — take and resume fall back to clipboard.
+//
+// NOTE: The parent intentionally does NOT check clipwatcher.IsRunning before
+// spawning. Deduplication is the subprocess's responsibility: runWatcher calls
+// IsRunning on startup and exits early if another instance is alive. This
+// keeps PID file cleanup in one place (the subprocess) and avoids a TOCTOU race
+// in the parent.
+func (a *App) spawnClipboardWatcher() {
+	exe, err := os.Executable()
+	if err != nil {
+		return
+	}
+	cmd := exec.Command(exe, "_watcher")
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+	cmd.Stdin = nil
+	if err := cmd.Start(); err != nil {
+		return
+	}
+	_ = cmd.Process.Release()
 }
 
 func (a *App) runAgain(ctx context.Context, args []string, stdin io.Reader, stdinPiped bool) error {

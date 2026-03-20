@@ -53,8 +53,19 @@ func (a *App) Command(ctx context.Context, stdin io.Reader, stdinPiped bool) *co
 	root.AddCommand(a.newShortcutCommand(ctx, "review", stdin, stdinPiped))
 	root.AddCommand(a.newShortcutCommand(ctx, "fix", stdin, stdinPiped))
 	root.AddCommand(a.newShortcutCommand(ctx, "design", stdin, stdinPiped))
+	root.AddCommand(a.newWatcherCommand(ctx))
 
 	return root
+}
+
+func (a *App) newWatcherCommand(ctx context.Context) *cobra.Command {
+	return &cobra.Command{
+		Use:    "_watcher",
+		Hidden: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.runWatcher(ctx)
+		},
+	}
 }
 
 func (a *App) newStartCommand(ctx context.Context, stdin io.Reader, stdinPiped bool) *cobra.Command {
