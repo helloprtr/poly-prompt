@@ -184,6 +184,11 @@ func (s *Store) Read() (Entry, bool, error) {
 	return entry, true, nil
 }
 
+// Path returns the file path this store reads from and writes to.
+func (s *Store) Path() string {
+	return s.path
+}
+
 // Write atomically stores a new entry with the current UTC time.
 func (s *Store) Write(source, response string) error {
 	entry := Entry{
@@ -222,74 +227,32 @@ git commit -m "feat: add lastresponse package for AI response JSON store"
 
 **Files:**
 - Modify: `internal/app/app.go:37-75` (Dependencies and App structs, New function)
+- Modify: `internal/app/app_test.go`
 - Modify: `cmd/prtr/main.go`
 
-- [ ] **Step 1: Add `lastResponseStore` to Dependencies and App**
+- [ ] **Step 1: Write failing compile-check test**
 
-In `internal/app/app.go`, add to the `Dependencies` struct (after `HistoryStore`):
-
-```go
-LastResponseStore *lastresponse.Store
-```
-
-Add to the `App` struct (after `historyStore`):
-
-```go
-lastResponseStore *lastresponse.Store
-```
-
-In the `New` function (wherever `historyStore` is assigned), add:
-
-```go
-lastResponseStore: deps.LastResponseStore,
-```
-
-Add the import:
-
-```go
-"github.com/helloprtr/poly-prompt/internal/lastresponse"
-```
-
-- [ ] **Step 2: Wire in main.go**
-
-In `cmd/prtr/main.go`, add the import and wire the store:
-
-```go
-import "github.com/helloprtr/poly-prompt/internal/lastresponse"
-
-// inside main(), after historyPath resolution:
-lastResponsePath, err := lastresponse.DefaultPath()
-if err != nil {
-    fmt.Fprintf(os.Stderr, "failed to resolve last-response path: %v\n", err)
-    os.Exit(1)
-}
-
-// inside app.New(Dependencies{...}):
-LastResponseStore: lastresponse.New(lastResponsePath),
-```
-
-- [ ] **Step 3: Write a failing compile-check test for `LastResponseStore` field**
-
-Before implementing, add the following test to `internal/app/app_test.go`. This confirms the field must exist:
+Add the following test to `internal/app/app_test.go`. It must fail before the field exists:
 
 ```go
 func TestDependenciesAcceptsLastResponseStore(t *testing.T) {
 	dir := t.TempDir()
 	store := lastresponse.New(filepath.Join(dir, "last-response.json"))
 	deps := Dependencies{LastResponseStore: store}
-	_ = deps // compile-time check only
+	_ = deps // compile-time field existence check
 }
 ```
 
 Add import `"github.com/helloprtr/poly-prompt/internal/lastresponse"` to `app_test.go`.
 
-Run to verify it fails:
+- [ ] **Step 2: Run to verify it fails**
+
 ```bash
 go test ./internal/app/... -run TestDependenciesAcceptsLastResponseStore -v
 ```
 Expected: compile error — `unknown field LastResponseStore`
 
-- [ ] **Step 4: Add `lastResponseStore` to Dependencies and App**
+- [ ] **Step 3: Add `lastResponseStore` to Dependencies and App**
 
 In `internal/app/app.go`, add to the `Dependencies` struct (after `HistoryStore`):
 
@@ -315,7 +278,7 @@ Add the import:
 "github.com/helloprtr/poly-prompt/internal/lastresponse"
 ```
 
-- [ ] **Step 5: Wire in main.go**
+- [ ] **Step 4: Wire in main.go**
 
 In `cmd/prtr/main.go`, add the import and wire the store:
 
@@ -333,7 +296,7 @@ if err != nil {
 LastResponseStore: lastresponse.New(lastResponsePath),
 ```
 
-- [ ] **Step 6: Add `readLastResponse` helper to app.go**
+- [ ] **Step 5: Add `readLastResponse` helper to app.go**
 
 This helper is used by both `runTake` and `runResume`. Add it to `internal/app/app.go`:
 
@@ -366,21 +329,21 @@ func (a *App) readLastResponse(ctx context.Context) (text, source string, err er
 }
 ```
 
-- [ ] **Step 7: Run compile-check test to verify it passes**
+- [ ] **Step 6: Run compile-check test to verify it passes**
 
 ```bash
 go test ./internal/app/... -run TestDependenciesAcceptsLastResponseStore -v
 ```
 Expected: PASS
 
-- [ ] **Step 8: Build to verify it compiles**
+- [ ] **Step 7: Build to verify it compiles**
 
 ```bash
 go build ./...
 ```
 Expected: no errors
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 git add internal/app/app.go internal/app/app_test.go cmd/prtr/main.go
@@ -579,17 +542,22 @@ if responseText == "" {
 }
 ```
 
-Then update the two places where `clipboardText` is used in the rest of `runTake`:
-- `Source: clipboardText` → `Source: responseText`
-- `takePrompt(command.action, clipboardText)` → `takePrompt(command.action, responseText)`
-- `surfaceInput: "clipboard"` → `surfaceInput: responseSource` (both occurrences in runTake)
+Then update every place in `runTake` where `clipboardText` or the hardcoded source label appears. There are **five** locations across the `--deep` and non-deep branches:
+
+1. `Source: clipboardText` (deep branch, `deep.ExecutePatchRun` options) → `Source: responseText`
+2. `SourceKind: "clipboard"` (deep branch, `deep.ExecutePatchRun` options) → `SourceKind: responseSource`
+3. The stderr status format string in the deep branch:
+   `"-> take:%s --deep | %s | clipboard | running\n"` → `"-> take:%s --deep | %s | %s | running\n"` with `responseSource` as the third `%s` argument
+4. `surfaceInput: "clipboard"` in the deep opts block → `surfaceInput: responseSource`
+5. `takePrompt(command.action, clipboardText)` (non-deep branch) → `takePrompt(command.action, responseText)`
+6. `surfaceInput: "clipboard"` in the non-deep opts block → `surfaceInput: responseSource`
 
 - [ ] **Step 4: Run tests to verify they pass**
 
 ```bash
 go test ./internal/app/... -run "TestRunTake" -v
 ```
-Expected: all 3 tests PASS
+Expected: all 4 tests PASS (`TestRunTakeUsesLastResponseWhenAvailable`, `TestRunTakeFallsBackToClipboard`, `TestRunTakeErrorWhenNothingCaptured`, `TestRunTakeWarnsStaleness`)
 
 - [ ] **Step 5: Commit**
 
@@ -791,7 +759,8 @@ func (a *App) runResume(ctx context.Context, args []string, stdin io.Reader, std
 	if len(command.prompt) == 0 && !stdinPiped {
 		entry, err := a.latestHistoryEntry()
 		if err != nil {
-			return err
+			// Wrap to match spec §1.1 error message exactly.
+			return errors.New("No previous prompt found. Run prtr go first.")
 		}
 		opts := runOptions{
 			target:          entry.Target,
@@ -1052,7 +1021,8 @@ func (a *App) runInspectResponse() error {
 		preview,
 	)
 	if truncated {
-		_, _ = fmt.Fprintf(a.stdout, "\n(truncated at %d chars)\n", maxPreview)
+		_, _ = fmt.Fprintf(a.stdout, "\n(truncated at %d chars — full content in %s)\n",
+			maxPreview, a.lastResponseStore.Path())
 	}
 	return nil
 }
@@ -1513,6 +1483,7 @@ The following is tracked for a later milestone (after v0.8 watch is implemented)
 
 - **Terminal AI shell hook capture** — extends the v0.8 `watch` shell hook to write `last-response.json` when a terminal AI command exits. Requires v0.8 shell hook infrastructure.
 - **Post-capture hint via shell** — printing `✓ Response captured` in the user's terminal requires the v0.8 `watch-suggest` IPC mechanism (shell's `precmd` hook reads and prints it).
+- **Signal watcher on `take`/`resume`** — spec §2.2 states that running `prtr take` or `prtr resume` should signal the clipboard watcher to exit. This requires reading the PID file and sending a signal from the `runTake`/`runResume` path. Deferred to a follow-up: the watcher will time out naturally after 5 minutes, and the PID file deduplication prevents multiple instances from accumulating.
 
 ---
 
