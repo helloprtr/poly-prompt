@@ -1317,7 +1317,56 @@ func (a *App) runLearn(args []string) error {
 	return nil
 }
 
+func (a *App) runInspectResponse() error {
+	const maxPreview = 500
+
+	if a.lastResponseStore == nil {
+		_, _ = fmt.Fprintln(a.stdout, "No response captured yet. Run prtr go, then copy or let prtr capture the AI's response.")
+		return nil
+	}
+
+	entry, ok, err := a.lastResponseStore.Read()
+	if err != nil {
+		return fmt.Errorf("read last-response: %w", err)
+	}
+	if !ok || strings.TrimSpace(entry.Response) == "" {
+		_, _ = fmt.Fprintln(a.stdout, "No response captured yet. Run prtr go, then copy or let prtr capture the AI's response.")
+		return nil
+	}
+
+	age := time.Since(entry.CapturedAt).Round(time.Minute)
+	ageStr := age.String()
+	if age < time.Minute {
+		ageStr = "just now"
+	}
+
+	preview := entry.Response
+	truncated := false
+	if len(preview) > maxPreview {
+		preview = preview[:maxPreview]
+		truncated = true
+	}
+
+	_, _ = fmt.Fprintf(a.stdout, "Source:   %s\nCaptured: %s\n%s\n%s\n",
+		entry.Source, ageStr,
+		strings.Repeat("─", 40),
+		preview,
+	)
+	if truncated {
+		_, _ = fmt.Fprintf(a.stdout, "\n(truncated at %d chars — full content in %s)\n",
+			maxPreview, a.lastResponseStore.Path())
+	}
+	return nil
+}
+
 func (a *App) runInspect(ctx context.Context, args []string, stdin io.Reader, stdinPiped bool) error {
+	// Handle --response flag before normal option parsing
+	for _, arg := range args {
+		if arg == "--response" {
+			return a.runInspectResponse()
+		}
+	}
+
 	opts, positional, err := parseRunOptions(args)
 	if err != nil {
 		return err

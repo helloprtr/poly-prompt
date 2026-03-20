@@ -2335,6 +2335,75 @@ func TestRunResumeWithArgPrependsResponse(t *testing.T) {
 	}
 }
 
+func TestInspectResponseShowsCapturedEntry(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	lrPath := filepath.Join(dir, "last-response.json")
+	lrStore := lastresponse.New(lrPath)
+	_ = lrStore.Write("terminal", "Here is the implementation: func foo() { return 42 }")
+
+	var stdout bytes.Buffer
+	app := New(Dependencies{
+		Version:           "test",
+		Stdout:            &stdout,
+		Stderr:            &bytes.Buffer{},
+		Clipboard:         &stubClipboard{read: ""},
+		Launcher:          &stubLauncher{desc: "Terminal.app"},
+		Automator:         &stubAutomator{desc: "Terminal.app"},
+		SubmitConfirmer:   &stubConfirmer{},
+		ConfigLoader:      config.Load,
+		ConfigInit:        config.Init,
+		LookupEnv:         func(string) (string, bool) { return "", false },
+		HistoryStore:      history.New(filepath.Join(dir, "history.json")),
+		LastResponseStore: lrStore,
+		RepoContext:       &stubRepoContext{},
+		RepoRootFinder:    func() (string, error) { return "", termbook.ErrNotGitRepo },
+	})
+
+	err := app.Execute(context.Background(), []string{"inspect", "--response"}, nil, false)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	out := stdout.String()
+	if !strings.Contains(out, "terminal") {
+		t.Errorf("stdout = %q, want source label 'terminal'", out)
+	}
+	if !strings.Contains(out, "Here is the implementation") {
+		t.Errorf("stdout = %q, want response content", out)
+	}
+}
+
+func TestInspectResponseWhenNothingCaptured(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	var stdout bytes.Buffer
+	app := New(Dependencies{
+		Version:         "test",
+		Stdout:          &stdout,
+		Stderr:          &bytes.Buffer{},
+		Clipboard:       &stubClipboard{read: ""},
+		Launcher:        &stubLauncher{desc: "Terminal.app"},
+		Automator:       &stubAutomator{desc: "Terminal.app"},
+		SubmitConfirmer: &stubConfirmer{},
+		ConfigLoader:    config.Load,
+		ConfigInit:      config.Init,
+		LookupEnv:       func(string) (string, bool) { return "", false },
+		HistoryStore:    history.New(filepath.Join(dir, "history.json")),
+		RepoContext:     &stubRepoContext{},
+		RepoRootFinder:  func() (string, error) { return "", termbook.ErrNotGitRepo },
+	})
+
+	err := app.Execute(context.Background(), []string{"inspect", "--response"}, nil, false)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "No response captured") {
+		t.Errorf("stdout = %q, want 'No response captured'", stdout.String())
+	}
+}
+
 func TestAgainIsHiddenAliasOfResume(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", dir)
