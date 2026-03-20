@@ -1095,51 +1095,6 @@ func (a *App) spawnClipboardWatcher() {
 	_ = cmd.Process.Release()
 }
 
-func (a *App) runAgain(ctx context.Context, args []string, stdin io.Reader, stdinPiped bool) error {
-	command, err := parseReplayCommand(args, false)
-	if err != nil {
-		return err
-	}
-
-	entry, err := a.latestHistoryEntry()
-	if err != nil {
-		return err
-	}
-
-	text := entry.Original
-	inputSource := "history"
-	if len(command.prompt) > 0 || stdinPiped {
-		text, inputSource, err = resolveSurfaceInput(command.prompt, stdin, stdinPiped, !command.noContext)
-		if err != nil {
-			if errors.Is(err, input.ErrNoInput) {
-				return usageError{message: "missing prompt text"}
-			}
-			return fmt.Errorf("read input: %w", err)
-		}
-	}
-
-	opts := runOptions{
-		target:          entry.Target,
-		role:            entry.Role,
-		templatePreset:  entry.TemplatePreset,
-		sourceLang:      entry.SourceLang,
-		targetLang:      entry.TargetLang,
-		translationMode: entry.TranslationMode,
-		interactive:     command.edit,
-		noCopy:          command.dryRun || command.noCopy,
-		launch:          !command.dryRun,
-		paste:           !command.dryRun,
-		compactStatus:   true,
-		surfaceMode:     blankDefault(entry.Shortcut, "ask"),
-		surfaceInput:    inputSource,
-		surfaceDelivery: surfaceDeliveryLabel(command.dryRun),
-		engine:          blankDefault(entry.Engine, "classic"),
-		parentID:        entry.ID,
-	}
-
-	return a.executePrompt(ctx, opts, text, entry.Shortcut)
-}
-
 func (a *App) runSwap(ctx context.Context, args []string, stdin io.Reader, stdinPiped bool) error {
 	command, err := parseReplayCommand(args, true)
 	if err != nil {
