@@ -32,6 +32,7 @@ func (a *App) Command(ctx context.Context, stdin io.Reader, stdinPiped bool) *co
 	root.AddCommand(a.newStartCommand(ctx, stdin, stdinPiped))
 	root.AddCommand(a.newGoCommand(ctx, stdin, stdinPiped))
 	root.AddCommand(a.newDemoCommand(ctx))
+	root.AddCommand(a.newResumeCommand(ctx, stdin, stdinPiped))
 	root.AddCommand(a.newAgainCommand(ctx, stdin, stdinPiped))
 	root.AddCommand(a.newSwapCommand(ctx, stdin, stdinPiped))
 	root.AddCommand(a.newTakeCommand(ctx))
@@ -106,20 +107,34 @@ func (a *App) newDemoCommand(ctx context.Context) *cobra.Command {
 	return cmd
 }
 
-func (a *App) newAgainCommand(ctx context.Context, stdin io.Reader, stdinPiped bool) *cobra.Command {
+func (a *App) newResumeCommand(ctx context.Context, stdin io.Reader, stdinPiped bool) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:                "again [message...]",
-		Short:              "Run the latest prompt flow again.",
-		Long:               againHelpText(),
+		Use:                "resume [message...]",
+		Short:              "Continue the last AI conversation, or re-run it if no message is given.",
 		DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if wantsHelp(args) {
 				return cmd.Help()
 			}
-			return a.runAgain(ctx, args, stdin, stdinPiped)
+			return a.runResume(ctx, args, stdin, stdinPiped)
 		},
 	}
-	cmd.SetHelpFunc(func(cmd *cobra.Command, _ []string) { _, _ = fmt.Fprintln(a.stdout, cmd.Long) })
+	return cmd
+}
+
+func (a *App) newAgainCommand(ctx context.Context, stdin io.Reader, stdinPiped bool) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:                "again [message...]",
+		Short:              "Alias for resume.",
+		Hidden:             true,
+		DisableFlagParsing: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if wantsHelp(args) {
+				return a.newResumeCommand(ctx, stdin, stdinPiped).Help()
+			}
+			return a.runResume(ctx, args, stdin, stdinPiped)
+		},
+	}
 	return cmd
 }
 

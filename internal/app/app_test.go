@@ -2258,3 +2258,117 @@ func TestRunTakeWarnsStaleness(t *testing.T) {
 		t.Errorf("stderr = %q, want staleness warning containing 'ago'", stderr.String())
 	}
 }
+
+func TestRunResumeNoArgRerunsLastPrompt(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	histStore := history.New(filepath.Join(dir, "history.json"))
+	_ = histStore.Append(history.Entry{
+		ID:       "abc",
+		Original: "explain this function",
+		Target:   "claude",
+	})
+
+	var stdout bytes.Buffer
+	app := New(Dependencies{
+		Version:         "test",
+		Stdout:          &stdout,
+		Stderr:          &bytes.Buffer{},
+		Clipboard:       &stubClipboard{read: ""},
+		Launcher:        &stubLauncher{desc: "Terminal.app"},
+		Automator:       &stubAutomator{desc: "Terminal.app"},
+		SubmitConfirmer: &stubConfirmer{},
+		ConfigLoader:    config.Load,
+		ConfigInit:      config.Init,
+		LookupEnv:       func(string) (string, bool) { return "", false },
+		HistoryStore:    histStore,
+		RepoContext:     &stubRepoContext{},
+		RepoRootFinder:  func() (string, error) { return "", termbook.ErrNotGitRepo },
+	})
+
+	err := app.Execute(context.Background(), []string{"resume", "--dry-run"}, nil, false)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "explain this function") {
+		t.Errorf("stdout = %q, want original prompt", stdout.String())
+	}
+}
+
+func TestRunResumeWithArgPrependsResponse(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	lrPath := filepath.Join(dir, "last-response.json")
+	lrStore := lastresponse.New(lrPath)
+	_ = lrStore.Write("clipboard", "The function uses O(n^2) complexity.")
+
+	var stdout bytes.Buffer
+	app := New(Dependencies{
+		Version:           "test",
+		Stdout:            &stdout,
+		Stderr:            &bytes.Buffer{},
+		Clipboard:         &stubClipboard{read: ""},
+		Launcher:          &stubLauncher{desc: "Terminal.app"},
+		Automator:         &stubAutomator{desc: "Terminal.app"},
+		SubmitConfirmer:   &stubConfirmer{},
+		ConfigLoader:      config.Load,
+		ConfigInit:        config.Init,
+		LookupEnv:         func(string) (string, bool) { return "", false },
+		HistoryStore:      history.New(filepath.Join(dir, "history.json")),
+		LastResponseStore: lrStore,
+		RepoContext:       &stubRepoContext{},
+		RepoRootFinder:    func() (string, error) { return "", termbook.ErrNotGitRepo },
+	})
+
+	err := app.Execute(context.Background(), []string{"resume", "--dry-run", "더 자세히 설명해줘"}, nil, false)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	out := stdout.String()
+	if !strings.Contains(out, "O(n^2) complexity") {
+		t.Errorf("stdout = %q, want response content", out)
+	}
+	if !strings.Contains(out, "더 자세히 설명해줘") {
+		t.Errorf("stdout = %q, want user message", out)
+	}
+}
+
+func TestAgainIsHiddenAliasOfResume(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	histStore := history.New(filepath.Join(dir, "history.json"))
+	_ = histStore.Append(history.Entry{
+		ID:       "xyz",
+		Original: "fix the bug",
+		Target:   "claude",
+	})
+
+	var stdout bytes.Buffer
+	app := New(Dependencies{
+		Version:         "test",
+		Stdout:          &stdout,
+		Stderr:          &bytes.Buffer{},
+		Clipboard:       &stubClipboard{read: ""},
+		Launcher:        &stubLauncher{desc: "Terminal.app"},
+		Automator:       &stubAutomator{desc: "Terminal.app"},
+		SubmitConfirmer: &stubConfirmer{},
+		ConfigLoader:    config.Load,
+		ConfigInit:      config.Init,
+		LookupEnv:       func(string) (string, bool) { return "", false },
+		HistoryStore:    histStore,
+		RepoContext:     &stubRepoContext{},
+		RepoRootFinder:  func() (string, error) { return "", termbook.ErrNotGitRepo },
+	})
+
+	// `again` with no args should behave exactly like `resume` with no args
+	err := app.Execute(context.Background(), []string{"again", "--dry-run"}, nil, false)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !strings.Contains(stdout.String(), "fix the bug") {
+		t.Errorf("stdout = %q, want original prompt", stdout.String())
+	}
+}

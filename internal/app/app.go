@@ -142,6 +142,13 @@ type replayCommandOptions struct {
 	prompt    []string
 }
 
+type resumeCommandOptions struct {
+	prompt []string
+	dryRun bool
+	noCopy bool
+	edit   bool
+}
+
 type takeCommandOptions struct {
 	action      string
 	app         string
@@ -283,7 +290,7 @@ func (a *App) shouldRunRootDirect(args []string) bool {
 	}
 
 	switch first {
-	case "init", "version", "start", "setup", "lang", "doctor", "templates", "profiles", "history", "rerun", "pin", "favorite", "go", "demo", "again", "swap", "take", "learn", "inspect":
+	case "init", "version", "start", "setup", "lang", "doctor", "templates", "profiles", "history", "rerun", "pin", "favorite", "go", "demo", "again", "resume", "swap", "take", "learn", "inspect":
 		return false
 	}
 
@@ -2073,6 +2080,110 @@ func parseReplayCommand(args []string, requireApp bool) (replayCommandOptions, e
 	}
 
 	return command, nil
+}
+
+func parseResumeCommand(args []string) (resumeCommandOptions, error) {
+	command := resumeCommandOptions{}
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		switch {
+		case arg == "--dry-run":
+			command.dryRun = true
+		case arg == "--no-copy":
+			command.noCopy = true
+		case arg == "--edit" || arg == "--interactive" || arg == "-i":
+			command.edit = true
+		case strings.HasPrefix(arg, "-"):
+			return resumeCommandOptions{}, usageError{message: fmt.Sprintf("unknown resume flag %q", arg)}
+		default:
+			command.prompt = append(command.prompt, arg)
+		}
+	}
+	return command, nil
+}
+
+func resumePrompt(response, userMessage string) string {
+	return strings.Join([]string{
+		response,
+		"",
+		"---",
+		userMessage,
+	}, "\n")
+}
+
+func (a *App) runResume(ctx context.Context, args []string, stdin io.Reader, stdinPiped bool) error {
+	command, err := parseResumeCommand(args)
+	if err != nil {
+		return err
+	}
+
+	// No-arg: re-run last prompt verbatim (same behavior as legacy `again`)
+	if len(command.prompt) == 0 && !stdinPiped {
+		entry, err := a.latestHistoryEntry()
+		if err != nil {
+			return errors.New("No previous prompt found. Run prtr go first.")
+		}
+		opts := runOptions{
+			target:          entry.Target,
+			role:            entry.Role,
+			templatePreset:  entry.TemplatePreset,
+			sourceLang:      entry.SourceLang,
+			targetLang:      entry.TargetLang,
+			translationMode: entry.TranslationMode,
+			interactive:     command.edit,
+			noCopy:          command.dryRun || command.noCopy,
+			launch:          !command.dryRun,
+			paste:           !command.dryRun,
+			compactStatus:   true,
+			surfaceMode:     blankDefault(entry.Shortcut, "ask"),
+			surfaceInput:    "history",
+			surfaceDelivery: surfaceDeliveryLabel(command.dryRun),
+			engine:          blankDefault(entry.Engine, "classic"),
+			parentID:        entry.ID,
+		}
+		return a.executePrompt(ctx, opts, entry.Original, entry.Shortcut)
+	}
+
+	// With message: prepend last response as context
+	responseText, _, err := a.readLastResponse(ctx)
+	if err != nil {
+		return err
+	}
+	if responseText == "" {
+		return errors.New("No response captured yet. Run prtr go first, then copy the AI's response.")
+	}
+
+	userMsg := strings.Join(command.prompt, " ")
+	if stdinPiped {
+		stdinBytes, readErr := io.ReadAll(stdin)
+		if readErr != nil {
+			return fmt.Errorf("read stdin: %w", readErr)
+		}
+		if userMsg == "" {
+			userMsg = strings.TrimSpace(string(stdinBytes))
+		}
+	}
+
+	// latestHistoryEntry error is intentionally ignored here: if history is
+	// unavailable, we proceed with zero-value Entry (empty target, no parent).
+	entry, _ := a.latestHistoryEntry()
+	opts := runOptions{
+		target:          entry.Target,
+		sourceLang:      entry.SourceLang,
+		targetLang:      entry.TargetLang,
+		translationMode: entry.TranslationMode,
+		interactive:     command.edit,
+		noCopy:          command.dryRun || command.noCopy,
+		launch:          !command.dryRun,
+		paste:           !command.dryRun,
+		compactStatus:   true,
+		surfaceMode:     "resume",
+		surfaceInput:    "last-response",
+		surfaceDelivery: surfaceDeliveryLabel(command.dryRun),
+		engine:          blankDefault(entry.Engine, "classic"),
+		parentID:        entry.ID,
+	}
+	return a.executePrompt(ctx, opts, resumePrompt(responseText, userMsg), "")
 }
 
 func parseTakeCommand(args []string) (takeCommandOptions, error) {
