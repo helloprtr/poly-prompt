@@ -2,6 +2,25 @@
 
 All notable product-facing changes to `prtr` are documented in this file.
 
+## [1.0.0] — 2026-03-22
+
+### Added
+- Session as first-class citizen: `prtr` auto-creates and maintains work sessions per git repo
+- `prtr review [files]`, `prtr edit [files]`, `prtr fix [desc]`, `prtr design [topic]` — mode-specific session starters
+- `prtr @gemini`, `prtr @codex` — handoff current session to another model
+- `prtr checkpoint "note"` — save progress memo for better handoff quality
+- `prtr done` — mark session complete
+- `prtr sessions` — list all sessions (active and completed)
+- `prtr status` now shows current session state alongside Work Capsule drift info
+- `prtr doctor` now checks AI binary availability for claude, gemini, codex
+
+### Changed
+- `prtr` (bare) shows active session and offers to continue or start new
+- `prtr @model` requires an active session; exits with clear error if none
+
+### Deprecated (hidden, still functional)
+- `prtr go`, `swap`, `take`, `again`, `start`, `learn`, `resume` — use session commands instead
+
 ## v0.7.0 - 2026-03-17
 
 ### Highlights
