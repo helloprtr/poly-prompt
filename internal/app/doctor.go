@@ -13,6 +13,7 @@ import (
 	"github.com/helloprtr/poly-prompt/internal/clipboard"
 	"github.com/helloprtr/poly-prompt/internal/config"
 	"github.com/helloprtr/poly-prompt/internal/launcher"
+	"github.com/helloprtr/poly-prompt/internal/session"
 	"github.com/helloprtr/poly-prompt/internal/translate"
 )
 
@@ -251,7 +252,20 @@ func (a *App) buildDoctorReport(ctx context.Context, cfg config.Config) doctorRe
 	for _, targetName := range []string{"claude", "codex", "gemini"} {
 		launcherCfg := cfg.Launchers[targetName]
 		if strings.TrimSpace(launcherCfg.Command) == "" {
-			report.Checks = append(report.Checks, doctorCheck{Severity: doctorBlocking, Label: "launcher " + targetName, Err: errors.New("not configured")})
+			bins := session.ModelBinaries(targetName)
+			if _, err := session.FindBinary(bins...); err == nil {
+				report.Checks = append(report.Checks, doctorCheck{
+					Severity: doctorOK,
+					Label:    "launcher " + targetName,
+					Detail:   "binary found; run `prtr setup` to configure",
+				})
+			} else {
+				report.Checks = append(report.Checks, doctorCheck{
+					Severity: doctorWarning,
+					Label:    "launcher " + targetName,
+					Detail:   fmt.Sprintf("install %s and run `prtr setup` to configure", targetName),
+				})
+			}
 			continue
 		}
 		if a.launcher == nil {
