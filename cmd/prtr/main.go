@@ -17,6 +17,7 @@ import (
 	"github.com/helloprtr/poly-prompt/internal/input"
 	"github.com/helloprtr/poly-prompt/internal/launcher"
 	"github.com/helloprtr/poly-prompt/internal/repoctx"
+	"github.com/helloprtr/poly-prompt/internal/session"
 	"github.com/helloprtr/poly-prompt/internal/translate"
 )
 
@@ -32,6 +33,12 @@ func main() {
 	historyPath, err := history.DefaultPath()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to resolve history path: %v\n", err)
+		os.Exit(1)
+	}
+
+	sessionDir, err := session.DefaultDir()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to resolve session directory: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -60,6 +67,7 @@ func main() {
 		Automator:       automation.New(),
 		SubmitConfirmer: app.NewTTYConfirmer(os.Stderr),
 		HistoryStore:    history.New(historyPath),
+		SessionStore:    session.NewStore(sessionDir),
 	})
 
 	if err := application.Execute(context.Background(), os.Args[1:], os.Stdin, stdinPiped); err != nil {

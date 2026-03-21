@@ -22,6 +22,7 @@ import (
 	"github.com/helloprtr/poly-prompt/internal/input"
 	"github.com/helloprtr/poly-prompt/internal/launcher"
 	"github.com/helloprtr/poly-prompt/internal/repoctx"
+	"github.com/helloprtr/poly-prompt/internal/session"
 	prompttemplate "github.com/helloprtr/poly-prompt/internal/template"
 	"github.com/helloprtr/poly-prompt/internal/termbook"
 	"github.com/helloprtr/poly-prompt/internal/translate"
@@ -52,6 +53,7 @@ type Dependencies struct {
 	RepoContext       repoctx.Collector
 	RepoRootFinder    RepoRootFinder
 	TermbookLoader    TermbookLoader
+	SessionStore      *session.Store
 }
 
 type App struct {
@@ -72,6 +74,7 @@ type App struct {
 	repoContext       repoctx.Collector
 	repoRootFinder    RepoRootFinder
 	termbookLoader    TermbookLoader
+	sessionStore      *session.Store
 }
 
 type usageError struct {
@@ -250,6 +253,7 @@ func New(deps Dependencies) *App {
 		repoContext:       deps.RepoContext,
 		repoRootFinder:    deps.RepoRootFinder,
 		termbookLoader:    deps.TermbookLoader,
+		sessionStore:      deps.SessionStore,
 	}
 }
 

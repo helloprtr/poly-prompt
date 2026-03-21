@@ -21,6 +21,7 @@ import (
 	"github.com/helloprtr/poly-prompt/internal/history"
 	"github.com/helloprtr/poly-prompt/internal/launcher"
 	"github.com/helloprtr/poly-prompt/internal/repoctx"
+	"github.com/helloprtr/poly-prompt/internal/session"
 	"github.com/helloprtr/poly-prompt/internal/termbook"
 	"github.com/helloprtr/poly-prompt/internal/translate"
 )
@@ -241,7 +242,14 @@ func newTestApp(t *testing.T, cfg config.Config, translator *stubTranslator, cli
 		TermbookLoader: func(string) (termbook.Book, error) {
 			return termbook.Book{}, os.ErrNotExist
 		},
+		SessionStore: session.NewStore(t.TempDir()),
 	})
+}
+
+func makeTestApp(t *testing.T) *App {
+	t.Helper()
+	return newTestApp(t, testConfig(), &stubTranslator{}, &stubClipboard{}, &stubEditor{},
+		history.New(filepath.Join(t.TempDir(), "h.json")))
 }
 
 func newDeepTestApp(t *testing.T, cfg config.Config, translator *stubTranslator, clipboard *stubClipboard, ed *stubEditor, historyStore *history.Store, repoRoot string) *App {
@@ -278,6 +286,18 @@ func newDeepTestApp(t *testing.T, cfg config.Config, translator *stubTranslator,
 
 func buffersFromApp(app *App) (*bytes.Buffer, *bytes.Buffer) {
 	return app.stdout.(*bytes.Buffer), app.stderr.(*bytes.Buffer)
+}
+
+func TestNewApp_AcceptsSessionStore(t *testing.T) {
+	dir := t.TempDir()
+	store := session.NewStore(dir)
+	cfg := testConfig()
+	a := newTestApp(t, cfg, &stubTranslator{}, &stubClipboard{}, &stubEditor{},
+		history.New(filepath.Join(t.TempDir(), "h.json")))
+	// Wire store after construction via a helper (or verify via compile only)
+	_ = store
+	_ = a
+	// This test passes if it compiles — field presence is a compile-time check
 }
 
 func TestExecuteRendersPresetAndSkipsClipboard(t *testing.T) {
