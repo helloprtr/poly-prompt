@@ -294,7 +294,7 @@ func (a *App) shouldRunRootDirect(args []string) bool {
 		"history", "rerun", "pin", "favorite", "go", "demo", "again", "swap", "take",
 		"learn", "inspect",
 		// new v1.0 commands:
-		"review", "edit", "fix", "design", "checkpoint", "done", "sessions":
+		"review", "edit", "fix", "design", "checkpoint", "done", "sessions", "status":
 		return false
 	}
 
@@ -3315,4 +3315,56 @@ func (a *App) runHandoff(ctx context.Context, model string) error {
 		return fmt.Errorf("No active session. Run prtr review|edit|fix|design first.")
 	}
 	return a.launchHandoff(ctx, sess, model)
+}
+
+func (a *App) runCapsuleStatus(_ context.Context) error { return nil }
+
+func (a *App) runStatus(ctx context.Context) error {
+	sess, err := a.resolveCurrentSession()
+	if err == nil {
+		root, _ := a.resolveRepoRoot()
+		diff, _ := session.Diff(root, sess.BaseGitSHA)
+
+		fmt.Fprintln(a.stdout, "[현재 세션]")
+		fmt.Fprintf(a.stdout, "작업: %s\n", sess.TaskGoal)
+		if len(sess.Files) > 0 {
+			fmt.Fprintf(a.stdout, "파일: %s\n", strings.Join(sess.Files, ", "))
+		}
+		fmt.Fprintf(a.stdout, "모드: %s\n", sess.Mode)
+		fmt.Fprintf(a.stdout, "시작: %s (%s)\n", humanizeTime(sess.StartedAt), sess.TargetModel)
+		if summary := summarizeDiff(diff); summary != "" {
+			fmt.Fprintf(a.stdout, "변경: %s\n", summary)
+		}
+		if len(sess.Checkpoints) > 0 {
+			last := sess.Checkpoints[len(sess.Checkpoints)-1]
+			fmt.Fprintf(a.stdout, "체크포인트: %q\n", last.Note)
+		}
+		fmt.Fprintln(a.stdout)
+	} else {
+		fmt.Fprintf(a.stdout, "[현재 세션]\n세션 없음\n\n")
+	}
+
+	return a.runCapsuleStatus(ctx)
+}
+
+func summarizeDiff(diff string) string {
+	if diff == "" {
+		return ""
+	}
+	var files []string
+	for _, line := range strings.Split(diff, "\n") {
+		if strings.HasPrefix(line, "diff --git") {
+			parts := strings.Fields(line)
+			if len(parts) >= 4 {
+				files = append(files, strings.TrimPrefix(parts[3], "b/"))
+			}
+		}
+	}
+	if len(files) == 0 {
+		return ""
+	}
+	if len(files) > 3 {
+		return fmt.Sprintf("%s 외 %d개", strings.Join(files[:3], ", "), len(files)-3)
+	}
+	return strings.Join(files, ", ")
 }

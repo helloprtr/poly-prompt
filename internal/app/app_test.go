@@ -2202,3 +2202,19 @@ func TestExecute_AtModel_NoSession_ReturnsError(t *testing.T) {
 		t.Errorf("expected 'No active session', got: %v", err)
 	}
 }
+
+func TestRunStatusShowsSessionSection(t *testing.T) {
+	a := makeTestApp(t)
+	var stdout bytes.Buffer
+	a.stdout = &stdout
+
+	err := a.runStatus(context.Background())
+	if err != nil {
+		t.Fatalf("runStatus: %v", err)
+	}
+	// When no session: should show "[현재 세션]" section
+	output := stdout.String()
+	if !strings.Contains(output, "세션") {
+		t.Errorf("expected session section in status output, got:\n%s", output)
+	}
+}

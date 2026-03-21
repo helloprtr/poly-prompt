@@ -79,6 +79,11 @@ func (a *App) Command(ctx context.Context, stdin io.Reader, stdinPiped bool) *co
 		Short: "과거 세션 목록",
 		RunE:  func(cmd *cobra.Command, args []string) error { return a.runSessions(ctx) },
 	})
+	root.AddCommand(&cobra.Command{
+		Use:   "status",
+		Short: "현재 세션 상태 및 작업 캡슐 정보",
+		RunE:  func(cmd *cobra.Command, args []string) error { return a.runStatus(ctx) },
+	})
 
 	return root
 }
