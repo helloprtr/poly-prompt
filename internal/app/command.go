@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/helloprtr/poly-prompt/internal/session"
 )
 
 func (a *App) Command(ctx context.Context, stdin io.Reader, stdinPiped bool) *cobra.Command {
@@ -19,6 +22,13 @@ func (a *App) Command(ctx context.Context, stdin io.Reader, stdinPiped bool) *co
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if wantsHelp(args) {
 				return cmd.Help()
+			}
+			if len(args) == 0 {
+				return a.runBare(ctx, stdin)
+			}
+			if strings.HasPrefix(args[0], "@") {
+				model := strings.TrimPrefix(args[0], "@")
+				return a.runHandoff(ctx, model)
 			}
 			return a.runMain(ctx, args, stdin, stdinPiped, "")
 		},
@@ -49,9 +59,26 @@ func (a *App) Command(ctx context.Context, stdin io.Reader, stdinPiped bool) *co
 	root.AddCommand(a.newLangCommand(stdin))
 	root.AddCommand(a.newInitCommand())
 	root.AddCommand(a.newShortcutCommand(ctx, "ask", stdin, stdinPiped))
-	root.AddCommand(a.newShortcutCommand(ctx, "review", stdin, stdinPiped))
-	root.AddCommand(a.newShortcutCommand(ctx, "fix", stdin, stdinPiped))
-	root.AddCommand(a.newShortcutCommand(ctx, "design", stdin, stdinPiped))
+	root.AddCommand(a.newModeCommand(ctx, "review", session.ModeReview, stdin, stdinPiped))
+	root.AddCommand(a.newModeCommand(ctx, "edit", session.ModeEdit, stdin, stdinPiped))
+	root.AddCommand(a.newModeCommand(ctx, "fix", session.ModeFix, stdin, stdinPiped))
+	root.AddCommand(a.newModeCommand(ctx, "design", session.ModeDesign, stdin, stdinPiped))
+	root.AddCommand(&cobra.Command{
+		Use:   "checkpoint [note]",
+		Short: "진행 상황 메모 (핸드오프 품질 향상)",
+		Args:  cobra.ExactArgs(1),
+		RunE:  func(cmd *cobra.Command, args []string) error { return a.runCheckpoint(ctx, args[0]) },
+	})
+	root.AddCommand(&cobra.Command{
+		Use:   "done",
+		Short: "세션 완료 처리",
+		RunE:  func(cmd *cobra.Command, args []string) error { return a.runDone(ctx) },
+	})
+	root.AddCommand(&cobra.Command{
+		Use:   "sessions",
+		Short: "과거 세션 목록",
+		RunE:  func(cmd *cobra.Command, args []string) error { return a.runSessions(ctx) },
+	})
 
 	return root
 }
@@ -393,5 +420,33 @@ func (a *App) newShortcutCommand(ctx context.Context, name string, stdin io.Read
 			}
 			return a.runShortcut(ctx, name, args, stdin, stdinPiped)
 		},
+	}
+}
+
+func (a *App) newModeCommand(ctx context.Context, name string, mode session.Mode, stdin io.Reader, stdinPiped bool) *cobra.Command {
+	return &cobra.Command{
+		Use:           name + " [files...]",
+		Short:         modeShort(mode),
+		Args:          cobra.ArbitraryArgs,
+		SilenceErrors: true,
+		SilenceUsage:  true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.runSessionMode(ctx, mode, args, stdin)
+		},
+	}
+}
+
+func modeShort(m session.Mode) string {
+	switch m {
+	case session.ModeReview:
+		return "코드 리뷰 세션 시작"
+	case session.ModeEdit:
+		return "코드 수정 세션 시작"
+	case session.ModeFix:
+		return "버그 수정 세션 시작"
+	case session.ModeDesign:
+		return "설계 세션 시작"
+	default:
+		return "세션 시작"
 	}
 }

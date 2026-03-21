@@ -259,6 +259,15 @@ func New(deps Dependencies) *App {
 }
 
 func (a *App) Execute(ctx context.Context, args []string, stdin io.Reader, stdinPiped bool) error {
+	// Bare invocation (no args) → interactive session start.
+	if len(args) == 0 {
+		return a.runBare(ctx, stdin)
+	}
+	// @model → handoff to named model.
+	if strings.HasPrefix(strings.TrimSpace(args[0]), "@") {
+		model := strings.TrimPrefix(strings.TrimSpace(args[0]), "@")
+		return a.runHandoff(ctx, model)
+	}
 	if a.shouldRunRootDirect(args) {
 		return a.runMain(ctx, args, stdin, stdinPiped, "")
 	}
@@ -268,10 +277,7 @@ func (a *App) Execute(ctx context.Context, args []string, stdin io.Reader, stdin
 }
 
 func (a *App) shouldRunRootDirect(args []string) bool {
-	if len(args) == 0 {
-		return true
-	}
-
+	// len(args)==0 and @model are handled in Execute before this is called.
 	first := strings.TrimSpace(args[0])
 	if first == "" {
 		return true
@@ -284,7 +290,11 @@ func (a *App) shouldRunRootDirect(args []string) bool {
 	}
 
 	switch first {
-	case "init", "version", "start", "setup", "lang", "doctor", "templates", "profiles", "history", "rerun", "pin", "favorite", "go", "demo", "again", "swap", "take", "learn", "inspect":
+	case "init", "version", "start", "setup", "lang", "doctor", "templates", "profiles",
+		"history", "rerun", "pin", "favorite", "go", "demo", "again", "swap", "take",
+		"learn", "inspect",
+		// new v1.0 commands:
+		"review", "edit", "fix", "design", "checkpoint", "done", "sessions":
 		return false
 	}
 
