@@ -2138,3 +2138,39 @@ func TestServerDeepExecRequestNotApproved(t *testing.T) {
 		t.Error("Approved = true, want false")
 	}
 }
+
+func TestResolveCurrentSession_NoGitRepo(t *testing.T) {
+	a := makeTestApp(t)
+	// newTestApp uses RepoRootFinder returning termbook.ErrNotGitRepo
+	_, err := a.resolveCurrentSession()
+	if err == nil {
+		t.Error("expected error when not in a git repo")
+	}
+}
+
+func TestRunCheckpoint_ErrorWithNoSession(t *testing.T) {
+	a := makeTestApp(t)
+	err := a.runCheckpoint(context.Background(), "JWT done")
+	if err == nil {
+		t.Error("expected error when no active session")
+	}
+}
+
+func TestRunDone_ErrorWithNoSession(t *testing.T) {
+	a := makeTestApp(t)
+	err := a.runDone(context.Background())
+	if err == nil {
+		t.Error("expected error when no active session")
+	}
+}
+
+func TestRunSessions_Empty(t *testing.T) {
+	a := makeTestApp(t)
+	var stdout bytes.Buffer
+	a.stdout = &stdout
+	err := a.runSessions(context.Background())
+	if err != nil {
+		t.Fatalf("runSessions: %v", err)
+	}
+	// Should not panic; output is "세션 없음." or similar
+}
