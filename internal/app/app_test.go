@@ -333,13 +333,13 @@ func TestExecuteRootHelp(t *testing.T) {
 	if err := app.Execute(context.Background(), []string{"--help"}, strings.NewReader(""), false); err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
-	if !strings.Contains(stdout.String(), "prtr is the command layer for AI work.") {
+	if !strings.Contains(stdout.String(), "prtr is the AI Work Session Manager.") {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
-	if !strings.Contains(stdout.String(), "prtr demo") {
+	if !strings.Contains(stdout.String(), "prtr review") {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
-	if !strings.Contains(stdout.String(), `prtr go [mode] [message...]`) {
+	if !strings.Contains(stdout.String(), "prtr sessions") {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
 }

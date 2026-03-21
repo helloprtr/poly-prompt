@@ -86,6 +86,7 @@ func (a *App) Command(ctx context.Context, stdin io.Reader, stdinPiped bool) *co
 func (a *App) newStartCommand(ctx context.Context, stdin io.Reader, stdinPiped bool) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                "start [message...]",
+		Hidden:             true,
 		Short:              "Run the beginner-first first-send flow.",
 		Long:               startHelpText(),
 		DisableFlagParsing: true,
@@ -103,6 +104,7 @@ func (a *App) newStartCommand(ctx context.Context, stdin io.Reader, stdinPiped b
 func (a *App) newGoCommand(ctx context.Context, stdin io.Reader, stdinPiped bool) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                "go [mode] [message...]",
+		Hidden:             true,
 		Short:              "Turn intent into the next AI action in Claude, Codex, or Gemini.",
 		Long:               goHelpText(),
 		DisableFlagParsing: true,
@@ -136,6 +138,7 @@ func (a *App) newDemoCommand(ctx context.Context) *cobra.Command {
 func (a *App) newAgainCommand(ctx context.Context, stdin io.Reader, stdinPiped bool) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                "again [message...]",
+		Hidden:             true,
 		Short:              "Run the latest prompt flow again.",
 		Long:               againHelpText(),
 		DisableFlagParsing: true,
@@ -153,6 +156,7 @@ func (a *App) newAgainCommand(ctx context.Context, stdin io.Reader, stdinPiped b
 func (a *App) newSwapCommand(ctx context.Context, stdin io.Reader, stdinPiped bool) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                "swap <app> [message...]",
+		Hidden:             true,
 		Short:              "Send the latest prompt to another app.",
 		Long:               swapHelpText(),
 		DisableFlagParsing: true,
@@ -170,6 +174,7 @@ func (a *App) newSwapCommand(ctx context.Context, stdin io.Reader, stdinPiped bo
 func (a *App) newTakeCommand(ctx context.Context) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                "take <action>",
+		Hidden:             true,
 		Short:              "Turn the latest answer or clipboard text into the next action.",
 		Long:               takeHelpText(),
 		DisableFlagParsing: true,
@@ -187,6 +192,7 @@ func (a *App) newTakeCommand(ctx context.Context) *cobra.Command {
 func (a *App) newLearnCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                "learn [paths...]",
+		Hidden:             true,
 		Short:              "Teach prtr your repo terms and style.",
 		Long:               learnHelpText(),
 		DisableFlagParsing: true,
