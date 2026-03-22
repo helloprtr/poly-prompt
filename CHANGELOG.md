@@ -2,6 +2,13 @@
 
 All notable product-facing changes to `prtr` are documented in this file.
 
+## [1.0.1] - 2026-03-23
+
+### Added
+- Auto-capture last AI response on session exit: when Claude Code or Codex TUI closes, prtr reads the model's JSONL conversation log and saves the last response automatically. No manual paste needed for handoff context.
+  - Claude Code: reads `~/.claude/projects/<cwd-slug>/*.jsonl`
+  - Codex: reads `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`
+
 ## [1.0.0] — 2026-03-22
 
 ### Added

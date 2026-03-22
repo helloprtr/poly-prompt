@@ -5,85 +5,117 @@ const basePath = import.meta.env.BASE_URL.endsWith("/")
   ? import.meta.env.BASE_URL
   : `${import.meta.env.BASE_URL}/`;
 
-const sessionSteps = [
+const loopSteps = [
   {
-    command: "prtr edit [files]",
-    summary: "Start a focused edit session.",
-    detail: "prtr saves your goal, the files you care about, and the current git SHA. It builds a structured prompt, copies it to your clipboard, and opens Claude.",
+    command: "review / edit / fix / design",
+    summary: "Start a real work session.",
+    detail:
+      "Choose a mode, name the task, focus the file scope, and let prtr launch the model with a structured start prompt instead of an empty chat box.",
   },
   {
-    command: "prtr checkpoint",
-    summary: "Save a progress note mid-session.",
-    detail: "Each checkpoint records your note and the current git SHA. Checkpoints are included in every handoff prompt so the next AI knows exactly where you stopped.",
+    command: "checkpoint",
+    summary: "Save progress without breaking flow.",
+    detail:
+      "Add one-line notes like 'root cause confirmed' or 'tests added' so the next handoff already knows what moved forward.",
   },
   {
-    command: "prtr @gemini",
-    summary: "Hand off to another AI model.",
-    detail: "prtr computes the git diff since the session started, folds in your last AI response, and builds a handoff prompt with full context — no manual reconstruction needed.",
+    command: "@gemini / @codex",
+    summary: "Hand off with diff-aware context.",
+    detail:
+      "prtr carries the goal, file list, checkpoints, last response, and git diff since session start so model switching does not reset the work.",
   },
   {
-    command: "prtr done",
-    summary: "Close the session.",
-    detail: "Mark the session complete. It stays in your history so you can reference what was accomplished and when.",
+    command: "status / sessions",
+    summary: "See the live session at a glance.",
+    detail:
+      "Check the current goal, mode, changed-file summary, latest checkpoint, and recent session history for the repo in one quick stop.",
   },
   {
-    command: "prtr save",
-    summary: "Snapshot your work state (Work Capsule).",
-    detail: "Capture the current branch, HEAD SHA, last run, and open todos so you can resume days later — on the same machine or a different one — with drift detection built in.",
+    command: "save / resume",
+    summary: "Create resume points with drift warnings.",
+    detail:
+      "Work Capsules save branch, SHA, touched files, todos, and next actions, then warn if the repo drifted before you resume.",
   },
   {
-    command: "prtr take --deep",
-    summary: "Run the five-worker AI pipeline.",
-    detail: "Planner, patcher, critic, tester, and reconciler process the clipboard answer as structured evidence. Writes a plan, diff, risk report, and test plan as local artifacts.",
+    command: "learn",
+    summary: "Protect repo vocabulary.",
+    detail:
+      "Teach prtr product names, flags, and domain terms so translation and prompt shaping do not flatten the language your repo depends on.",
   },
 ];
 
-const concepts = [
+const demos = [
   {
-    label: "Session",
-    text: "A focused work block tied to a git repo. Stores your goal, files, mode (review/edit/fix/design), base git SHA, and checkpoints. One active session per repo at a time.",
+    title: "Session handoff",
+    description:
+      "Start an edit session, save a checkpoint, hand off to another model, and inspect the current state without rebuilding context.",
+    note:
+      "This is the main 1.0.0 proof loop: session first, then checkpoint, then handoff, then status.",
+    image: `${basePath}media/prtr-routing-history.gif`,
+    alt: "Animated demonstration of a prtr session, checkpoint, handoff, and status flow.",
   },
   {
-    label: "Handoff",
-    text: "prtr @gemini or prtr @codex computes the git diff since the session started, adds your last AI response, and delivers a structured context prompt to the next model.",
-  },
-  {
-    label: "Work Capsule",
-    text: "A full work-state snapshot beyond a single session: branch, HEAD SHA, last run, and open todos. Resume with drift detection after days away or a branch switch.",
-  },
-  {
-    label: "Multilingual loop",
-    text: "Write your goal in Korean or any language. prtr translates via DeepL, routes to Claude/Codex/Gemini, and protects project terms from being translated away.",
+    title: "Work Capsule resume",
+    description:
+      "Save a restore point, come back later, and resume with repo drift awareness instead of guessing what changed in the meantime.",
+    note:
+      "The capsule layer makes interrupted work feel recoverable rather than fragile.",
+    image: `${basePath}media/prtr-delivery-paste.gif`,
+    alt: "Animated demonstration of saving and resuming a prtr Work Capsule with drift awareness.",
   },
 ];
 
 const timeline = [
   {
-    version: "v1.0.0",
-    title: "AI Work Session Manager",
-    body: "Sessions become the primary unit of work. Start with review, edit, fix, or design — checkpoint progress, hand off between models, and resume without rebuilding context.",
+    version: "v0.7.x",
+    title: "Deep execution",
+    body: "The five-worker take --deep pipeline made prtr more than a one-shot prompt wrapper.",
   },
   {
     version: "v0.8.x",
-    title: "Work Capsule and context watching",
-    body: "prtr save and resume snapshot full work state across sessions and tools. Drift detection warns when the branch or HEAD changed since the last save.",
+    title: "Work Capsules",
+    body: "Explicit save and resume points turned continuity into a product surface instead of a manual habit.",
   },
   {
-    version: "v0.7.x",
-    title: "Deep execution pipeline",
-    body: "take --deep runs a five-worker pipeline (planner, patcher, critic, tester, reconciler) and writes structured local artifacts for every run.",
+    version: "v1.0.0",
+    title: "Session-first workflow",
+    body: "Sessions became the front door: start focused work, checkpoint progress, hand off cleanly, and continue in the same repo later.",
   },
   {
-    version: "v0.3–0.6",
-    title: "Repeatable workflow",
-    body: "go, swap, take, again, learn, and inspect built the reusable command-layer loop that sessions now sit on top of.",
+    version: "v1.0.1",
+    title: "Auto response capture",
+    body: "When Claude Code or Codex exits, prtr reads the conversation log automatically. No manual paste needed — the last response is always in the next handoff.",
+  },
+  {
+    version: "Still available",
+    title: "Classic loop tools",
+    body: "go, swap, take, again, inspect, and learn remain useful for advanced or compatibility-heavy workflows.",
+  },
+];
+
+const routingPoints = [
+  {
+    label: "Session first",
+    text: "The main beginner story is no longer 'send a prompt fast' but 'start a task cleanly and keep it alive.'",
+  },
+  {
+    label: "Handoff with proof",
+    text: "Diffs, checkpoints, file scope, and the latest response travel together so switching models does not mean re-briefing them.",
+  },
+  {
+    label: "Resume with drift awareness",
+    text: "Work Capsules warn when branch, SHA, or changed files no longer match the saved point, which makes returning to work safer.",
+  },
+  {
+    label: "Memory in two layers",
+    text: "learn protects repo vocabulary, while save and resume protect task continuity. That split makes the product easier to explain and use.",
   },
 ];
 ---
 
 <BaseLayout
   title="AI Work Session Manager"
-  description="prtr is the AI Work Session Manager. Start a focused work session, let Claude drive, checkpoint progress, and hand off cleanly to Gemini or Codex."
+  description="prtr helps you start focused AI work sessions, checkpoint progress, hand off to another model, and resume later with drift-aware context."
 >
   <main class="page-shell">
     <header class="topbar">
@@ -92,8 +124,8 @@ const timeline = [
         <span class="brand-copy">poly-prompt</span>
       </a>
       <nav class="topnav" aria-label="Primary">
-        <a href="#session">Session</a>
-        <a href="#concepts">Concepts</a>
+        <a href="#loop">Core features</a>
+        <a href="#demos">Proof demos</a>
         <a href={`${basePath}docs/`}>Docs</a>
         <a href="#timeline">Timeline</a>
       </nav>
@@ -102,21 +134,22 @@ const timeline = [
     <section class="hero">
       <div class="hero-copy">
         <p class="eyebrow">AI Work Session Manager</p>
-        <h1>Start focused. Stay in context. Hand off cleanly.</h1>
+        <h1>Start work. Save progress. Hand off cleanly.</h1>
         <p class="hero-text">
-          prtr keeps track of your task goal, the files you care about, your progress notes, and the git diff —
-          and builds the right prompt when you need it. Switch from Claude to Gemini without rebuilding context by hand.
+          prtr 1.0.0 is built around work continuity. Start a focused session, keep lightweight progress notes,
+          hand the task to Gemini or Codex with the right diff and context, then resume later from a Work Capsule
+          without reconstructing everything by hand.
         </p>
         <div class="hero-actions">
-          <a class="button button-primary" href="https://github.com/helloprtr/poly-prompt#install-in-60-seconds">Install in 60s</a>
+          <a class="button button-primary" href="https://github.com/helloprtr/poly-prompt#install-in-60-seconds">Install in 60 seconds</a>
           <a class="button button-secondary" href={`${basePath}docs/`}>Open docs hub</a>
           <a class="button button-tertiary" href="https://github.com/helloprtr/poly-prompt">Read the README</a>
           <a class="button button-ghost" href="https://github.com/helloprtr/poly-prompt/releases">See releases</a>
         </div>
         <ul class="signal-strip" aria-label="Product signals">
-          <li>One session per repo</li>
-          <li>Claude, Codex, Gemini handoff</li>
-          <li>Git diff built into every prompt</li>
+          <li>Session first</li>
+          <li>Handoff with git diff</li>
+          <li>Capsules plus memory</li>
         </ul>
       </div>
 
@@ -126,52 +159,49 @@ const timeline = [
             <span class="panel-dot"></span>
             <span class="panel-dot"></span>
             <span class="panel-dot"></span>
-            <span class="panel-title">session-workflow.sh</span>
+            <span class="panel-title">work-session.sh</span>
           </div>
           <div class="panel-body">
-            <p class="panel-caption">Start → Checkpoint → Hand off → Done.</p>
-            <pre><code>prtr edit internal/app/app.go
-# Claude opens with your goal and context
-
-prtr checkpoint "split help.go done"
+            <p class="panel-caption">One session. One handoff. One clean resume point.</p>
+            <pre><code>prtr edit internal/session/store.go
+prtr checkpoint "store flow cleaned up"
 prtr @gemini
-# Gemini gets the full diff + your note
-
-prtr done</code></pre>
+prtr save "session-manager mid-point"
+prtr resume --dry-run</code></pre>
           </div>
         </div>
 
         <div class="mini-grid" aria-hidden="true">
           <div class="mini-card">
             <strong>Session</strong>
-            <span>goal + files + git SHA</span>
+            <span>goal + files + mode</span>
           </div>
           <div class="mini-card">
             <strong>Handoff</strong>
-            <span>diff + last response</span>
+            <span>checkpoint + diff + response</span>
           </div>
           <div class="mini-card">
-            <strong>Capsule</strong>
-            <span>save + resume + drift</span>
+            <strong>Resume</strong>
+            <span>capsule + drift warning</span>
           </div>
         </div>
       </div>
     </section>
 
-    <section class="section" id="session">
+    <section class="section" id="loop">
       <div class="section-heading">
-        <p class="eyebrow">Session workflow</p>
-        <h2>Six commands that keep the AI loop moving</h2>
+        <p class="eyebrow">Core features</p>
+        <h2>Six pieces that make 1.0.0 usable on day one</h2>
         <p>
-          Each command does one thing clearly. Together they take a task from first intent to
-          final handoff without requiring you to paste context by hand at every step.
+          The product story is no longer just a fast first prompt. It is the whole chain around real work:
+          start, progress, handoff, status, resume, and memory.
         </p>
       </div>
 
       <div class="loop-grid">
-        {sessionSteps.map((step) => (
+        {loopSteps.map((step) => (
           <article class="loop-card">
-            <p class="command-tag">{step.command}</p>
+            <p class="command-tag">prtr {step.command}</p>
             <h3>{step.summary}</h3>
             <p>{step.detail}</p>
           </article>
@@ -179,21 +209,47 @@ prtr done</code></pre>
       </div>
     </section>
 
-    <section class="section two-column" id="concepts">
+    <section class="section" id="demos">
       <div class="section-heading">
-        <p class="eyebrow">Key concepts</p>
-        <h2>Four ideas that explain how prtr works</h2>
+        <p class="eyebrow">See it work</p>
+        <h2>Two proof loops that explain the whole product</h2>
         <p>
-          prtr is not a prompt template library. It is a session layer that holds your work
-          state and builds the right prompt for each step automatically.
+          One GIF shows the live session flow. The other shows how prtr helps you come back later without
+          losing the thread. Together they cover the beginner story of 1.0.0.
+        </p>
+      </div>
+
+      <div class="demo-stack">
+        {demos.map((demo) => (
+          <article class="demo-card">
+            <figure class="demo-figure">
+              <img src={demo.image} alt={demo.alt} loading="lazy" />
+            </figure>
+            <div class="demo-copy">
+              <p class="eyebrow">{demo.title}</p>
+              <h3>{demo.description}</h3>
+              <p>{demo.note}</p>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+
+    <section class="section two-column">
+      <div class="section-heading">
+        <p class="eyebrow">Why it matters</p>
+        <h2>More continuity, less manual context repair</h2>
+        <p>
+          prtr is strongest when people use more than one model, pause mid-task, or need to remember exactly
+          what moved since the last useful checkpoint.
         </p>
       </div>
 
       <div class="routing-list">
-        {concepts.map((c) => (
+        {routingPoints.map((point) => (
           <article class="routing-card">
-            <h3>{c.label}</h3>
-            <p>{c.text}</p>
+            <h3>{point.label}</h3>
+            <p>{point.text}</p>
           </article>
         ))}
       </div>
@@ -202,10 +258,10 @@ prtr done</code></pre>
     <section class="section" id="timeline">
       <div class="section-heading">
         <p class="eyebrow">Version story</p>
-        <h2>The tool kept moving toward a complete work loop</h2>
+        <h2>The product kept moving from prompts toward continuity</h2>
         <p>
-          Each release made prtr a little less like a one-shot prompt helper and a little more
-          like a full session layer that holds context across tools and time.
+          Each release added another part of the same story. By 1.0.0, sessions became the main entry point
+          and the older loop commands became advanced or compatibility tools instead of the default teaching path.
         </p>
       </div>
 
@@ -223,20 +279,20 @@ prtr done</code></pre>
     <section class="section docs-bridge">
       <div class="section-heading">
         <p class="eyebrow">Docs hub</p>
-        <h2>Install steps, command guide, and reference in one place</h2>
+        <h2>Keep the homepage fast, move deeper in one click</h2>
         <p>
-          The docs hub has everything you need to go from install to a real first session:
-          platform-specific install instructions, a full usage guide, and a complete command reference.
+          The docs hub is where installation details, command references, Korean docs, and release context stay
+          organized without overloading the landing page.
         </p>
       </div>
 
       <div class="bridge-card">
         <div>
           <p class="eyebrow">Included in /docs</p>
-          <h3>Quick start, session guide, Work Capsule reference, deep pipeline docs, and release history</h3>
+          <h3>Quick start, full guides, command reference, release notes, and media context</h3>
           <p>
-            Built as a second page so the homepage stays focused on the product story while the
-            docs page works as the operator-facing entry point.
+            Built as a separate entry point so the homepage can stay product-focused while the docs page stays
+            operator-friendly.
           </p>
         </div>
         <a class="button button-primary" href={`${basePath}docs/`}>Go to docs</a>
@@ -246,10 +302,10 @@ prtr done</code></pre>
     <section class="section cta-panel">
       <div class="cta-copy">
         <p class="eyebrow">Start here</p>
-        <h2>Install, verify, and start your first session</h2>
+        <h2>Use the session path first, then add the classic loop when you need it</h2>
         <p>
-          Install with Homebrew, run doctor to verify the setup, then start your first session.
-          No API key required for English-only flows — add DeepL later for multilingual routing.
+          New users should learn `review`, `edit`, `fix`, `design`, `checkpoint`, `status`, and `save` first.
+          After that, `go`, `swap`, `take`, and `take --deep` become much easier to place in the workflow.
         </p>
       </div>
       <div class="panel">
@@ -263,7 +319,9 @@ prtr done</code></pre>
           <pre><code>brew tap helloprtr/homebrew-tap
 brew install prtr
 prtr doctor
-prtr edit myfile.go</code></pre>
+prtr edit internal/app/app.go
+prtr checkpoint "root cause confirmed"
+prtr @codex</code></pre>
         </div>
       </div>
     </section>
