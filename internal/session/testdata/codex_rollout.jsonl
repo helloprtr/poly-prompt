@@ -1,0 +1,2 @@
+{"type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"중간 응답"}]}}
+{"type":"event_msg","payload":{"type":"task_complete","last_agent_message":"Codex 최종 응답입니다."}}
