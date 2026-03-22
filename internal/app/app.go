@@ -3084,7 +3084,7 @@ func humanizeTime(t time.Time) string {
 func (a *App) runCheckpoint(_ context.Context, note string) error {
 	sess, err := a.resolveCurrentSession()
 	if err != nil {
-		return fmt.Errorf("No active session. Run prtr review|edit|fix|design first.")
+		return fmt.Errorf("no active session; run prtr review|edit|fix|design first")
 	}
 	root, _ := a.resolveRepoRoot()
 	sha, _ := session.CurrentSHA(root)
@@ -3104,7 +3104,7 @@ func (a *App) runCheckpoint(_ context.Context, note string) error {
 func (a *App) runDone(_ context.Context) error {
 	sess, err := a.resolveCurrentSession()
 	if err != nil {
-		return fmt.Errorf("No active session.")
+		return fmt.Errorf("no active session")
 	}
 	if err := a.sessionStore.Complete(sess.ID); err != nil {
 		return fmt.Errorf("complete session: %w", err)
@@ -3133,13 +3133,17 @@ func (a *App) runSessions(_ context.Context) error {
 	return nil
 }
 
-// readLastResponse reads ~/.config/prtr/last-response.json if present and returns the response field.
+// readLastResponse reads ~/.config/prtr/last-response.json (or $XDG_CONFIG_HOME/prtr/...) and returns the response field.
 func (a *App) readLastResponse() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ""
+	base := strings.TrimSpace(os.Getenv("XDG_CONFIG_HOME"))
+	if base == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return ""
+		}
+		base = filepath.Join(home, ".config")
 	}
-	path := filepath.Join(home, ".config", "prtr", "last-response.json")
+	path := filepath.Join(base, "prtr", "last-response.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return ""
@@ -3188,7 +3192,9 @@ func (a *App) launchWithSession(ctx context.Context, sess session.Session) error
 	}
 
 	fmt.Fprintln(a.stderr, "✓ 세션 시작 — 프롬프트가 클립보드에 복사됐습니다. TUI에 붙여넣으세요.")
-	_ = session.RunForeground(ctx, binary)
+	if err := session.RunForeground(ctx, binary); err != nil {
+		fmt.Fprintf(a.stderr, "AI 프로세스 종료: %v\n", err)
+	}
 	return a.captureSessionOnExit(sess)
 }
 
@@ -3211,7 +3217,9 @@ func (a *App) launchHandoff(ctx context.Context, sess session.Session, model str
 	}
 
 	fmt.Fprintf(a.stderr, "✓ %s로 핸드오프 — 프롬프트가 클립보드에 복사됐습니다.\n", model)
-	_ = session.RunForeground(ctx, binary)
+	if err := session.RunForeground(ctx, binary); err != nil {
+		fmt.Fprintf(a.stderr, "AI 프로세스 종료: %v\n", err)
+	}
 	sess.TargetModel = model
 	return a.captureSessionOnExit(sess)
 }
@@ -3246,7 +3254,10 @@ func (a *App) runSessionCreate(ctx context.Context, mode session.Mode, files []s
 		}
 	}
 
-	root, _ := a.resolveRepoRoot()
+	root, err := a.resolveRepoRoot()
+	if err != nil {
+		return fmt.Errorf("prtr sessions require a git repository: %w", err)
+	}
 	hash, _ := session.RepoHash(root)
 	sha, _ := session.CurrentSHA(root)
 
@@ -3312,11 +3323,13 @@ func (a *App) runSessionMode(ctx context.Context, mode session.Mode, args []stri
 func (a *App) runHandoff(ctx context.Context, model string) error {
 	sess, err := a.resolveCurrentSession()
 	if err != nil {
-		return fmt.Errorf("No active session. Run prtr review|edit|fix|design first.")
+		return fmt.Errorf("no active session; run prtr review|edit|fix|design first")
 	}
 	return a.launchHandoff(ctx, sess, model)
 }
 
+// runCapsuleStatus is a stub for Work Capsule drift info.
+// TODO(v1.1): integrate Work Capsule drift reporting here.
 func (a *App) runCapsuleStatus(_ context.Context) error { return nil }
 
 func (a *App) runStatus(ctx context.Context) error {

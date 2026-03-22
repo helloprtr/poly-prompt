@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -22,13 +21,6 @@ func (a *App) Command(ctx context.Context, stdin io.Reader, stdinPiped bool) *co
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if wantsHelp(args) {
 				return cmd.Help()
-			}
-			if len(args) == 0 {
-				return a.runBare(ctx, stdin)
-			}
-			if strings.HasPrefix(args[0], "@") {
-				model := strings.TrimPrefix(args[0], "@")
-				return a.runHandoff(ctx, model)
 			}
 			return a.runMain(ctx, args, stdin, stdinPiped, "")
 		},

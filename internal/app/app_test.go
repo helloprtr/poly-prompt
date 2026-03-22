@@ -2198,8 +2198,8 @@ func TestExecute_AtModel_NoSession_ReturnsError(t *testing.T) {
 	if err == nil {
 		t.Error("expected error for @gemini with no active session")
 	}
-	if !strings.Contains(err.Error(), "No active session") {
-		t.Errorf("expected 'No active session', got: %v", err)
+	if !strings.Contains(err.Error(), "no active session") {
+		t.Errorf("expected 'no active session', got: %v", err)
 	}
 }
 
