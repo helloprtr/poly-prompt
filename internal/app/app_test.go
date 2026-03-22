@@ -16,6 +16,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/helloprtr/poly-prompt/internal/automation"
+	"github.com/helloprtr/poly-prompt/internal/capsule"
 	"github.com/helloprtr/poly-prompt/internal/config"
 	"github.com/helloprtr/poly-prompt/internal/editor"
 	"github.com/helloprtr/poly-prompt/internal/history"
@@ -1185,7 +1186,7 @@ func TestExecuteTakeDeepWritesArtifactsAndHistoryMetadata(t *testing.T) {
 	if !strings.Contains(stderr.String(), "-> take:patch --deep | codex | clipboard | preview | en->en | completed") {
 		t.Fatalf("stderr = %q", stderr.String())
 	}
-	if !strings.Contains(stderr.String(), "step: patch (2/5)") {
+	if !strings.Contains(stderr.String(), "step: patcher (2/5)") {
 		t.Fatalf("stderr = %q", stderr.String())
 	}
 	if !strings.Contains(stderr.String(), "artifact: "+filepath.Join(repoRoot, ".prtr", "runs")) {
@@ -2193,5 +2194,308 @@ func TestRunStatusShowsSessionSection(t *testing.T) {
 	output := stdout.String()
 	if !strings.Contains(output, "세션") {
 		t.Errorf("expected session section in status output, got:\n%s", output)
+	}
+}
+
+func TestRunGoContextEnrichmentDisabledByNoContext(t *testing.T) {
+	// When --no-context is set, repoSuffix and enrichment suffix must both be empty.
+	a := &App{repoContext: repoctx.New()}
+	suffix, _ := a.resolveRepoContext(context.Background(), "prompt", true /* disabled */)
+	if suffix != "" {
+		t.Errorf("expected empty suffix with noContext=true, got %q", suffix)
+	}
+}
+
+// --- Chunk C: capsule command tests ---
+
+// newCapsuleTestApp builds an App wired to a temp dir repo root and temp
+// capsule store, suitable for testing save/resume/status/list/prune.
+func newCapsuleTestApp(t *testing.T, cfg config.Config) (*App, *bytes.Buffer) {
+	t.Helper()
+	repoRoot := t.TempDir()
+	out := &bytes.Buffer{}
+	app := New(Dependencies{
+		Version:         "test",
+		Stdout:          out,
+		Stderr:          &bytes.Buffer{},
+		Translator:      &stubTranslator{output: "translated"},
+		Clipboard:       &stubClipboard{},
+		Editor:          &stubEditor{},
+		Launcher:        &stubLauncher{},
+		Automator:       &stubAutomator{},
+		SubmitConfirmer: &stubConfirmer{},
+		ConfigLoader:    func() (config.Config, error) { return cfg, nil },
+		ConfigInit:      func() (string, error) { return "/tmp/prtr/config.toml", nil },
+		LookupEnv:       func(string) (string, bool) { return "", false },
+		HistoryStore:    history.New(filepath.Join(t.TempDir(), "history.json")),
+		RepoContext:     &stubRepoContext{summary: repoctx.Summary{Branch: "main", HeadSHA: "abc123"}},
+		RepoRootFinder:  func() (string, error) { return repoRoot, nil },
+		TermbookLoader: func(string) (termbook.Book, error) {
+			return termbook.Book{}, os.ErrNotExist
+		},
+		SessionStore: session.NewStore(t.TempDir()),
+	})
+	return app, out
+}
+
+func capsuleTestConfig() config.Config {
+	cfg := testConfig()
+	cfg.Memory = config.MemoryConfig{
+		Enabled:              true,
+		AutoSave:             true,
+		CapsuleRetentionDays: 30,
+	}
+	return cfg
+}
+
+func TestRunSavePrintsCapsuleID(t *testing.T) {
+	t.Parallel()
+	cfg := capsuleTestConfig()
+	app, out := newCapsuleTestApp(t, cfg)
+
+	if err := app.Execute(context.Background(), []string{"save", "my-label"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute(save) error = %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "✓ capsule saved") {
+		t.Errorf("expected '✓ capsule saved' in output, got: %q", got)
+	}
+	if !strings.Contains(got, "my-label") {
+		t.Errorf("expected label 'my-label' in output, got: %q", got)
+	}
+}
+
+func TestRunSaveDisabledWhenMemoryDisabled(t *testing.T) {
+	t.Parallel()
+	cfg := capsuleTestConfig()
+	cfg.Memory.Enabled = false
+	app, out := newCapsuleTestApp(t, cfg)
+
+	if err := app.Execute(context.Background(), []string{"save"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute(save) error = %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "capsules are disabled") {
+		t.Errorf("expected disabled message, got: %q", got)
+	}
+}
+
+func TestRunResumeDryRunPrintsPrompt(t *testing.T) {
+	t.Parallel()
+	cfg := capsuleTestConfig()
+	app, out := newCapsuleTestApp(t, cfg)
+
+	// First save a capsule so resume has something to load.
+	if err := app.Execute(context.Background(), []string{"save", "resume-test"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute(save) error = %v", err)
+	}
+	out.Reset()
+
+	if err := app.Execute(context.Background(), []string{"resume", "--dry-run"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute(resume --dry-run) error = %v", err)
+	}
+	got := out.String()
+	// The resume prompt contains the capsule label or goal.
+	if got == "" {
+		t.Errorf("expected non-empty resume prompt output")
+	}
+}
+
+func TestRunResumeNoCapsulesError(t *testing.T) {
+	t.Parallel()
+	cfg := capsuleTestConfig()
+	app, _ := newCapsuleTestApp(t, cfg)
+
+	err := app.Execute(context.Background(), []string{"resume"}, strings.NewReader(""), false)
+	if err == nil || !strings.Contains(err.Error(), "no capsules found") {
+		t.Errorf("expected 'no capsules found' error, got: %v", err)
+	}
+}
+
+func TestRunCapsuleStatusNoCapsulesMessage(t *testing.T) {
+	t.Parallel()
+	cfg := capsuleTestConfig()
+	app, out := newCapsuleTestApp(t, cfg)
+
+	if err := app.Execute(context.Background(), []string{"status"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute(status) error = %v", err)
+	}
+	if !strings.Contains(out.String(), "no capsules") {
+		t.Errorf("expected 'no capsules' message, got: %q", out.String())
+	}
+}
+
+func TestRunCapsuleStatusPrintsSavedCapsule(t *testing.T) {
+	t.Parallel()
+	cfg := capsuleTestConfig()
+	app, out := newCapsuleTestApp(t, cfg)
+
+	if err := app.Execute(context.Background(), []string{"save", "status-test"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute(save) error = %v", err)
+	}
+	out.Reset()
+
+	if err := app.Execute(context.Background(), []string{"status"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute(status) error = %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "status-test") {
+		t.Errorf("expected label 'status-test' in status output, got: %q", got)
+	}
+}
+
+func TestRunCapsuleListShowsSavedCapsules(t *testing.T) {
+	t.Parallel()
+	cfg := capsuleTestConfig()
+	app, out := newCapsuleTestApp(t, cfg)
+
+	for _, label := range []string{"alpha", "beta"} {
+		if err := app.Execute(context.Background(), []string{"save", label}, strings.NewReader(""), false); err != nil {
+			t.Fatalf("Execute(save %s) error = %v", label, err)
+		}
+	}
+	out.Reset()
+
+	if err := app.Execute(context.Background(), []string{"list"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute(list) error = %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "alpha") || !strings.Contains(got, "beta") {
+		t.Errorf("expected both labels in list output, got: %q", got)
+	}
+}
+
+func TestRunPruneDryRunPrintsAndDoesNotDelete(t *testing.T) {
+	t.Parallel()
+	cfg := capsuleTestConfig()
+	app, out := newCapsuleTestApp(t, cfg)
+
+	if err := app.Execute(context.Background(), []string{"save", "keep-me"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute(save) error = %v", err)
+	}
+	out.Reset()
+
+	// Prune with --older-than 0d --dry-run would normally match everything,
+	// but the "0d" edge is handled by the prune implementation as < 1 day.
+	// Use a very short window to ensure the capsule is not deleted.
+	if err := app.Execute(context.Background(), []string{"prune", "--dry-run", "--older-than", "0d"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute(prune --dry-run) error = %v", err)
+	}
+
+	out.Reset()
+	// After dry-run, list should still show the capsule.
+	if err := app.Execute(context.Background(), []string{"list"}, strings.NewReader(""), false); err != nil {
+		t.Fatalf("Execute(list) error = %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "keep-me") {
+		t.Errorf("prune --dry-run must not delete capsules; list output = %q", got)
+	}
+}
+
+func TestNoCopyWithoutDryRunAllowed(t *testing.T) {
+	// Regression: --no-copy must not require --dry-run. Before the fix,
+	// parseGoCommand returned a usageError when --no-copy was set without --dry-run.
+	t.Parallel()
+	cfg := testConfig()
+	app, _ := newCapsuleTestApp(t, cfg)
+
+	err := app.Execute(context.Background(), []string{"go", "--no-copy", "hello"}, strings.NewReader(""), false)
+	// The command may fail for infra reasons (no real clipboard) but must NOT
+	// fail with "requires --dry-run".
+	if err != nil && strings.Contains(err.Error(), "requires --dry-run") {
+		t.Errorf("--no-copy without --dry-run should be allowed; got error: %v", err)
+	}
+}
+
+func TestFindDedupeTargetMatchesWithinWindow(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	store := capsule.NewStore(dir)
+
+	base := capsule.Capsule{
+		ID:        "cap_001",
+		Kind:      capsule.KindAuto,
+		CreatedAt: time.Now().UTC(),
+		Repo:      capsule.RepoState{Name: "myrepo", Branch: "main"},
+		Work:      capsule.WorkState{NormalizedGoal: "fix-auth"},
+		Session:   capsule.SessionState{TargetApp: "claude"},
+	}
+	if err := store.Save(base); err != nil {
+		t.Fatalf("store.Save: %v", err)
+	}
+
+	incoming := capsule.Capsule{
+		Kind:      capsule.KindAuto,
+		CreatedAt: time.Now().UTC(),
+		Repo:      capsule.RepoState{Name: "myrepo", Branch: "main"},
+		Work:      capsule.WorkState{NormalizedGoal: "fix-auth"},
+		Session:   capsule.SessionState{TargetApp: "claude"},
+	}
+
+	got := findDedupeTarget(store, incoming)
+	if got == nil {
+		t.Fatal("expected dedup target, got nil")
+	}
+	if got.ID != "cap_001" {
+		t.Errorf("dedup target ID = %q, want %q", got.ID, "cap_001")
+	}
+}
+
+func TestFindDedupeTargetNoMatchOnDifferentBranch(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	store := capsule.NewStore(dir)
+
+	existing := capsule.Capsule{
+		ID:        "cap_002",
+		Kind:      capsule.KindAuto,
+		CreatedAt: time.Now().UTC(),
+		Repo:      capsule.RepoState{Name: "myrepo", Branch: "feature/x"},
+		Work:      capsule.WorkState{NormalizedGoal: "fix-auth"},
+		Session:   capsule.SessionState{TargetApp: "claude"},
+	}
+	if err := store.Save(existing); err != nil {
+		t.Fatalf("store.Save: %v", err)
+	}
+
+	incoming := capsule.Capsule{
+		Kind:      capsule.KindAuto,
+		CreatedAt: time.Now().UTC(),
+		Repo:      capsule.RepoState{Name: "myrepo", Branch: "main"},
+		Work:      capsule.WorkState{NormalizedGoal: "fix-auth"},
+		Session:   capsule.SessionState{TargetApp: "claude"},
+	}
+	if got := findDedupeTarget(store, incoming); got != nil {
+		t.Errorf("expected no dedup match across branches, got %q", got.ID)
+	}
+}
+
+func TestFindDedupeTargetNoMatchBeyondWindow(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	store := capsule.NewStore(dir)
+
+	old := capsule.Capsule{
+		ID:        "cap_003",
+		Kind:      capsule.KindAuto,
+		CreatedAt: time.Now().UTC().Add(-15 * time.Minute), // outside 10-min window
+		Repo:      capsule.RepoState{Name: "myrepo", Branch: "main"},
+		Work:      capsule.WorkState{NormalizedGoal: "fix-auth"},
+		Session:   capsule.SessionState{TargetApp: "claude"},
+	}
+	if err := store.Save(old); err != nil {
+		t.Fatalf("store.Save: %v", err)
+	}
+
+	incoming := capsule.Capsule{
+		Kind:      capsule.KindAuto,
+		CreatedAt: time.Now().UTC(),
+		Repo:      capsule.RepoState{Name: "myrepo", Branch: "main"},
+		Work:      capsule.WorkState{NormalizedGoal: "fix-auth"},
+		Session:   capsule.SessionState{TargetApp: "claude"},
+	}
+	if got := findDedupeTarget(store, incoming); got != nil {
+		t.Errorf("expected no dedup match outside 10-min window, got %q", got.ID)
 	}
 }

@@ -207,12 +207,14 @@ type Config struct {
 	ProjectPath           string
 	HasUserConfig         bool
 	HasProjectConfig      bool
+	Watch                 WatchConfig
 	DefaultTargetSource   string
 	DefaultRoleSource     string
 	DefaultPresetSource   string
 	TranslationSource     string
 	TranslationTarget     string
 	APIKeySource          string
+	Memory                MemoryConfig
 }
 
 type TargetConfig struct {
@@ -265,6 +267,25 @@ type LauncherConfig struct {
 	SubmitMode   string   `toml:"submit_mode"`
 }
 
+type WatchConfig struct {
+	Enabled       bool `toml:"enabled"`
+	Notify        bool `toml:"notify"`
+	MediumSignals bool `toml:"medium_signals"`
+}
+
+type MemoryConfig struct {
+	Enabled               bool   `toml:"enabled"`
+	AutoSave              bool   `toml:"auto_save"`
+	PruneOnWrite          bool   `toml:"prune_on_write"`
+	PruneOnResume         bool   `toml:"prune_on_resume"`
+	CapsuleRetentionDays  int    `toml:"capsule_retention_days"`
+	AutosaveRetentionDays int    `toml:"autosave_retention_days"`
+	RunRetentionDays      int    `toml:"run_retention_days"`
+	MaxCapsulesPerRepo    int    `toml:"max_capsules_per_repo"`
+	MaxStorageMBPerRepo   int    `toml:"max_storage_mb_per_repo"`
+	StoreDiff             string `toml:"store_diff"`
+}
+
 type DefaultsUpdate struct {
 	APIKey                *string
 	TranslationSourceLang *string
@@ -289,6 +310,8 @@ type fileConfig struct {
 	Profiles              map[string]ProfileConfig        `toml:"profiles"`
 	Shortcuts             map[string]ShortcutConfig       `toml:"shortcuts"`
 	Launchers             map[string]fileLauncherConfig   `toml:"launchers"`
+	Watch                 *WatchConfig                    `toml:"watch"`
+	Memory                MemoryConfig                    `toml:"memory"`
 }
 
 type fileRoleConfig struct {
@@ -312,6 +335,7 @@ func Load() (Config, error) {
 		Profiles:              defaultProfiles(),
 		Shortcuts:             defaultShortcuts(),
 		Launchers:             defaultLaunchers(),
+		Memory:                defaultMemoryConfig(),
 		TranslationSourceLang: "auto",
 		TranslationTargetLang: "en",
 	}
@@ -694,6 +718,39 @@ func applyFileConfig(cfg *Config, raw fileConfig, source string, includeAPIKey b
 		cfg.Launchers[trimmedName] = normalizeLauncher(cfg.Launchers[trimmedName], launcher)
 	}
 
+	// Watch config — direct assignment from file (last file wins)
+	if raw.Watch != nil {
+		cfg.Watch = *raw.Watch
+	}
+
+	if raw.Memory.CapsuleRetentionDays != 0 || raw.Memory.AutosaveRetentionDays != 0 ||
+		raw.Memory.StoreDiff != "" || raw.Memory.MaxCapsulesPerRepo != 0 ||
+		raw.Memory.RunRetentionDays != 0 || raw.Memory.MaxStorageMBPerRepo != 0 {
+		if raw.Memory.CapsuleRetentionDays != 0 {
+			cfg.Memory.CapsuleRetentionDays = raw.Memory.CapsuleRetentionDays
+		}
+		if raw.Memory.AutosaveRetentionDays != 0 {
+			cfg.Memory.AutosaveRetentionDays = raw.Memory.AutosaveRetentionDays
+		}
+		if raw.Memory.RunRetentionDays != 0 {
+			cfg.Memory.RunRetentionDays = raw.Memory.RunRetentionDays
+		}
+		if raw.Memory.MaxCapsulesPerRepo != 0 {
+			cfg.Memory.MaxCapsulesPerRepo = raw.Memory.MaxCapsulesPerRepo
+		}
+		if raw.Memory.MaxStorageMBPerRepo != 0 {
+			cfg.Memory.MaxStorageMBPerRepo = raw.Memory.MaxStorageMBPerRepo
+		}
+		if strings.TrimSpace(raw.Memory.StoreDiff) != "" {
+			cfg.Memory.StoreDiff = strings.TrimSpace(raw.Memory.StoreDiff)
+		}
+		// booleans: file always wins if [memory] section is present
+		cfg.Memory.Enabled = raw.Memory.Enabled
+		cfg.Memory.AutoSave = raw.Memory.AutoSave
+		cfg.Memory.PruneOnWrite = raw.Memory.PruneOnWrite
+		cfg.Memory.PruneOnResume = raw.Memory.PruneOnResume
+	}
+
 	return nil
 }
 
@@ -756,6 +813,21 @@ func normalizeLauncher(base LauncherConfig, launcher fileLauncherConfig) Launche
 		Args:         args,
 		PasteDelayMS: pasteDelay,
 		SubmitMode:   submitMode,
+	}
+}
+
+func defaultMemoryConfig() MemoryConfig {
+	return MemoryConfig{
+		Enabled:               true,
+		AutoSave:              true,
+		PruneOnWrite:          true,
+		PruneOnResume:         true,
+		CapsuleRetentionDays:  30,
+		AutosaveRetentionDays: 14,
+		RunRetentionDays:      7,
+		MaxCapsulesPerRepo:    200,
+		MaxStorageMBPerRepo:   256,
+		StoreDiff:             "stat",
 	}
 }
 

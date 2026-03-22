@@ -3,12 +3,14 @@ package deep
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"regexp"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/x/term"
 	"github.com/helloprtr/poly-prompt/internal/deep/artifact"
 	deepevent "github.com/helloprtr/poly-prompt/internal/deep/event"
 	"github.com/helloprtr/poly-prompt/internal/deep/llm"
@@ -83,8 +85,11 @@ const (
 // path can be extracted from the source text.
 const inspectChangedFiles = "<inspect-changed-files>"
 
-// fileRefRe matches relative file paths (e.g. "handlers/user.go").
-var fileRefRe = regexp.MustCompile(`(?:[A-Za-z0-9_.-]+/)*[A-Za-z0-9_.-]+\.[A-Za-z0-9]+`)
+// fileRefRe matches relative file paths that contain at least one directory
+// component (e.g. "handlers/user.go").  Requiring a "/" prevents version
+// strings ("v0.8.0"), plain words ("README.md"), and date tokens
+// ("2024-01-15") from being mistaken for source-file references.
+var fileRefRe = regexp.MustCompile(`[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+\.[A-Za-z0-9]+`)
 
 // AppendEvent appends a structured event to the run's event log.
 func AppendEvent(path string, e Event) error {
@@ -200,37 +205,53 @@ func executePatchRunWithGraph(
 		files = inferFilesFromHistory(opts.HistoryEntry)
 	}
 	if len(files) == 0 {
+		// No concrete file path found in source or history.  Fall back to the
+		// sentinel so workers can still operate using git diff as context, but
+		// surface a visible warning so the user knows file targeting is absent.
+		fmt.Fprintf(os.Stderr, "prtr: no file references found in source — workers will use git diff as context\n")
 		files = []string{inspectChangedFiles}
 	}
 
-	// ── Progress helper ─────────────────────────────────────────────────────
-	emit := func(step string, idx int, msg string) {
-		if opts.Progress != nil {
-			opts.Progress(Progress{Step: step, Index: idx, Total: 5, Message: msg})
-		}
-	}
-
-	// ── Planning phase ──────────────────────────────────────────────────────
-	run.Status = RunStatusPlanning
-	run.UpdatedAt = time.Now().UTC()
-	if err := aw.WriteManifest(run); err != nil {
-		return Result{}, err
-	}
-	emit("plan", 1, "capturing the run plan")
-
 	// ── Graph execution ─────────────────────────────────────────────────────
+	// Set status to Running immediately before handing off to the graph.
+	// A separate Planning status is not written here because it would be
+	// overwritten synchronously before any external reader could observe it.
 	run.Status = RunStatusRunning
 	run.UpdatedAt = time.Now().UTC()
 	if err := aw.WriteManifest(run); err != nil {
 		return Result{}, err
 	}
 
-	emit("patch", 2, "building a patch draft")
-	emit("critique", 3, "reviewing risks")
-	emit("tests", 4, "drafting verification steps")
-	emit("reconcile", 5, "packaging the bundle")
+	// ── TUI wiring ──────────────────────────────────────────────────────────
+	ch := make(chan deeprun.Progress, 10)
+	isTTY := term.IsTerminal(os.Stdout.Fd())
+
+	tuiDone := make(chan struct{})
+	if isTTY {
+		go func() {
+			defer close(tuiDone)
+			_ = RunPipelineTUI(ch, []string{"planner", "patcher", "critic", "tester", "reconciler"})
+		}()
+	} else {
+		close(tuiDone)
+	}
+
+	// Override Progress callback to feed the TUI channel.
+	userProgress := opts.Progress
+	opts.Progress = func(p deeprun.Progress) {
+		if isTTY {
+			ch <- p
+		} else {
+			fmt.Fprintf(os.Stderr, "[%d/%d] %s: %s\n", p.Index, p.Total, p.Step, p.Message)
+		}
+		if userProgress != nil {
+			userProgress(p)
+		}
+	}
 
 	gr, err := graphFactory().Run(ctx, opts, aw, files)
+	close(ch)
+	<-tuiDone
 	if err != nil {
 		// Hard blocker failure — mark run as failed.
 		run.Status = RunStatusFailed

@@ -29,6 +29,73 @@ All notable product-facing changes to `prtr` are documented in this file.
 ### Deprecated (hidden, still functional)
 - `prtr go`, `swap`, `take`, `again`, `start`, `learn` — use session commands instead
 
+---
+
+## v0.8.1 - 2026-03-19
+
+### Bug Fixes
+
+- **Deep pipeline — file-reference extraction**: `fileRefRe` now requires at least one directory separator (`/`) before matching, eliminating false positives from version strings (`v0.8.0`), dates (`2024-01-15`), and plain filenames without a path component.
+- **Deep pipeline — silent fallback**: when no file references can be extracted from source or history, a stderr warning is now emitted (`"no file references found — workers will use git diff as context"`) instead of silently substituting the sentinel.
+- **Deep pipeline — redundant status write**: removed the immediately-overwritten `RunStatusPlanning` manifest write; the manifest is now written once with `RunStatusRunning` immediately before `graph.Run`.
+- **`history.Latest()`**: now scans all entries for the maximum `CreatedAt` instead of relying on append order, which is not guaranteed to be monotone after `Update` calls.
+- **`prtr watch` help text**: corrected `Short` description from "background" to "foreground"; adds guidance to run in a separate terminal or with `&`.
+- **`prtr watch --off` socket race**: now waits up to 2 s for the process to exit before removing the PID file, preventing `address already in use` on rapid restart.
+- **`prtr resume --to` target not persisted**: `runResume` now updates `Session.TargetApp` in the capsule when `--to` overrides the saved target, so `prtr status` and subsequent resumes reflect the app that was actually used.
+- **Corrupt capsule silent skip**: `capsule.Store.List()` now logs corrupt entries to stderr (`"skipping corrupt capsule <id>: <err>"`) instead of dropping them silently.
+- **`prtr status` missing store path**: `runCapsuleStatus` now prints the capsule store directory as the first output line.
+- **Shell hook `ZDOTDIR` support**: `DetectShellConfig` now honours `$ZDOTDIR` for zsh users; also falls back to `~/.bash_profile` when `~/.bashrc` is absent.
+
+---
+
+## v0.8.0 - 2026-03-18
+
+### Highlights
+
+- Introduced the **Work Capsule** system: `prtr save`, `prtr resume`, `prtr status`, `prtr list`, and `prtr prune` let you capture and restore work state across sessions and AI tools.
+- Auto-save after every successful `go`, `swap`, `again`, and `take` run — work is never lost between context switches.
+- Drift detection on resume: if the repo branch, HEAD, or working tree changed since the capsule was saved, a warning is embedded in the resume prompt.
+- Added `prtr watch`: a background context watcher with a shell hook for automatic repo context tracking.
+- Easter egg aliases: `dip` → `take --deep`, `taste` → `inspect`, `plate` → `swap`, `marinate` → `learn`, `prep` → `start`.
+
+### Why This Release Matters
+
+`v0.8.0` solves the context-switching problem in multi-session AI work. When you break from a task mid-way and return hours or days later — possibly to a different AI tool — prtr can now reconstruct exactly where you left off: the branch, the last prompt, the open todos, and a diff of what's changed since. The result is a structured resume prompt delivered directly to the AI app of your choice, drift warnings included.
+
+### What Changed
+
+**Work Capsule (`prtr save` / `prtr resume` / `prtr status` / `prtr list` / `prtr prune`)**
+- `prtr save [label] [--note]` — capture repo branch, HEAD SHA, last run session, and open todos as a capsule
+- `prtr resume [id] [--to app] [--dry-run]` — restore a capsule, compute drift, deliver a structured resume prompt
+- `prtr status` — show the latest capsule and current repo drift at a glance
+- `prtr list` — list all capsules for the current repo (most recent first, pinned marked with ★)
+- `prtr prune [--older-than 30d] [--dry-run]` — retention-policy cleanup; pinned capsules are never deleted
+- Auto-save goroutine in `executePrompt`: every successful run writes or deduplicates an `[auto]` capsule
+- Dedup window: same repo + branch + normalized goal + target app within 10 minutes updates the existing auto-capsule instead of creating a new one
+- Config keys: `memory.enabled`, `memory.retention`, `memory.prune_on_write`, `memory.prune_on_resume`
+
+**Context watcher (`prtr watch`)**
+- Installs a shell hook in `~/.zshrc` or `~/.bashrc` on first start
+- Runs as a foreground daemon; `prtr watch --off` sends SIGTERM and removes the PID file
+- `prtr watch --status` reports active/inactive state and PID
+- Not available on Windows (stub via build tag)
+
+**Easter egg command aliases**
+- `dip` → `take --deep`
+- `taste` → `inspect`
+- `plate` → `swap`
+- `marinate` → `learn`
+- `prep` → `start`
+
+### Product Value
+
+- No more manual context reconstruction when resuming work
+- Drift-aware resume prompt catches branch switches and uncommitted changes automatically
+- Retention policy prevents capsule accumulation without manual cleanup
+- Shell hook keeps repo context fresh without manual `prtr learn` runs
+
+---
+
 ## v0.7.0 - 2026-03-17
 
 ### Highlights
@@ -78,6 +145,141 @@ All notable product-facing changes to `prtr` are documented in this file.
 - Consistent prompt quality regardless of which AI tool receives it
 - Local artifact trail for every deep run (plan, diff, risks, tests)
 - Zero API key required to use the deep pipeline; `--llm` is an optional enhancement
+
+## v0.6.3 - 2026-03-16
+
+### Highlights
+
+- Removed the hard failure path when no DeepL key is configured; multilingual routing now degrades gracefully instead of aborting.
+- Updated translation policy so a missing translator returns the original input with a skipped-translation decision instead of an error.
+- Refreshed `setup`, `go`, and `demo` messaging to make the setup-free first run clearer.
+- Tightened tests and onboarding copy around the no-key path.
+
+### Why This Release Matters
+
+`v0.6.3` lowers the activation cost for new users. People can now try the command-layer loop with `prtr demo` or English `--dry-run` flows immediately, while multilingual translation still upgrades cleanly when a DeepL key is configured later.
+
+### Product Value
+
+- Smoother first-run experience
+- Fewer avoidable translation setup failures
+- Clearer onboarding for setup-free evaluation
+
+## v0.6.2 - 2026-03-16
+
+### Highlights
+
+- Added a clearer open-copy handoff summary to both `prtr doctor` and `prtr platform`.
+- Added compact handoff notes after `go` and `swap` so launch, paste, and manual-send expectations are visible immediately.
+- Enabled `--submit auto` on macOS for one-step paste-and-send flows.
+- Added explicit macOS terminal preference reporting, plus `PRTR_TERMINAL_APP` override guidance in diagnostics and help text.
+- Updated docs and site messaging around submit choices and supported macOS open-copy terminals.
+
+### Why This Release Matters
+
+`v0.6.2` makes the handoff layer easier to trust in real use. Users can now see whether prtr will open, paste, or wait for manual send before they get stuck, macOS users can opt into automatic submit when they want it, and terminal preference is no longer hidden behind hardcoded assumptions.
+
+### Product Value
+
+- Better handoff visibility before delivery
+- Clearer terminal and submit behavior on macOS
+- Stronger operator confidence in the send loop
+
+## v0.6.1 - 2026-03-16
+
+### Highlights
+
+- Hardened the GitHub release workflow around Node 24 compatible action versions.
+- Replaced the GoReleaser GitHub Action step with a pinned GoReleaser CLI install and direct release execution.
+- Kept the `v0.6.0` public surface intact while making the next release tag safer to ship.
+
+### Why This Release Matters
+
+`v0.6.1` is a release-operations safety cut. It does not change the public product loop, but it removes avoidable release warnings, pins the release toolchain more tightly, and makes future GitHub Releases more predictable.
+
+### Product Value
+
+- Safer release automation
+- More predictable packaging
+- Less friction for follow-up releases
+
+## v0.6.0 - 2026-03-16
+
+### Highlights
+
+- Added mode-aware next-step suggestions after `prtr go`.
+- Expanded `prtr learn` so default runs now update both `.prtr/termbook.toml` and `.prtr/memory.toml`.
+- Added dual preview output for `prtr learn --dry-run` so termbook and memory are both visible before saving.
+- Added richer `learn` save summaries with new protected term counts, repo summary, and representative guidance lines.
+- Added release-ready demo source files and launch checklists so the public loop can be shown and shipped consistently.
+
+### Why This Release Matters
+
+`v0.6.0` is the release where the continuity story becomes visible in both the product and the launch package. The CLI suggests stronger next steps after `go`, `learn` updates the repo memory layer by default, and the release includes demo assets and operator checklists that make the loop easier to show, ship, and repeat.
+
+### Product Value
+
+- Stronger continuity between prompt steps
+- Better learn-time repo guidance
+- Release assets that make the product easier to demonstrate
+
+## v0.5.1 - 2026-03-16
+
+### Highlights
+
+- Unified README, usage docs, installation guide, site hero, and CLI help around the same command-layer message.
+- Reordered the public loop around `go -> swap -> take -> learn`.
+- Standardized the public `take` action list to `patch`, `test`, `commit`, `summary`, `clarify`, `issue`, and `plan`.
+- Reframed `swap` as direct app comparison, `take` as the answer-to-action layer, and `learn` as repo memory instead of a narrow termbook helper.
+
+### Why This Release Matters
+
+`v0.5.1` is the release where the public product story finally matches what `prtr` already does well. The docs, site, and help output now explain the same loop in the same order, which makes the first successful use and the follow-up path easier to understand.
+
+### Product Value
+
+- Clearer command-layer positioning
+- Easier onboarding into the loop
+- More consistent docs and help output
+
+## v0.5.0 - 2026-03-15
+
+### Highlights
+
+- Added `prtr exec` for headless target execution.
+- Added `prtr server` as the alpha orchestration surface.
+- Promoted the README and Astro site to the next-action command layer positioning.
+- Hardened first-run and readiness behavior around `start`, `doctor`, `sync`, and site onboarding copy.
+
+### Why This Release Matters
+
+`v0.5.0` is the point where `prtr` becomes both more automatable and more trustworthy for new users. The new automation surfaces are available, and the first-run path matches the product story more closely when people actually try it.
+
+### Product Value
+
+- New automation and orchestration entry points
+- Better first-run trust
+- Stronger command-layer positioning
+
+## v0.4.5 - 2026-03-15
+
+### Highlights
+
+- Added `prtr platform` with optional JSON output.
+- Strengthened platform surface detection across macOS, Linux, and Windows sessions.
+- Reused the same platform matrix logic in both `doctor` and `platform`.
+
+## v0.4.3 - 2026-03-15
+
+### Highlights
+
+- Added `prtr sync init`, `prtr sync status`, and `prtr sync`.
+- Introduced repo memory loading from `.prtr/memory.toml`.
+- Added deterministic mode-aware routing metadata and richer history fields.
+
+### Why This Release Matters
+
+`v0.4.3` gives `prtr` a shared repo-native guidance layer. Instead of relying only on ad hoc prompts, you can now maintain canonical guidance under `.prtr/` and sync it into vendor-facing files for Claude, Gemini, and Codex.
 
 ## v0.4.2 - 2026-03-15
 

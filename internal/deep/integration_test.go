@@ -64,7 +64,7 @@ func TestScenario1_AllProgressStepsEmitted(t *testing.T) {
 	}
 
 	// All five step names must be present in order.
-	wantSteps := []string{"plan", "patch", "critique", "tests", "reconcile"}
+	wantSteps := []string{"planner", "patcher", "critic", "tester", "reconciler"}
 	for _, want := range wantSteps {
 		found := false
 		for _, got := range steps {
@@ -86,7 +86,7 @@ func TestScenario1_AllProgressStepsEmitted(t *testing.T) {
 	}
 
 	// Step indices must match expected 1-5.
-	expectedIndexed := map[string]int{"plan": 1, "patch": 2, "critique": 3, "tests": 4, "reconcile": 5}
+	expectedIndexed := map[string]int{"planner": 1, "patcher": 2, "critic": 3, "tester": 4, "reconciler": 5}
 	for _, step := range steps {
 		for name, idx := range expectedIndexed {
 			if strings.HasPrefix(step, name) {

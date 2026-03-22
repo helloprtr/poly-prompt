@@ -96,6 +96,24 @@ func (g *Graph) Run(ctx context.Context, opts deeprun.Options, aw *artifact.Writ
 	}, nil
 }
 
+// workerIndex returns the 1-based index of a worker in the pipeline.
+func workerIndex(name string) int {
+	switch name {
+	case "planner":
+		return 1
+	case "patcher":
+		return 2
+	case "critic":
+		return 3
+	case "tester":
+		return 4
+	case "reconciler":
+		return 5
+	default:
+		return 0
+	}
+}
+
 // runOne runs a single worker and applies hard/soft blocker semantics.
 func (g *Graph) runOne(w Worker, s *State) error {
 	_ = deepevent.Append(s.AW.EventLogPath(), deepevent.Event{
@@ -103,6 +121,16 @@ func (g *Graph) runOne(w Worker, s *State) error {
 		Timestamp: time.Now().UTC(),
 		Data:      map[string]any{"worker": w.Name()},
 	})
+
+	// Fire progress when worker actually starts.
+	if s.Opts.Progress != nil {
+		s.Opts.Progress(deeprun.Progress{
+			Step:    w.Name(),
+			Index:   workerIndex(w.Name()),
+			Total:   5,
+			Message: "starting",
+		})
+	}
 
 	runErr := w.Run(s.Ctx, s)
 

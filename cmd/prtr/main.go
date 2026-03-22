@@ -19,6 +19,7 @@ import (
 	"github.com/helloprtr/poly-prompt/internal/repoctx"
 	"github.com/helloprtr/poly-prompt/internal/session"
 	"github.com/helloprtr/poly-prompt/internal/translate"
+	"github.com/helloprtr/poly-prompt/internal/watcher"
 )
 
 var version = "dev"
@@ -70,7 +71,29 @@ func main() {
 		SessionStore:    session.NewStore(sessionDir),
 	})
 
-	if err := application.Execute(context.Background(), os.Args[1:], os.Stdin, stdinPiped); err != nil {
+	args := os.Args[1:]
+
+	// No-args + no stdin → launch dashboard
+	if len(args) == 0 && !stdinPiped {
+		cfg, _ := config.Load()
+		watchStatus := "inactive"
+		if pidPath, err := watcher.PIDPath(); err == nil {
+			if _, err := os.Stat(pidPath); err == nil {
+				watchStatus = "active"
+			}
+		}
+		branch := ""
+		if s, err := repoctx.New().Collect(context.Background()); err == nil {
+			branch = s.Branch
+		}
+		if err := runDashboard(cfg.DefaultTarget, watchStatus, branch); err != nil {
+			fmt.Fprintln(os.Stderr, "prtr:", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	if err := application.Execute(context.Background(), args, os.Stdin, stdinPiped); err != nil {
 		if errors.Is(err, editor.ErrCanceled) {
 			os.Exit(130)
 		}

@@ -202,12 +202,30 @@ func (a *App) launchHandoff(ctx context.Context, sess session.Session, model str
 // runSessionCreate runs the interactive new-session creation flow.
 // mode and files may be pre-populated from command args.
 // reader must be a *bufio.Reader wrapping the stdin io.Reader.
-func (a *App) runSessionCreate(ctx context.Context, mode session.Mode, files []string, reader *bufio.Reader) error {
-	fmt.Fprint(a.stderr, "무엇을 하려 하나요? ")
-	goal, _ := reader.ReadString('\n')
-	goal = strings.TrimSpace(goal)
+func (a *App) runSessionCreate(ctx context.Context, mode session.Mode, args []string, reader *bufio.Reader) error {
+	// Separate goal text from file paths: args that look like file paths
+	// (contain "/" or a known extension) are treated as files; all others
+	// are joined as the preloaded goal.
+	var preGoal []string
+	var files []string
+	for _, arg := range args {
+		if strings.Contains(arg, "/") || strings.Contains(arg, ".go") ||
+			strings.Contains(arg, ".ts") || strings.Contains(arg, ".js") ||
+			strings.Contains(arg, ".py") || strings.Contains(arg, ".md") {
+			files = append(files, arg)
+		} else {
+			preGoal = append(preGoal, arg)
+		}
+	}
+
+	goal := strings.Join(preGoal, " ")
 	if goal == "" {
-		return fmt.Errorf("작업 목표를 입력해주세요")
+		fmt.Fprint(a.stderr, "무엇을 하려 하나요? ")
+		goal, _ = reader.ReadString('\n')
+		goal = strings.TrimSpace(goal)
+		if goal == "" {
+			return fmt.Errorf("작업 목표를 입력해주세요")
+		}
 	}
 
 	if len(files) == 0 {
@@ -306,11 +324,7 @@ func (a *App) runHandoff(ctx context.Context, model string) error {
 	return a.launchHandoff(ctx, sess, model)
 }
 
-// runCapsuleStatus is a stub for Work Capsule drift info.
-// TODO(v1.1): integrate Work Capsule drift reporting here.
-func (a *App) runCapsuleStatus(_ context.Context) error { return nil }
-
-func (a *App) runStatus(ctx context.Context) error {
+func (a *App) runStatus(_ context.Context) error {
 	sess, err := a.resolveCurrentSession()
 	if err == nil {
 		root, _ := a.resolveRepoRoot()
@@ -335,7 +349,12 @@ func (a *App) runStatus(ctx context.Context) error {
 		fmt.Fprintf(a.stdout, "[현재 세션]\n세션 없음\n\n")
 	}
 
-	return a.runCapsuleStatus(ctx)
+	// runCapsuleStatus is best-effort: a missing git repo or empty capsule
+	// store should not prevent the session section from being shown.
+	if err := a.runCapsuleStatus(); err != nil {
+		_, _ = fmt.Fprintf(a.stderr, "capsule status: %v\n", err)
+	}
+	return nil
 }
 
 func summarizeDiff(diff string) string {
