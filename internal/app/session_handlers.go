@@ -170,20 +170,20 @@ func (a *App) captureSessionOnExit(sess session.Session) error {
 	// Auto-capture last AI response from model's JSONL file (best-effort).
 	// Skip if TargetModel is empty — session was not yet bound to a model.
 	if sess.TargetModel != "" {
-		cwd, err := os.Getwd()
-		if err != nil {
-			cwd, _ = a.resolveRepoRoot() // fallback to repo root
+		if cwd, err := os.Getwd(); err == nil {
+			var resp string
+			switch sess.TargetModel {
+			case "claude":
+				resp = session.ReadClaudeResponse("", cwd)
+			case "codex":
+				resp = session.ReadCodexResponse("")
+				// default: no JSONL reader for this model yet
+			}
+			if resp != "" {
+				a.saveLastResponse(resp)
+			}
 		}
-		var resp string
-		switch sess.TargetModel {
-		case "claude":
-			resp = session.ReadClaudeResponse("", cwd)
-		case "codex":
-			resp = session.ReadCodexResponse("")
-		}
-		if resp != "" {
-			a.saveLastResponse(resp)
-		}
+		// os.Getwd() failure is silent — capture is best-effort
 	}
 
 	sess.LastActivity = time.Now().UTC()
