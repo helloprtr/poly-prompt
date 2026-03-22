@@ -2,21 +2,15 @@
 
 [![Project Site](https://img.shields.io/badge/project%20site-live-ff7a1a?style=flat-square)](https://helloprtr.github.io/poly-prompt/)
 [![Docs Hub](https://img.shields.io/badge/docs-pages-58f2c5?style=flat-square)](https://helloprtr.github.io/poly-prompt/docs/)
-[![Latest Release](https://img.shields.io/badge/release-v0.6.3-1b2c49?style=flat-square)](https://github.com/helloprtr/poly-prompt/releases/tag/v0.6.3)
+[![Latest Release](https://img.shields.io/badge/release-v1.0.0-1b2c49?style=flat-square)](https://github.com/helloprtr/poly-prompt/releases/tag/v1.0.0)
 
 [English README](README.md) · [한국어 README](README.ko.md) · [문서 허브](https://helloprtr.github.io/poly-prompt/docs/) · [릴리스](https://github.com/helloprtr/poly-prompt/releases)
 
 ![prtr banner](images/prtr-banner.png)
 
-**한 줄 소개:** `prtr`는 의도, 로그, diff를 Claude, Codex, Gemini용 다음 AI 액션으로 바꿔주는 커맨드 레이어입니다.
+**한 줄 소개:** `prtr`는 AI 작업 세션 매니저입니다. 집중 세션을 시작하고, Claude에게 드라이브를 맡기고, 진행 상황을 체크포인트로 저장하고, Gemini나 Codex로 깔끔하게 넘깁니다.
 
-`prtr`는 첫 프롬프트를 더 빨리 보내게 해줄 뿐 아니라, 그다음 루프까지 이어지게 해줍니다. 같은 컨텍스트를 다시 조립하지 않고 한 번 라우팅한 뒤, 다른 AI 앱과 비교하고, 답변을 다음 구조화된 액션으로 넘길 수 있습니다.
-
-## 동작 화면
-
-![prtr go, swap, take 루프를 보여주는 애니메이션 데모](images/prtr-routing-history.gif)
-
-한국어 요청 한 번. 다른 AI 앱 비교 한 번. 다음 액션 생성 한 번. 프롬프트를 다시 붙이지 않아도 됩니다.
+`prtr`는 AI 루프 전반에서 지금 무엇을 작업 중인지 추적합니다. 세션을 시작하고, 진행 상황을 체크포인트로 남기고, 다른 모델에 넘기세요 — 컨텍스트를 손으로 다시 조립하지 않아도 됩니다.
 
 ## 1분 Quick Start
 
@@ -25,42 +19,38 @@ macOS + Homebrew:
 ```bash
 brew tap helloprtr/homebrew-tap
 brew install prtr
-prtr demo
-prtr go "explain this error" --dry-run
+prtr review internal/app/app.go
 ```
 
 Linux / Windows:
 
-[GitHub Releases](https://github.com/helloprtr/poly-prompt/releases)에서 플랫폼용 아카이브를 내려받아 `PATH`에 추가한 뒤, 위의 마지막 두 줄을 그대로 실행하면 됩니다.
+[GitHub Releases](https://github.com/helloprtr/poly-prompt/releases)에서 플랫폼용 아카이브를 내려받아 `PATH`에 추가한 뒤, 위의 마지막 줄을 그대로 실행하면 됩니다.
 
-실제 루프는 이렇게 시작합니다:
+실제 세션은 이렇게 시작합니다:
 
 ```bash
-npm test 2>&1 | prtr go fix "왜 테스트가 깨지는지 정확한 원인만 찾아줘"
-prtr swap gemini
-prtr take patch --deep
-prtr learn
+prtr edit internal/session/store.go   # 집중 수정 세션 시작
+prtr checkpoint "store 리팩토링 완료"  # 진행 상황 저장
+prtr @gemini                           # Gemini로 핸드오프
+prtr done                              # 세션 완료 처리
 ```
 
-`prtr demo`와 영어 `--dry-run` 흐름은 API 키 없이 바로 확인할 수 있습니다. 첫 실사용은 `prtr start`가 가장 편합니다.
+`--dry-run` 흐름은 API 키 없이 바로 확인할 수 있습니다.
 
-## 핵심 루프
+## 세션 커맨드
 
 | 커맨드 | 역할 |
 |---|---|
-| `go` | 의도와 증거를 Claude, Codex, Gemini용 프롬프트로 정리 |
-| `swap` | 마지막 실행을 다른 AI 앱으로 다시 전송 |
-| `take` | 복사한 AI 답변을 다음 구조화된 액션으로 변환 |
-| `take --deep` | 내부 멀티스텝 파이프라인을 거쳐 더 깊게 전달 |
-| `again` | 마지막 실행을 같은 흐름으로 재실행 |
-| `learn` | 번역 중에도 살아남는 리포 메모리와 보호 용어 구축 |
-| `inspect` | 보내기 전에 라우팅 결과를 미리 확인 |
-
-## 추가 시각 자료
-
-| setup + doctor | delivery + paste |
-|---|---|
-| ![prtr setup과 doctor 데모](images/prtr-setup-doctor.gif) | ![prtr 전달과 붙여넣기 데모](images/prtr-delivery-paste.gif) |
+| `prtr` | 진행 중인 세션 재개 또는 새 세션 시작 |
+| `prtr review [파일]` | 코드 리뷰 세션 시작 |
+| `prtr edit [파일]` | 집중 수정 세션 시작 |
+| `prtr fix [파일]` | 버그 수정 세션 시작 |
+| `prtr design [주제]` | 설계 세션 시작 |
+| `prtr @gemini` / `@codex` | 현재 세션을 다른 모델로 핸드오프 |
+| `prtr checkpoint "메모"` | 진행 상황 메모 저장 |
+| `prtr done` | 세션 완료 처리 |
+| `prtr sessions` | 현재 리포의 세션 목록 |
+| `prtr status` | 현재 세션 상태 및 git diff 요약 확인 |
 
 ## 문서
 

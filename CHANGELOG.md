@@ -17,6 +17,14 @@ All notable product-facing changes to `prtr` are documented in this file.
 ### Changed
 - `prtr` (bare) shows active session and offers to continue or start new
 - `prtr @model` requires an active session; exits with clear error if none
+- `prtr sessions` now filters to the current git repo; falls back to all sessions outside a repo
+
+### Fixed
+- `RepoHash` API simplified to infallible `string` return (SHA256 cannot fail)
+- `store.Complete` changed from O(n) list scan to O(1) direct save
+- `humanizeTime` now guards against negative durations from clock skew
+- `readLastResponse` now respects `XDG_CONFIG_HOME` via dependency injection
+- Removed dead routing functions (`isUIHeavy`, `isCodeHeavy`) and associated tests
 
 ### Deprecated (hidden, still functional)
 - `prtr go`, `swap`, `take`, `again`, `start`, `learn` — use session commands instead

@@ -78,6 +78,19 @@ func (a *App) runSessions(_ context.Context) error {
 	if err != nil {
 		return fmt.Errorf("list sessions: %w", err)
 	}
+
+	// Filter to current repo when inside a git repo; show all otherwise.
+	if root, err := a.resolveRepoRoot(); err == nil {
+		hash := session.RepoHash(root)
+		var filtered []session.Session
+		for _, s := range sessions {
+			if s.RepoHash == hash {
+				filtered = append(filtered, s)
+			}
+		}
+		sessions = filtered
+	}
+
 	if len(sessions) == 0 {
 		fmt.Fprintln(a.stdout, "세션 없음.")
 		return nil
