@@ -5,100 +5,85 @@ const basePath = import.meta.env.BASE_URL.endsWith("/")
   ? import.meta.env.BASE_URL
   : `${import.meta.env.BASE_URL}/`;
 
-const loopSteps = [
+const sessionSteps = [
   {
-    command: "go",
-    summary: "Send the first request fast.",
-    detail: "Turn raw intent into a ready prompt, launch the destination app, and keep the run in local history so the next step costs less.",
+    command: "prtr edit [files]",
+    summary: "Start a focused edit session.",
+    detail: "prtr saves your goal, the files you care about, and the current git SHA. It builds a structured prompt, copies it to your clipboard, and opens Claude.",
   },
   {
-    command: "swap",
-    summary: "Resend the same request to another AI app.",
-    detail: "Keep the workflow moving while comparing Claude, Codex, or Gemini without rebuilding the same context by hand.",
+    command: "prtr checkpoint",
+    summary: "Save a progress note mid-session.",
+    detail: "Each checkpoint records your note and the current git SHA. Checkpoints are included in every handoff prompt so the next AI knows exactly where you stopped.",
   },
   {
-    command: "take",
-    summary: "Convert an answer into the next action.",
-    detail: "Use copied model output as the seed for a patch, test, summary, issue, or plan prompt instead of rewriting it from scratch.",
+    command: "prtr @gemini",
+    summary: "Hand off to another AI model.",
+    detail: "prtr computes the git diff since the session started, folds in your last AI response, and builds a handoff prompt with full context — no manual reconstruction needed.",
   },
   {
-    command: "take --deep",
+    command: "prtr done",
+    summary: "Close the session.",
+    detail: "Mark the session complete. It stays in your history so you can reference what was accomplished and when.",
+  },
+  {
+    command: "prtr save",
+    summary: "Snapshot your work state (Work Capsule).",
+    detail: "Capture the current branch, HEAD SHA, last run, and open todos so you can resume days later — on the same machine or a different one — with drift detection built in.",
+  },
+  {
+    command: "prtr take --deep",
     summary: "Run the five-worker AI pipeline.",
-    detail: "Planner, patcher, critic, tester, and reconciler process the clipboard answer as structured evidence. Add --llm=claude|gemini|codex to optimize the delivery prompt for your AI tool.",
-  },
-  {
-    command: "again",
-    summary: "Replay the recent flow.",
-    detail: "Bring the last run back with the same app and mode, then optionally edit before delivery when you want a controlled repeat loop.",
-  },
-  {
-    command: "learn",
-    summary: "Protect project terms during translation.",
-    detail: "Build a repo-local memory so names, flags, and domain language stay stable across multilingual prompt generation.",
-  },
-  {
-    command: "inspect",
-    summary: "Show the assembled routing path.",
-    detail: "Open the raw composition layer when you want to see how translation, template shaping, and delivery decisions were made.",
+    detail: "Planner, patcher, critic, tester, and reconciler process the clipboard answer as structured evidence. Writes a plan, diff, risk report, and test plan as local artifacts.",
   },
 ];
 
-const demos = [
+const concepts = [
   {
-    title: "One proof loop",
-    description: "Start in Korean, feed in test output, compare another app, and hand the answer to the next action without rebuilding context.",
-    note: "This is the one scene the whole product story should keep repeating across the README, social cards, release posts, and docs.",
-    image: `${basePath}media/prtr-routing-history.gif`,
-    alt: "Animated demonstration of the prtr go, swap, and take workflow",
+    label: "Session",
+    text: "A focused work block tied to a git repo. Stores your goal, files, mode (review/edit/fix/design), base git SHA, and checkpoints. One active session per repo at a time.",
+  },
+  {
+    label: "Handoff",
+    text: "prtr @gemini or prtr @codex computes the git diff since the session started, adds your last AI response, and delivers a structured context prompt to the next model.",
+  },
+  {
+    label: "Work Capsule",
+    text: "A full work-state snapshot beyond a single session: branch, HEAD SHA, last run, and open todos. Resume with drift detection after days away or a branch switch.",
+  },
+  {
+    label: "Multilingual loop",
+    text: "Write your goal in Korean or any language. prtr translates via DeepL, routes to Claude/Codex/Gemini, and protects project terms from being translated away.",
   },
 ];
 
 const timeline = [
   {
-    version: "v0.1.x",
-    title: "Identity",
-    body: "prtr became the public name and the product got a clearer shape worth building around.",
+    version: "v1.0.0",
+    title: "AI Work Session Manager",
+    body: "Sessions become the primary unit of work. Start with review, edit, fix, or design — checkpoint progress, hand off between models, and resume without rebuilding context.",
   },
   {
-    version: "v0.2.x",
-    title: "Template foundation",
-    body: "Interactive editing, prompt-role shaping, and cross-platform delivery support made the tool more practical for real usage.",
+    version: "v0.8.x",
+    title: "Work Capsule and context watching",
+    body: "prtr save and resume snapshot full work state across sessions and tools. Drift detection warns when the branch or HEAD changed since the last save.",
   },
   {
-    version: "v0.3.x",
+    version: "v0.7.x",
+    title: "Deep execution pipeline",
+    body: "take --deep runs a five-worker pipeline (planner, patcher, critic, tester, reconciler) and writes structured local artifacts for every run.",
+  },
+  {
+    version: "v0.3–0.6",
     title: "Repeatable workflow",
-    body: "Setup, history, take, repo context, and learn moved prtr from one-shot prompting toward a reusable working loop.",
-  },
-  {
-    version: "v0.4.0",
-    title: "Command tree",
-    body: "The Cobra-based command surface made the product easier to grow, explain, and maintain as the loop became the real product story.",
-  },
-];
-
-const routingPoints = [
-  {
-    label: "Intent plus evidence",
-    text: "prtr is strongest when the request is paired with logs, stack traces, or repo context so the next AI action starts from concrete proof instead of a blank box.",
-  },
-  {
-    label: "App-aware handoff",
-    text: "The prompt is re-shaped for Claude, Codex, or Gemini instead of pretending every app wants the same wrapper.",
-  },
-  {
-    label: "Loop, not one-shot prompting",
-    text: "swap, take, learn, and inspect stay close so the answer becomes the next step instead of another dead-end prompt tab.",
-  },
-  {
-    label: "Provider-aware delivery",
-    text: "take --deep --llm=claude formats the prompt with XML semantic tags. take --deep --llm=gemini uses structured Markdown. take --deep --llm=codex uses numbered instructions with diff code blocks.",
+    body: "go, swap, take, again, learn, and inspect built the reusable command-layer loop that sessions now sit on top of.",
   },
 ];
 ---
 
 <BaseLayout
-  title="Repeatable AI Work Loop"
-  description="prtr is the command layer for AI work. Turn logs, diffs, and intent into the next AI action across Claude, Codex, and Gemini."
+  title="AI Work Session Manager"
+  description="prtr is the AI Work Session Manager. Start a focused work session, let Claude drive, checkpoint progress, and hand off cleanly to Gemini or Codex."
 >
   <main class="page-shell">
     <header class="topbar">
@@ -107,8 +92,8 @@ const routingPoints = [
         <span class="brand-copy">poly-prompt</span>
       </a>
       <nav class="topnav" aria-label="Primary">
-        <a href="#loop">Core loop</a>
-        <a href="#demos">Proof demo</a>
+        <a href="#session">Session</a>
+        <a href="#concepts">Concepts</a>
         <a href={`${basePath}docs/`}>Docs</a>
         <a href="#timeline">Timeline</a>
       </nav>
@@ -116,22 +101,22 @@ const routingPoints = [
 
     <section class="hero">
       <div class="hero-copy">
-        <p class="eyebrow">The command layer for AI work.</p>
-        <h1>Turn intent and evidence into the next AI action.</h1>
+        <p class="eyebrow">AI Work Session Manager</p>
+        <h1>Start focused. Stay in context. Hand off cleanly.</h1>
         <p class="hero-text">
-          prtr turns logs, diffs, and intent into the next AI action across Claude, Codex, and Gemini. The
-          first prompt matters, but the real product is the loop after it: go, swap, take, learn, and inspect.
+          prtr keeps track of your task goal, the files you care about, your progress notes, and the git diff —
+          and builds the right prompt when you need it. Switch from Claude to Gemini without rebuilding context by hand.
         </p>
         <div class="hero-actions">
-          <a class="button button-primary" href="https://github.com/helloprtr/poly-prompt#try-it-in-60-seconds">Try the 60s path</a>
+          <a class="button button-primary" href="https://github.com/helloprtr/poly-prompt#install-in-60-seconds">Install in 60s</a>
           <a class="button button-secondary" href={`${basePath}docs/`}>Open docs hub</a>
           <a class="button button-tertiary" href="https://github.com/helloprtr/poly-prompt">Read the README</a>
           <a class="button button-ghost" href="https://github.com/helloprtr/poly-prompt/releases">See releases</a>
         </div>
         <ul class="signal-strip" aria-label="Product signals">
-          <li>Logs plus intent in</li>
-          <li>Claude, Codex, Gemini out</li>
-          <li>swap, take, learn built in</li>
+          <li>One session per repo</li>
+          <li>Claude, Codex, Gemini handoff</li>
+          <li>Git diff built into every prompt</li>
         </ul>
       </div>
 
@@ -141,48 +126,52 @@ const routingPoints = [
             <span class="panel-dot"></span>
             <span class="panel-dot"></span>
             <span class="panel-dot"></span>
-            <span class="panel-title">repeatable-work-loop.sh</span>
+            <span class="panel-title">session-workflow.sh</span>
           </div>
           <div class="panel-body">
-            <p class="panel-caption">One loop. One command layer. One next action.</p>
-            <pre><code>npm test 2&gt;&amp;1 | prtr go fix "왜 깨지는지 정확한 원인만 찾아줘"
-prtr swap gemini
-prtr take patch --deep --llm=claude
-prtr learn</code></pre>
+            <p class="panel-caption">Start → Checkpoint → Hand off → Done.</p>
+            <pre><code>prtr edit internal/app/app.go
+# Claude opens with your goal and context
+
+prtr checkpoint "split help.go done"
+prtr @gemini
+# Gemini gets the full diff + your note
+
+prtr done</code></pre>
           </div>
         </div>
 
         <div class="mini-grid" aria-hidden="true">
           <div class="mini-card">
-            <strong>Proof</strong>
-            <span>logs + intent + route</span>
+            <strong>Session</strong>
+            <span>goal + files + git SHA</span>
           </div>
           <div class="mini-card">
-            <strong>Loop</strong>
-            <span>swap + take + compare</span>
+            <strong>Handoff</strong>
+            <span>diff + last response</span>
           </div>
           <div class="mini-card">
-            <strong>Memory</strong>
-            <span>learn + inspect</span>
+            <strong>Capsule</strong>
+            <span>save + resume + drift</span>
           </div>
         </div>
       </div>
     </section>
 
-    <section class="section" id="loop">
+    <section class="section" id="session">
       <div class="section-heading">
-        <p class="eyebrow">Core loop</p>
-        <h2>Six commands that make the next step cheaper</h2>
+        <p class="eyebrow">Session workflow</p>
+        <h2>Six commands that keep the AI loop moving</h2>
         <p>
-          The first request matters, but the second and third steps are where the real cost usually appears.
-          prtr keeps intent, context, and vocabulary moving forward without sending you back to prompt glue.
+          Each command does one thing clearly. Together they take a task from first intent to
+          final handoff without requiring you to paste context by hand at every step.
         </p>
       </div>
 
       <div class="loop-grid">
-        {loopSteps.map((step) => (
+        {sessionSteps.map((step) => (
           <article class="loop-card">
-            <p class="command-tag">prtr {step.command}</p>
+            <p class="command-tag">{step.command}</p>
             <h3>{step.summary}</h3>
             <p>{step.detail}</p>
           </article>
@@ -190,47 +179,21 @@ prtr learn</code></pre>
       </div>
     </section>
 
-    <section class="section" id="demos">
+    <section class="section two-column" id="concepts">
       <div class="section-heading">
-        <p class="eyebrow">See it work</p>
-        <h2>One proof loop that every launch surface should reuse</h2>
+        <p class="eyebrow">Key concepts</p>
+        <h2>Four ideas that explain how prtr works</h2>
         <p>
-          prtr does not need three unrelated demos on the first screen. The clearest story is one workflow:
-          logs into go, app comparison through swap, and the next action through take.
-        </p>
-      </div>
-
-      <div class="demo-stack">
-        {demos.map((demo) => (
-          <article class="demo-card">
-            <figure class="demo-figure">
-              <img src={demo.image} alt={demo.alt} loading="lazy" />
-            </figure>
-            <div class="demo-copy">
-              <p class="eyebrow">{demo.title}</p>
-              <h3>{demo.description}</h3>
-              <p>{demo.note}</p>
-            </div>
-          </article>
-        ))}
-      </div>
-    </section>
-
-    <section class="section two-column">
-      <div class="section-heading">
-        <p class="eyebrow">Routing explainer</p>
-        <h2>More than translation, less than a black box</h2>
-        <p>
-          The router is there to reduce friction, not to hide decisions. It helps users start fast while
-          leaving enough visibility to trust what changed between raw intent and delivery.
+          prtr is not a prompt template library. It is a session layer that holds your work
+          state and builds the right prompt for each step automatically.
         </p>
       </div>
 
       <div class="routing-list">
-        {routingPoints.map((point) => (
+        {concepts.map((c) => (
           <article class="routing-card">
-            <h3>{point.label}</h3>
-            <p>{point.text}</p>
+            <h3>{c.label}</h3>
+            <p>{c.text}</p>
           </article>
         ))}
       </div>
@@ -239,10 +202,10 @@ prtr learn</code></pre>
     <section class="section" id="timeline">
       <div class="section-heading">
         <p class="eyebrow">Version story</p>
-        <h2>The tool kept moving toward a repeatable loop</h2>
+        <h2>The tool kept moving toward a complete work loop</h2>
         <p>
-          The product did not grow as a bag of unrelated commands. Each release made prtr a little less
-          like a one-off prompt helper and a little more like a workflow layer.
+          Each release made prtr a little less like a one-shot prompt helper and a little more
+          like a full session layer that holds context across tools and time.
         </p>
       </div>
 
@@ -260,20 +223,20 @@ prtr learn</code></pre>
     <section class="section docs-bridge">
       <div class="section-heading">
         <p class="eyebrow">Docs hub</p>
-        <h2>Keep the landing page fast, move deeper in one click</h2>
+        <h2>Install steps, command guide, and reference in one place</h2>
         <p>
-          The project site now separates launch messaging from operator docs. Use the docs hub when you want
-          install steps, command guides, routing notes, or release history without digging through the repo.
+          The docs hub has everything you need to go from install to a real first session:
+          platform-specific install instructions, a full usage guide, and a complete command reference.
         </p>
       </div>
 
       <div class="bridge-card">
         <div>
           <p class="eyebrow">Included in /docs</p>
-          <h3>Quick start, usage, router guide, demo script, and release history</h3>
+          <h3>Quick start, session guide, Work Capsule reference, deep pipeline docs, and release history</h3>
           <p>
-            Built as a second page so the homepage stays focused on product proof while the docs page works
-            as the operator-facing entry point.
+            Built as a second page so the homepage stays focused on the product story while the
+            docs page works as the operator-facing entry point.
           </p>
         </div>
         <a class="button button-primary" href={`${basePath}docs/`}>Go to docs</a>
@@ -283,10 +246,10 @@ prtr learn</code></pre>
     <section class="section cta-panel">
       <div class="cta-copy">
         <p class="eyebrow">Start here</p>
-        <h2>Try it now, then unlock multilingual routing later</h2>
+        <h2>Install, verify, and start your first session</h2>
         <p>
-          Start with the safe preview and the English fast path. Use setup and doctor when you are ready to
-          turn multilingual routing and delivery automation on for daily use.
+          Install with Homebrew, run doctor to verify the setup, then start your first session.
+          No API key required for English-only flows — add DeepL later for multilingual routing.
         </p>
       </div>
       <div class="panel">
@@ -299,10 +262,8 @@ prtr learn</code></pre>
         <div class="panel-body">
           <pre><code>brew tap helloprtr/homebrew-tap
 brew install prtr
-prtr demo
-prtr go "explain this error" --dry-run
-prtr setup
-prtr doctor</code></pre>
+prtr doctor
+prtr edit myfile.go</code></pre>
         </div>
       </div>
     </section>
