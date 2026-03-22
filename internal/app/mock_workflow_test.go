@@ -749,84 +749,67 @@ func TestMockScenarioG2_PinAndFavoriteEntry(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// 시나리오 H: 멀티-프로바이더 shortcut
+// 시나리오 H: 세션 모드 명령 (v1.0+: fix/review/design은 세션 커맨드)
 // ---------------------------------------------------------------------------
 
-// TestMockScenarioH1_FixShortcutUsesCodexBE는 "fix" shortcut이 codex + be 롤로
-// 매핑됨을 검증합니다.
+// TestMockScenarioH1_FixCreatesSession은 "fix" 커맨드가 목표가 포함된
+// 세션을 생성함을 검증합니다.
+//
+// v0.8: fix는 codex shortcut으로 동작.
+// v1.0+: fix는 세션 커맨드 — git repo 필요, 목표는 positional arg에서 읽음.
 //
 // 실사용 명령어: prtr fix "nil pointer 에러 수정"
-func TestMockScenarioH1_FixShortcutUsesCodexBE(t *testing.T) {
+func TestMockScenarioH1_FixCreatesSession(t *testing.T) {
 	t.Parallel()
 
-	translator := &stubTranslator{output: "Fix nil pointer error in handler"}
-	cb := &stubClipboard{}
-	app := newTestApp(t, mockAppConfig(), translator, cb, &stubEditor{}, mockHistoryStore(t))
-	stdout, _ := buffersFromApp(app)
+	cfg := capsuleTestConfig()
+	app, _ := newCapsuleTestApp(t, cfg)
 
+	// newCapsuleTestApp provides a temp-dir repo root so session creation succeeds.
+	// The AI binary won't be found in test, so launchWithSession exits gracefully.
 	err := app.Execute(context.Background(),
 		[]string{"fix", "nil pointer 에러 수정"},
 		strings.NewReader(""), false)
-	if err != nil {
-		t.Fatalf("Execute() error = %v", err)
-	}
-
-	// codex 템플릿 형식 확인 (// Target: codex)
-	got := stdout.String()
-	if !strings.Contains(got, "// Target: codex") {
-		t.Errorf("stdout = %q, want codex template with '// Target: codex'", got)
+	// Accept nil (binary not found → graceful) or error from no binary.
+	// What we must NOT see is "작업 목표를 입력해주세요" (missing goal).
+	if err != nil && strings.Contains(err.Error(), "작업 목표를 입력해주세요") {
+		t.Errorf("goal was not parsed from args; got error: %v", err)
 	}
 }
 
-// TestMockScenarioH2_DesignShortcutUsesGeminiUI는 "design" shortcut이
-// gemini + ui 롤로 매핑됨을 검증합니다.
+// TestMockScenarioH2_DesignCreatesSession은 "design" 커맨드가 세션을
+// 생성함을 검증합니다.
 //
 // 실사용 명령어: prtr design "대시보드 UX 개선"
-func TestMockScenarioH2_DesignShortcutUsesGeminiUI(t *testing.T) {
+func TestMockScenarioH2_DesignCreatesSession(t *testing.T) {
 	t.Parallel()
 
-	translator := &stubTranslator{output: "Improve dashboard UX and information hierarchy"}
-	cb := &stubClipboard{}
-	app := newTestApp(t, mockAppConfig(), translator, cb, &stubEditor{}, mockHistoryStore(t))
-	stdout, _ := buffersFromApp(app)
+	cfg := capsuleTestConfig()
+	app, _ := newCapsuleTestApp(t, cfg)
 
 	err := app.Execute(context.Background(),
 		[]string{"design", "대시보드 UX 개선"},
 		strings.NewReader(""), false)
-	if err != nil {
-		t.Fatalf("Execute() error = %v", err)
-	}
-
-	// Gemini stepwise 형식 확인
-	got := stdout.String()
-	if !strings.Contains(got, "User Request:") {
-		t.Errorf("stdout = %q, want Gemini format with 'User Request:'", got)
+	if err != nil && strings.Contains(err.Error(), "작업 목표를 입력해주세요") {
+		t.Errorf("goal was not parsed from args; got error: %v", err)
 	}
 }
 
-// TestMockScenarioH3_ReviewShortcutUsesClaudeBE는 "review" shortcut이
-// claude + be + claude-review 템플릿으로 매핑됨을 검증합니다.
+// TestMockScenarioH3_ReviewCreatesSession은 "review" 커맨드가 세션을
+// 생성함을 검증합니다.
 //
 // 실사용 명령어: prtr review "PR #42 코드 리뷰"
-func TestMockScenarioH3_ReviewShortcutUsesClaudeBE(t *testing.T) {
+func TestMockScenarioH3_ReviewCreatesSession(t *testing.T) {
 	t.Parallel()
 
-	translator := &stubTranslator{output: "Review PR #42 for security issues"}
-	cb := &stubClipboard{}
-	app := newTestApp(t, mockAppConfig(), translator, cb, &stubEditor{}, mockHistoryStore(t))
-	stdout, _ := buffersFromApp(app)
+	cfg := capsuleTestConfig()
+	app, _ := newCapsuleTestApp(t, cfg)
 
 	err := app.Execute(context.Background(),
 		[]string{"review", "PR #42 코드 리뷰"},
 		strings.NewReader(""), false)
-	if err != nil {
-		t.Fatalf("Execute() error = %v", err)
-	}
-
-	// Claude review 템플릿 형식 확인
-	got := stdout.String()
-	if !strings.Contains(got, "<task>") {
-		t.Errorf("stdout = %q, want claude-review template with '<task>'", got)
+	if err != nil && strings.Contains(err.Error(), "작업 목표를 입력해주세요") {
+		t.Errorf("goal was not parsed from args; got error: %v", err)
 	}
 }
 

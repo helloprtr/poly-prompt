@@ -38,6 +38,8 @@ func (noopHeadlessRunner) Run(_ context.Context, _ HeadlessRequest) (HeadlessRes
 	return HeadlessResult{}, errors.New("headless runner is not configured")
 }
 
+// resolveHeadlessRunner returns the headless runner for the current configuration.
+// TODO(v1.x): wire a real headless runner when server mode is implemented.
 func (a *App) resolveHeadlessRunner() HeadlessRunner {
 	return noopHeadlessRunner{}
 }

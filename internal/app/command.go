@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/helloprtr/poly-prompt/internal/session"
 )
 
 func (a *App) Command(ctx context.Context, stdin io.Reader, stdinPiped bool) *cobra.Command {
@@ -56,9 +58,31 @@ func (a *App) Command(ctx context.Context, stdin io.Reader, stdinPiped bool) *co
 	root.AddCommand(a.newCapsuleListCommand())
 	root.AddCommand(a.newPruneCommand())
 	root.AddCommand(a.newShortcutCommand(ctx, "ask", stdin, stdinPiped))
-	root.AddCommand(a.newShortcutCommand(ctx, "review", stdin, stdinPiped))
-	root.AddCommand(a.newShortcutCommand(ctx, "fix", stdin, stdinPiped))
-	root.AddCommand(a.newShortcutCommand(ctx, "design", stdin, stdinPiped))
+	root.AddCommand(a.newModeCommand(ctx, "review", session.ModeReview, stdin, stdinPiped))
+	root.AddCommand(a.newModeCommand(ctx, "edit", session.ModeEdit, stdin, stdinPiped))
+	root.AddCommand(a.newModeCommand(ctx, "fix", session.ModeFix, stdin, stdinPiped))
+	root.AddCommand(a.newModeCommand(ctx, "design", session.ModeDesign, stdin, stdinPiped))
+	root.AddCommand(&cobra.Command{
+		Use:   "checkpoint [note]",
+		Short: "진행 상황 메모 (핸드오프 품질 향상)",
+		Args:  cobra.ExactArgs(1),
+		RunE:  func(cmd *cobra.Command, args []string) error { return a.runCheckpoint(ctx, args[0]) },
+	})
+	root.AddCommand(&cobra.Command{
+		Use:   "done",
+		Short: "세션 완료 처리",
+		RunE:  func(cmd *cobra.Command, args []string) error { return a.runDone(ctx) },
+	})
+	root.AddCommand(&cobra.Command{
+		Use:   "sessions",
+		Short: "과거 세션 목록",
+		RunE:  func(cmd *cobra.Command, args []string) error { return a.runSessions(ctx) },
+	})
+	root.AddCommand(&cobra.Command{
+		Use:   "status",
+		Short: "현재 세션 상태 및 작업 캡슐 정보",
+		RunE:  func(cmd *cobra.Command, args []string) error { return a.runStatus(ctx) },
+	})
 
 	for _, cmd := range a.newEasterEggCommands(ctx, stdin, stdinPiped) {
 		root.AddCommand(cmd)
@@ -70,6 +94,7 @@ func (a *App) Command(ctx context.Context, stdin io.Reader, stdinPiped bool) *co
 func (a *App) newStartCommand(ctx context.Context, stdin io.Reader, stdinPiped bool) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                "start [message...]",
+		Hidden:             true,
 		Short:              "Run the beginner-first first-send flow.",
 		Long:               startHelpText(),
 		DisableFlagParsing: true,
@@ -87,6 +112,7 @@ func (a *App) newStartCommand(ctx context.Context, stdin io.Reader, stdinPiped b
 func (a *App) newGoCommand(ctx context.Context, stdin io.Reader, stdinPiped bool) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                "go [mode] [message...]",
+		Hidden:             true,
 		Short:              "Turn intent into the next AI action in Claude, Codex, or Gemini.",
 		Long:               goHelpText(),
 		DisableFlagParsing: true,
@@ -120,6 +146,7 @@ func (a *App) newDemoCommand(ctx context.Context) *cobra.Command {
 func (a *App) newAgainCommand(ctx context.Context, stdin io.Reader, stdinPiped bool) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                "again [message...]",
+		Hidden:             true,
 		Short:              "Run the latest prompt flow again.",
 		Long:               againHelpText(),
 		DisableFlagParsing: true,
@@ -137,6 +164,7 @@ func (a *App) newAgainCommand(ctx context.Context, stdin io.Reader, stdinPiped b
 func (a *App) newSwapCommand(ctx context.Context, stdin io.Reader, stdinPiped bool) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                "swap <app> [message...]",
+		Hidden:             true,
 		Short:              "Send the latest prompt to another app.",
 		Long:               swapHelpText(),
 		DisableFlagParsing: true,
@@ -154,6 +182,7 @@ func (a *App) newSwapCommand(ctx context.Context, stdin io.Reader, stdinPiped bo
 func (a *App) newTakeCommand(ctx context.Context) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                "take <action>",
+		Hidden:             true,
 		Short:              "Turn the latest answer or clipboard text into the next action.",
 		Long:               takeHelpText(),
 		DisableFlagParsing: true,
@@ -171,6 +200,7 @@ func (a *App) newTakeCommand(ctx context.Context) *cobra.Command {
 func (a *App) newLearnCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                "learn [paths...]",
+		Hidden:             true,
 		Short:              "Teach prtr your repo terms and style.",
 		Long:               learnHelpText(),
 		DisableFlagParsing: true,
@@ -475,6 +505,34 @@ func (a *App) newShortcutCommand(ctx context.Context, name string, stdin io.Read
 			}
 			return a.runShortcut(ctx, name, args, stdin, stdinPiped)
 		},
+	}
+}
+
+func (a *App) newModeCommand(ctx context.Context, name string, mode session.Mode, stdin io.Reader, stdinPiped bool) *cobra.Command {
+	return &cobra.Command{
+		Use:           name + " [files...]",
+		Short:         modeShort(mode),
+		Args:          cobra.ArbitraryArgs,
+		SilenceErrors: true,
+		SilenceUsage:  true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.runSessionMode(ctx, mode, args, stdin)
+		},
+	}
+}
+
+func modeShort(m session.Mode) string {
+	switch m {
+	case session.ModeReview:
+		return "코드 리뷰 세션 시작"
+	case session.ModeEdit:
+		return "코드 수정 세션 시작"
+	case session.ModeFix:
+		return "버그 수정 세션 시작"
+	case session.ModeDesign:
+		return "설계 세션 시작"
+	default:
+		return "세션 시작"
 	}
 }
 

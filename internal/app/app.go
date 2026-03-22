@@ -24,6 +24,7 @@ import (
 	"github.com/helloprtr/poly-prompt/internal/input"
 	"github.com/helloprtr/poly-prompt/internal/launcher"
 	"github.com/helloprtr/poly-prompt/internal/repoctx"
+	"github.com/helloprtr/poly-prompt/internal/session"
 	prompttemplate "github.com/helloprtr/poly-prompt/internal/template"
 	"github.com/helloprtr/poly-prompt/internal/termbook"
 	"github.com/helloprtr/poly-prompt/internal/translate"
@@ -54,6 +55,7 @@ type Dependencies struct {
 	RepoContext       repoctx.Collector
 	RepoRootFinder    RepoRootFinder
 	TermbookLoader    TermbookLoader
+	SessionStore      *session.Store
 }
 
 type App struct {
@@ -74,6 +76,7 @@ type App struct {
 	repoContext       repoctx.Collector
 	repoRootFinder    RepoRootFinder
 	termbookLoader    TermbookLoader
+	sessionStore      *session.Store
 }
 
 type usageError struct {
@@ -252,10 +255,20 @@ func New(deps Dependencies) *App {
 		repoContext:       deps.RepoContext,
 		repoRootFinder:    deps.RepoRootFinder,
 		termbookLoader:    deps.TermbookLoader,
+		sessionStore:      deps.SessionStore,
 	}
 }
 
 func (a *App) Execute(ctx context.Context, args []string, stdin io.Reader, stdinPiped bool) error {
+	// Bare invocation (no args) → interactive session start.
+	if len(args) == 0 {
+		return a.runBare(ctx, stdin)
+	}
+	// @model → handoff to named model.
+	if strings.HasPrefix(strings.TrimSpace(args[0]), "@") {
+		model := strings.TrimPrefix(strings.TrimSpace(args[0]), "@")
+		return a.runHandoff(ctx, model)
+	}
 	if a.shouldRunRootDirect(args) {
 		return a.runMain(ctx, args, stdin, stdinPiped, "")
 	}
@@ -265,10 +278,7 @@ func (a *App) Execute(ctx context.Context, args []string, stdin io.Reader, stdin
 }
 
 func (a *App) shouldRunRootDirect(args []string) bool {
-	if len(args) == 0 {
-		return true
-	}
-
+	// len(args)==0 and @model are handled in Execute before this is called.
 	first := strings.TrimSpace(args[0])
 	if first == "" {
 		return true
@@ -281,9 +291,14 @@ func (a *App) shouldRunRootDirect(args []string) bool {
 	}
 
 	switch first {
-	case "init", "version", "start", "setup", "lang", "doctor", "templates", "profiles", "history", "rerun", "pin", "favorite", "go", "demo", "again", "swap", "take", "learn", "inspect", "watch",
-		"save", "resume", "status", "list", "prune",
-		"dip", "taste", "plate", "marinate", "prep":
+	case "init", "version", "start", "setup", "lang", "doctor", "templates", "profiles",
+		"history", "rerun", "pin", "favorite", "go", "demo", "again", "swap", "take",
+		"learn", "inspect",
+		// v0.8 commands:
+		"watch", "save", "resume", "list", "prune",
+		"dip", "taste", "plate", "marinate", "prep",
+		// v1.0 commands:
+		"review", "edit", "fix", "design", "checkpoint", "done", "sessions", "status":
 		return false
 	}
 
@@ -2628,6 +2643,13 @@ func stringPtr(value string) *string {
 	return &v
 }
 
+func (a *App) lookupEnvOrDefault(key, fallback string) string {
+	if v, ok := a.lookupEnv(key); ok {
+		return v
+	}
+	return fallback
+}
+
 func minInt(a, b int) int {
 	if a < b {
 		return a
@@ -2650,386 +2672,6 @@ func (e usageError) Error() string {
 	return fmt.Sprintf("%s\n\n%s", e.message, helpText)
 }
 
-func usageText() string {
-	return rootHelpText()
-}
-
-func rootHelpText() string {
-	return strings.Join([]string{
-		"prtr is the command layer for AI work.",
-		"",
-		"Turn logs, diffs, and intent into the next AI action across Claude, Codex, and Gemini.",
-		"",
-		"Start with the beginner-first flow or jump straight into a safe preview:",
-		"  prtr start",
-		"  prtr demo",
-		`  prtr go "explain this error" --dry-run`,
-		"",
-		"Core loop:",
-		`  npm test 2>&1 | prtr go fix "왜 깨지는지 정확한 원인만 찾아줘"`,
-		"  prtr swap gemini",
-		"  prtr take patch",
-		"",
-		"Then keep moving with:",
-		"  prtr learn",
-		"  prtr again",
-		"  prtr inspect",
-		"",
-		"Usage:",
-		"  prtr start [message...]",
-		"  prtr go [mode] [message...]",
-		"  prtr demo",
-		"  prtr swap <app>",
-		"  prtr take <action>",
-		"  prtr learn [paths...]",
-		"  prtr again",
-		"  prtr inspect [message...]",
-		"  prtr history [search <query>]",
-		"  prtr doctor [--fix]",
-		"  prtr version",
-		"",
-		"Context engine (v0.8):",
-		"  prtr watch              start the background context watcher",
-		"  prtr watch --off        stop the watcher",
-		"  prtr watch --status     show watcher state",
-		"",
-		"Work capsule (v0.8):",
-		"  prtr save [label]       save current work state",
-		"  prtr resume [id]        restore a saved capsule",
-		"  prtr status             show latest capsule and drift",
-		"  prtr list               list capsules for this repo",
-		"  prtr prune              delete old capsules",
-		"",
-		"Compatibility aliases:",
-		"  prtr ask",
-		"  prtr review",
-		"  prtr fix",
-		"  prtr design",
-		"",
-		"Advanced commands:",
-		"  prtr templates <list|show>",
-		"  prtr profiles <list|show|use>",
-		"  prtr rerun <id> [flags]",
-		"  prtr pin <id>",
-		"  prtr favorite <id>",
-		"  prtr setup",
-		"  prtr lang",
-		"  prtr init",
-	}, "\n")
-}
-
-func setupHelpText() string {
-	return strings.Join([]string{
-		"Run the advanced guided setup flow.",
-		"",
-		"`prtr setup` is the compatibility path for people who want the full",
-		"interactive defaults flow instead of the smaller first-run path in `start`.",
-		"",
-		"What `setup` asks for:",
-		"  - DeepL API key",
-		"  - default input language",
-		"  - default output language",
-		"  - default app",
-		"  - default role",
-		"  - default template preset",
-	}, "\n")
-}
-
-func doctorHelpText() string {
-	return strings.Join([]string{
-		"Run environment and configuration diagnostics.",
-		"",
-		"`prtr doctor` checks config, translation readiness, clipboard support,",
-		"launchers, automation, and the current platform matrix.",
-		"",
-		"Usage:",
-		"  prtr doctor",
-		"  prtr doctor --fix",
-		"",
-		"`--fix` applies safe automatic fixes when possible, then prints fallback",
-		"suggestions for anything it cannot repair automatically.",
-	}, "\n")
-}
-
-func startHelpText() string {
-	return strings.Join([]string{
-		"Run the beginner-first first-send flow.",
-		"",
-		"`prtr start` helps you get from setup to a real first send with as little",
-		"friction as possible.",
-		"",
-		"What `start` does:",
-		"  1. Prompts for minimal onboarding settings when needed",
-		"  2. Runs `prtr doctor` before the first send",
-		"  3. Asks for a first request if you do not pass one",
-		"  4. Sends the request through the same flow as `prtr go`",
-		"",
-		"Usage:",
-		"  prtr start [message...]",
-		"",
-		"Examples:",
-		"  prtr start",
-		`  prtr start "이 함수 왜 느린지 설명해줘"`,
-		`  prtr start --to codex "왜 테스트가 깨지는지 찾아줘"`,
-		"  prtr start --dry-run",
-		"",
-		"Flags:",
-		"      --to <app>        Choose the app: claude | codex | gemini",
-		"      --dry-run         Show the first-send prompt without opening any app",
-		"  -h, --help            Help for start",
-		"",
-		"Advanced setup:",
-		"  Use `prtr setup` when you want the full configuration flow for role,",
-		"  template preset, and other advanced defaults.",
-	}, "\n")
-}
-
-func goHelpText() string {
-	return strings.Join([]string{
-		"Turn logs, diffs, and intent into the next AI action.",
-		"",
-		"`prtr go` is the fastest way to use prtr for real work.",
-		"",
-		"Write in your language when you need translation.",
-		"Pipe logs or stack traces when you have evidence.",
-		"prtr shapes the request for Claude, Codex, or Gemini and keeps the next step cheaper.",
-		"",
-		"Works without a DeepL key — AI targets handle multilingual input natively.",
-		"Use `prtr demo` if you want a safe preview before setup.",
-		"",
-		"Usage:",
-		"  prtr go [mode] [message...]",
-		"",
-		"Modes:",
-		"  ask       General questions and everyday prompting (default)",
-		"  review    Review code, docs, PRs, or plans",
-		"  fix       Diagnose errors, logs, and broken tests",
-		"  design    Plan implementations, architecture, or UX flows",
-		"",
-		"How input works:",
-		"  - If you pass a message, that message is your request.",
-		"  - If you pipe text and also pass a message, the piped text becomes evidence.",
-		"  - If you only pipe text, the piped text becomes the request.",
-		"  - If you are inside a Git repo, prtr may attach lightweight repo context",
-		"    unless --no-context is used.",
-		"",
-		"What `go` does:",
-		"  1. Reads your request",
-		"  2. Collects useful context from stdin and the current repo",
-		"  3. Translates only when needed",
-		"  4. Applies the selected mode",
-		"  5. Opens Claude, Codex, or Gemini",
-		"  6. Pastes the final prompt",
-		"  7. Saves the run so you can swap or run again",
-		"",
-		"Examples:",
-		`  prtr go "이 에러 원인 분석해줘"`,
-		`  prtr go review "이 PR에서 위험한 부분만 짚어줘"`,
-		`  npm test 2>&1 | prtr go fix "왜 깨지는지 정확한 원인만 찾아줘"`,
-		`  prtr go design "이 기능 구조 설계해줘" --to gemini --edit`,
-		`  prtr go "이 문서 설명해줘" --dry-run`,
-		`  cat crash.log | prtr go fix`,
-		"",
-		"Flags:",
-		"      --to <app>        Choose the app: claude | codex | gemini",
-		"                        Defaults to the last-used app, then config default.",
-		"      --edit            Review and edit before sending",
-		"      --dry-run         Show the final prompt without opening any app",
-		"      --no-context      Do not attach repo or piped context automatically",
-		"      --no-copy         Do not copy the final prompt to the clipboard",
-		"  -h, --help            Help for go",
-		"",
-		"Next steps:",
-		"  prtr swap <app>       Send the last prompt to another app",
-		"  prtr take <action>    Turn clipboard text into the next action",
-		"  prtr learn            Teach prtr your repo terms and style",
-		"  prtr again            Run the latest flow again",
-		"  prtr inspect          Inspect the compiled prompt and config",
-	}, "\n")
-}
-
-func demoHelpText() string {
-	return strings.Join([]string{
-		"Preview prtr's core loop.",
-		"",
-		"`prtr demo` is a safe preview path.",
-		"It shows the command-layer story with a Korean fix request, sample npm test evidence,",
-		"and a Codex-ready prompt preview without launching an app or touching the clipboard.",
-		"",
-		"Usage:",
-		"  prtr demo",
-		"",
-		"Notes:",
-		"  - No API key required",
-		"  - No launch, paste, or clipboard writes",
-		"  - Uses sample evidence and preview output only",
-		"",
-		"Try next:",
-		`  prtr go "explain this error" --dry-run`,
-		"  prtr setup",
-	}, "\n")
-}
-
-func againHelpText() string {
-	return strings.Join([]string{
-		"Run the latest prompt flow again.",
-		"",
-		"`prtr again` reuses the latest request, mode, app, and translation settings.",
-		"",
-		"Usage:",
-		"  prtr again [message...]",
-		"",
-		"If you pass a new message, it replaces the last request.",
-		"If you pipe text and also pass a message, the piped text becomes evidence.",
-		"",
-		"Examples:",
-		"  prtr again",
-		"  prtr again --edit",
-		`  prtr again "이전 질문을 더 날카롭게 다시 물어봐줘"`,
-		"",
-		"Flags:",
-		"      --edit            Review and edit before sending",
-		"      --dry-run         Show the final prompt without opening any app",
-		"      --no-context      Do not attach repo or piped context automatically",
-		"      --no-copy         Do not copy the final prompt to the clipboard",
-		"  -h, --help            Help for again",
-	}, "\n")
-}
-
-func swapHelpText() string {
-	return strings.Join([]string{
-		"Send the latest prompt to another app.",
-		"",
-		"`prtr swap` reuses the latest request and mode, then recompiles it for",
-		"Claude, Codex, or Gemini without rebuilding the flow manually.",
-		"",
-		"Usage:",
-		"  prtr swap <app> [message...]",
-		"",
-		"Examples:",
-		"  prtr swap claude",
-		"  prtr swap codex",
-		"  prtr swap gemini",
-		"  prtr swap gemini --edit",
-		"  prtr swap claude --dry-run",
-		"",
-		"Flags:",
-		"      --edit            Review and edit before sending",
-		"      --dry-run         Show the final prompt without opening any app",
-		"      --no-context      Do not attach repo or piped context automatically",
-		"      --no-copy         Do not copy the final prompt to the clipboard",
-		"  -h, --help            Help for swap",
-	}, "\n")
-}
-
-func takeHelpText() string {
-	return strings.Join([]string{
-		"Turn the latest answer or clipboard text into the next action.",
-		"",
-		"`prtr take` has two paths:",
-		"  - classic: turn clipboard text into the next ready-to-send prompt",
-		"  - deep: build a typed execution run with artifacts, plan, and progress",
-		"",
-		"Usage:",
-		"  prtr take <action> [--dip] [flags]",
-		"",
-		"Classic actions (all support --deep for patch/test/debug/refactor):",
-		"  patch     Turn the answer into an implementation prompt",
-		"  test      Turn the answer into a testing prompt",
-		"  debug     Turn the answer into a debugging prompt",
-		"  refactor  Turn the answer into a refactoring prompt",
-		"  commit    Turn the answer into a commit message prompt",
-		"  summary   Turn the answer into a short reusable summary prompt",
-		"  clarify   Turn the answer into a clarification prompt",
-		"  issue     Turn the answer into an issue or task prompt",
-		"  plan      Turn the answer into an implementation plan prompt",
-		"",
-		"Classic examples:",
-		"  prtr take patch",
-		"  prtr take patch --dip --dry-run",
-		"  prtr take test --to codex",
-		"  prtr take commit --dry-run",
-		"  prtr take summary --edit",
-		"  prtr take issue",
-		"  prtr take plan",
-		"",
-		"Deep execution engine examples:",
-		"  prtr take patch --dip",
-		"  prtr take patch --dip --dry-run    # write artifacts; skip opening app",
-		"  prtr take patch --dip --to claude  # route delivery to Claude",
-		"  prtr take patch --dip --llm        # enable LLM enhancement (uses config)",
-		"  prtr take patch --dip --llm=claude # specify LLM provider",
-		"",
-		"Flags:",
-		"      --to <app>        Choose the app: claude | codex | gemini",
-		"      --dip            Run the internal execution engine for `take patch`",
-		"      --deep           Alias for --dip (deprecated)",
-		"      --llm            Enable LLM enhancement (provider from config or PRTR_LLM_PROVIDER)",
-		"      --llm=<provider> Enable LLM enhancement with explicit provider",
-		"      --edit            Review and edit before sending",
-		"      --dry-run         Show the final prompt without opening any app",
-		"                        Deep mode still writes plan and artifact files locally",
-		"  -h, --help            Help for take",
-	}, "\n")
-}
-
-func learnHelpText() string {
-	return strings.Join([]string{
-		"Teach prtr your repo terms and style.",
-		"",
-		"`prtr learn` scans your project and builds a local termbook with",
-		"protected project terms that should not be translated away.",
-		"",
-		"Usage:",
-		"  prtr learn [paths...]",
-		"",
-		"If no paths are provided, prtr learns from README, docs, cmd, and internal.",
-		"",
-		"Examples:",
-		"  prtr learn",
-		"  prtr learn README.md docs",
-		"  prtr learn --dry-run",
-		"  prtr learn --reset",
-		"",
-		"Flags:",
-		"      --dry-run         Show the generated termbook without saving",
-		"      --reset           Rebuild the termbook instead of merging it",
-		"  -h, --help            Help for learn",
-	}, "\n")
-}
-
-func inspectHelpText() string {
-	return strings.Join([]string{
-		"Inspect the compiled prompt and resolved config without sending it anywhere.",
-		"",
-		"`prtr inspect` is the expert path for diff, explain, JSON output, and",
-		"advanced prompt-shaping flags.",
-		"",
-		"Usage:",
-		"  prtr inspect [flags] [message...]",
-		"",
-		"Examples:",
-		`  prtr inspect "이 PR 리뷰해줘"`,
-		`  prtr inspect --json "이 에러 분석해줘"`,
-		`  prtr inspect -t codex --template codex-implement -r be "이 함수 개선해줘"`,
-		`  prtr inspect --lang ja "이 에러 일본어로 설명해줘"`,
-		"",
-		"Flags:",
-		"  -t, --target <name>    target profile name",
-		"      --source-lang <code> advanced source language override",
-		"      --lang <code>      target language override (e.g. en, ja, zh)",
-		"  -r, --role <alias>     role profile alias",
-		"      --template <name>  template preset name",
-		"      --translation-mode auto|force|skip",
-		"  -i, --interactive      edit the final prompt in a TUI before output",
-		"      --show-original    print the original input to stderr",
-		"      --explain          print resolved configuration details to stderr",
-		"      --diff             print original, translated, and final prompt to stderr",
-		"      --json             emit structured JSON output",
-		"      --no-copy          print the translated prompt without copying it",
-		"  -h, --help             Help for inspect",
-	}, "\n")
-}
 
 func isSupportedDeepAction(action string) bool {
 	switch normalizeTakeAction(action) {
