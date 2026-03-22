@@ -2672,7 +2672,6 @@ func (e usageError) Error() string {
 	return fmt.Sprintf("%s\n\n%s", e.message, helpText)
 }
 
-
 func isSupportedDeepAction(action string) bool {
 	switch normalizeTakeAction(action) {
 	case "patch", "test", "debug", "refactor":

@@ -29,10 +29,10 @@ type Session struct {
 	RepoHash     string       `json:"repo_hash"`
 	TaskGoal     string       `json:"task_goal"`
 	Files        []string     `json:"files"`
-	Mode         Mode         `json:"mode"`        // "review" | "edit" | "fix" | "design"
+	Mode         Mode         `json:"mode"` // "review" | "edit" | "fix" | "design"
 	Constraints  []string     `json:"constraints"`
 	TargetModel  string       `json:"target_model"`
-	Status       Status       `json:"status"`      // "active" | "completed"
+	Status       Status       `json:"status"` // "active" | "completed"
 	StartedAt    time.Time    `json:"started_at"`
 	LastActivity time.Time    `json:"last_activity"`
 	BaseGitSHA   string       `json:"base_git_sha"`
