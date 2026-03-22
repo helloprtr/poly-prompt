@@ -1,0 +1,19 @@
+{
+  "id": "1773718487952534000",
+  "created_at": "2026-03-17T03:34:47.952535Z",
+  "original": "왜 repo context가 비어 보이는지 root cause만 찾아줘\n\nEvidence:\nFAIL: TestRepoContextCollect\nrepoctx: expected branch summary but got empty changes\n--- FAIL: TestRepoContextCollect (0.00s)",
+  "translated": "왜 repo context가 비어 보이는지 root cause만 찾아줘\n\nEvidence:\nFAIL: TestRepoContextCollect\nrepoctx: expected branch summary but got empty changes\n--- FAIL: TestRepoContextCollect (0.00s)",
+  "final_prompt": "Expert Backend Engineer \u0026 Tech Lead.\nFocus on analysis, comparison, scalability, and stepwise reasoning.\nTailor the response to the user's request instead of assuming they want code.\n\nFollow these steps:\n1. Briefly summarize the core requirement.\n2. Identify edge cases, bottlenecks, or risks.\n3. Provide the most useful response for the user's request.\n\nUser Request:\n왜 repo context가 비어 보이는지 root cause만 찾아줘\n\nEvidence:\nFAIL: TestRepoContextCollect\nrepoctx: expected branch summary but got empty changes\n--- FAIL: TestRepoContextCollect (0.00s)",
+  "target": "gemini",
+  "role": "be",
+  "template_preset": "gemini-stepwise",
+  "shortcut": "fix",
+  "source_lang": "auto",
+  "target_lang": "en",
+  "translation_mode": "auto",
+  "translation_decision": "skipped",
+  "delivery_mode": "open-copy",
+  "submit_mode": "manual",
+  "parent_id": "1773718487407957000",
+  "engine": "classic"
+}

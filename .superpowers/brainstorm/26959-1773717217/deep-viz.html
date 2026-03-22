@@ -1,0 +1,73 @@
+<h2>섹션 3: --deep 파이프라인 시각화</h2>
+<p class="subtitle">prtr take patch --deep 실행 시 5단계 파이프라인을 어떻게 보여줄까?</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="spinner" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0d1117;padding:16px;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:2;border-radius:8px">
+      <div style="color:#8b949e">$ prtr take patch --deep</div>
+      <div style="height:8px"></div>
+      <div style="color:#58a6ff">⠸ planner   <span style="color:#3fb950">✓</span> 완료</div>
+      <div style="color:#58a6ff">⠼ patcher   <span style="color:#e3b341">⠼ 실행 중...</span></div>
+      <div style="color:#484f58">  critic    <span style="color:#484f58">대기 중</span></div>
+      <div style="color:#484f58">  tester    <span style="color:#484f58">대기 중</span></div>
+      <div style="color:#484f58">  reconciler <span style="color:#484f58">대기 중</span></div>
+    </div>
+    <div class="card-body">
+      <h3>A. 단계별 스피너 리스트</h3>
+      <p>각 단계가 순서대로 체크됨. 가볍고 빠름. bubbletea 최소 활용.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="progress" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0d1117;padding:16px;font-family:'JetBrains Mono',monospace;font-size:12px;border-radius:8px">
+      <div style="color:#8b949e">$ prtr take patch --deep</div>
+      <div style="height:10px"></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <div style="flex:1;background:#21262d;border-radius:4px;height:6px;overflow:hidden">
+          <div style="width:40%;background:linear-gradient(90deg,#58a6ff,#3fb950);height:100%;border-radius:4px;transition:width 0.3s"></div>
+        </div>
+        <span style="color:#8b949e;font-size:11px">2/5</span>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <span style="background:#3fb950;color:#000;padding:2px 8px;border-radius:4px;font-size:11px">planner</span>
+        <span style="color:#484f58">→</span>
+        <span style="background:#e3b341;color:#000;padding:2px 8px;border-radius:4px;font-size:11px;animation:pulse 1s infinite">patcher</span>
+        <span style="color:#484f58">→</span>
+        <span style="color:#484f58;padding:2px 8px;border:1px solid #30363d;border-radius:4px;font-size:11px">critic</span>
+        <span style="color:#484f58">→</span>
+        <span style="color:#484f58;padding:2px 8px;border:1px solid #30363d;border-radius:4px;font-size:11px">tester</span>
+        <span style="color:#484f58">→</span>
+        <span style="color:#484f58;padding:2px 8px;border:1px solid #30363d;border-radius:4px;font-size:11px">rec</span>
+      </div>
+      <div style="margin-top:12px;color:#8b949e;font-size:11px">patcher: 변경 범위 분석 중 (3s)</div>
+    </div>
+    <div class="card-body">
+      <h3>B. 프로그레스바 + 파이프 시각화</h3>
+      <p>전체 진행률 바 + 현재 단계 하이라이트. 바이럴 GIF 찍기 좋음.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="live" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0d1117;padding:16px;font-family:'JetBrains Mono',monospace;font-size:12px;border-radius:8px">
+      <div style="color:#8b949e">$ prtr take patch --deep</div>
+      <div style="height:8px"></div>
+      <div style="border:1px solid #30363d;border-radius:6px;padding:10px">
+        <div style="color:#3fb950;font-size:11px;margin-bottom:4px">✓ planner</div>
+        <div style="color:#8b949e;font-size:11px;padding-left:12px;border-left:1px solid #30363d">scope: auth.js 수정, 테스트 2개 타겟</div>
+      </div>
+      <div style="border:1px solid #e3b341;border-radius:6px;padding:10px;margin-top:6px">
+        <div style="color:#e3b341;font-size:11px;margin-bottom:4px">⠼ patcher <span style="color:#484f58">실행 중...</span></div>
+        <div style="color:#8b949e;font-size:11px;padding-left:12px;border-left:1px solid #e3b341">diff 생성 중: login() 함수 재작성</div>
+      </div>
+      <div style="border:1px solid #30363d;border-radius:6px;padding:10px;margin-top:6px;opacity:0.4">
+        <div style="color:#484f58;font-size:11px">○ critic</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. 단계별 라이브 출력</h3>
+      <p>각 단계의 중간 결과를 실시간으로 스트리밍. 가장 투명하지만 출력이 길어짐.</p>
+    </div>
+  </div>
+
+</div>

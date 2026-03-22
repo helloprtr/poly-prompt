@@ -52,14 +52,8 @@ func TestRepoHash_IsDeterministic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RepoRoot: %v", err)
 	}
-	h1, err := session.RepoHash(root)
-	if err != nil {
-		t.Fatalf("RepoHash: %v", err)
-	}
-	h2, err := session.RepoHash(root)
-	if err != nil {
-		t.Fatalf("RepoHash second call: %v", err)
-	}
+	h1 := session.RepoHash(root)
+	h2 := session.RepoHash(root)
 	if h1 != h2 {
 		t.Errorf("RepoHash not deterministic: %q vs %q", h1, h2)
 	}

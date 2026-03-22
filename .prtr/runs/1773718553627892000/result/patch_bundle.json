@@ -1,0 +1,43 @@
+{
+  "summary": "Root cause: repo context is not actually empty; it only looks sparse because the collector currently stores git status lines only. If you want richer context, update internal/repoctx/repoctx.go to include a short git ...",
+  "diff": "diff --git a/internal/repoctx/repoctx.go b/internal/repoctx/repoctx.go\n--- a/internal/repoctx/repoctx.go\n+++ b/internal/repoctx/repoctx.go\n@@\n- inspect the current implementation\n+ apply the change described by the patch bundle\n\ndiff --git a/internal/repoctx/repoctx_test.go b/internal/repoctx/repoctx_test.go\n--- a/internal/repoctx/repoctx_test.go\n+++ b/internal/repoctx/repoctx_test.go\n@@\n- inspect the current implementation\n+ apply the change described by the patch bundle",
+  "touched_files": [
+    "internal/repoctx/repoctx.go",
+    "internal/repoctx/repoctx_test.go"
+  ],
+  "risks": [
+    {
+      "title": "Behavior Drift",
+      "severity": "high",
+      "detail": "The follow-up may change behavior beyond the user's requested fix if the source answer mixed diagnosis and implementation.",
+      "confidence": "medium"
+    },
+    {
+      "title": "Local Context Risk",
+      "severity": "medium",
+      "detail": "Review the existing logic in internal/repoctx/repoctx.go before applying broad changes.",
+      "confidence": "medium"
+    }
+  ],
+  "test_plan": {
+    "test_cases": [
+      "Add or update one regression test that covers the primary failure path described in the source material.",
+      "Verify the happy path still passes after the change.",
+      "Add a test that cancels context early and verifies clean exit.",
+      "Add a regression test in internal/repoctx/repoctx_test.go that covers the primary failure path."
+    ],
+    "edge_cases": [
+      "Empty or nil inputs that were mentioned or implied by the original issue.",
+      "Boundary cases around existing conditionals, parsing, or branching logic."
+    ],
+    "verification_steps": [
+      "Run the smallest targeted test command first.",
+      "Re-run the original failing command if one was mentioned.",
+      "Review logs or output formatting for regressions after the patch."
+    ]
+  },
+  "open_questions": [
+    "Which exact file and symbol should receive the first edit?",
+    "Does the repository already contain a closer existing helper or test for this behavior?"
+  ]
+}

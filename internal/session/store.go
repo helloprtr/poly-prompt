@@ -132,19 +132,10 @@ func (s *Store) Update(sess Session) error {
 	return s.Save(sess)
 }
 
-func (s *Store) Complete(id string) error {
-	all, err := s.List()
-	if err != nil {
-		return err
-	}
-	for _, sess := range all {
-		if sess.ID == id {
-			sess.Status = StatusCompleted
-			sess.LastActivity = time.Now().UTC()
-			return s.Save(sess)
-		}
-	}
-	return fmt.Errorf("session %q not found", id)
+func (s *Store) Complete(sess Session) error {
+	sess.Status = StatusCompleted
+	sess.LastActivity = time.Now().UTC()
+	return s.Save(sess)
 }
 
 func (s *Store) pathFor(repoHash, id string) string {

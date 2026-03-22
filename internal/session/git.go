@@ -18,10 +18,9 @@ func RepoRoot(dir string) (string, error) {
 
 // RepoHash returns an 8-character deterministic identifier derived from the repo root path.
 // Pass the output of RepoRoot to ensure symlink-resolved canonical path.
-// SHA256 of a string cannot fail — the error return exists for interface consistency.
-func RepoHash(repoRoot string) (string, error) {
+func RepoHash(repoRoot string) string {
 	h := sha256.Sum256([]byte(repoRoot))
-	return fmt.Sprintf("%x", h[:4]), nil
+	return fmt.Sprintf("%x", h[:4])
 }
 
 // CurrentSHA returns the HEAD commit SHA of the git repo at dir.

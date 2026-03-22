@@ -1,0 +1,73 @@
+<h2>섹션 2: prtr watch — 컨텍스트 엔진</h2>
+<p class="subtitle">백그라운드에서 이벤트를 감지하고 inline으로 제안. 두 가지 세부 방식을 비교해봐.</p>
+
+<div class="split">
+
+  <div class="mockup">
+    <div class="mockup-header">A. 이벤트 직후 한 줄 제안</div>
+    <div class="mockup-body" style="background:#0d1117;padding:16px;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.8">
+      <div style="color:#8b949e">$ npm test</div>
+      <div style="color:#8b949e;margin-top:4px">...</div>
+      <div style="color:#f85149">FAIL src/auth.test.js</div>
+      <div style="color:#f85149">  ✕ login returns 401 (23ms)</div>
+      <div style="color:#8b949e">Tests: 2 failed, 18 passed</div>
+      <div style="height:8px"></div>
+      <div style="color:#58a6ff;border-left:2px solid #58a6ff;padding-left:10px">
+        ⚡ prtr: 테스트 실패 감지 → <span style="color:#3fb950">prtr go fix</span>? [y/N]
+      </div>
+      <div style="color:#8b949e;margin-top:8px">y</div>
+      <div style="color:#3fb950">✓ 클립보드 복사 완료 → Claude 실행 중...</div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">B. 컨텍스트 자동 조합 후 제안</div>
+    <div class="mockup-body" style="background:#0d1117;padding:16px;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.8">
+      <div style="color:#8b949e">$ npm test</div>
+      <div style="color:#8b949e;margin-top:4px">...</div>
+      <div style="color:#f85149">FAIL src/auth.test.js</div>
+      <div style="color:#f85149">  ✕ login returns 401 (23ms)</div>
+      <div style="color:#8b949e">Tests: 2 failed, 18 passed</div>
+      <div style="height:8px"></div>
+      <div style="color:#58a6ff;border-left:2px solid #58a6ff;padding-left:10px">
+        ⚡ prtr: 컨텍스트 준비됨<br>
+        <span style="color:#8b949e">  • 실패 로그 2줄</span><br>
+        <span style="color:#8b949e">  • git diff: auth.js +12/-3</span><br>
+        <span style="color:#8b949e">  • branch: fix/login-flow</span><br>
+        <span style="color:#3fb950">  → prtr go fix</span> [y/N]
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="section" style="margin-top:20px">
+  <h3>감지 대상 이벤트</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
+    <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px">
+      <div style="color:#f85149;font-weight:600;margin-bottom:6px">🔴 즉시 제안</div>
+      <div style="color:#8b949e;font-size:13px">테스트 실패<br>빌드 에러<br>crash / panic<br>git conflict</div>
+    </div>
+    <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px">
+      <div style="color:#e3b341;font-weight:600;margin-bottom:6px">🟡 선택적 제안</div>
+      <div style="color:#8b949e;font-size:13px">lint 경고<br>성능 저하 감지<br>TODO 주석 증가<br>큰 diff (50줄+)</div>
+    </div>
+  </div>
+</div>
+
+<div class="options" style="margin-top:20px">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>단순 한 줄 제안</h3>
+      <p>빠르고 가볍다. 구현 단순. 컨텍스트는 y 누른 후 자동 수집.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>컨텍스트 미리 조합 후 제안</h3>
+      <p>더 투명하고 신뢰감 있다. 뭘 보내는지 보여준다. 약간 더 복잡.</p>
+    </div>
+  </div>
+</div>

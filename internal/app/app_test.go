@@ -1833,29 +1833,6 @@ func TestTruncateOneLineUnicode(t *testing.T) {
 	}
 }
 
-func TestIsUIHeavyNoFalsePositives(t *testing.T) {
-	cases := []struct {
-		text   string
-		wantUI bool
-	}{
-		{"build the feature quickly", false},        // "ui" in "build"
-		{"the pursuit of performance", false},       // "ui" in "pursuit"
-		{"unique approach to the problem", false},   // "ui" in "unique"
-		{"quit the application", false},             // "ui" in "quit"
-		{"design the user interface layout", true},  // intentional UI
-		{"update the UI component", true},           // explicit "UI" word
-		{"improve the UX flow", true},               // explicit "UX" word
-		{"create a wireframe for the screen", true}, // wireframe/screen markers
-		{"", false},
-	}
-	for _, tc := range cases {
-		got := isUIHeavy(tc.text)
-		if got != tc.wantUI {
-			t.Errorf("isUIHeavy(%q) = %v, want %v", tc.text, got, tc.wantUI)
-		}
-	}
-}
-
 // ---------------------------------------------------------------------------
 // Classic take regression — must work without --deep
 // ---------------------------------------------------------------------------

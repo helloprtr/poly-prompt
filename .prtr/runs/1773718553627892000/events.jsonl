@@ -1,0 +1,17 @@
+{"type":"run.started","timestamp":"2026-03-17T03:35:53.627892Z","data":{"run_id":"1773718553627892000","source_kind":"clipboard","target_app":"gemini"}}
+{"type":"context.compiled","timestamp":"2026-03-17T03:35:53.63626Z","data":{"evidence_refs":["source.md","evidence/repo_context.json","evidence/history.json","evidence/memory.json","evidence/git.diff"]}}
+{"type":"worker.started","timestamp":"2026-03-17T03:35:53.636624Z","data":{"worker":"planner"}}
+{"type":"worker.completed","timestamp":"2026-03-17T03:35:53.637093Z","data":{"ok":true,"worker":"planner"}}
+{"type":"worker.started","timestamp":"2026-03-17T03:35:53.637138Z","data":{"worker":"patcher"}}
+{"type":"worker.completed","timestamp":"2026-03-17T03:35:53.637573Z","data":{"ok":true,"worker":"patcher"}}
+{"type":"worker.started","timestamp":"2026-03-17T03:35:53.637636Z","data":{"worker":"tester"}}
+{"type":"worker.started","timestamp":"2026-03-17T03:35:53.637641Z","data":{"worker":"critic"}}
+{"type":"worker.completed","timestamp":"2026-03-17T03:35:53.638079Z","data":{"ok":true,"worker":"tester"}}
+{"type":"worker.completed","timestamp":"2026-03-17T03:35:53.638253Z","data":{"ok":true,"worker":"critic"}}
+{"type":"worker.started","timestamp":"2026-03-17T03:35:53.638306Z","data":{"worker":"reconciler"}}
+{"type":"worker.completed","timestamp":"2026-03-17T03:35:53.638916Z","data":{"ok":true,"worker":"reconciler"}}
+{"type":"plan.created","timestamp":"2026-03-17T03:35:53.638957Z","data":{"todo_count":5}}
+{"type":"artifact.ready","timestamp":"2026-03-17T03:35:53.638998Z","data":{"path":"result/patch_bundle.json"}}
+{"type":"run.completed","timestamp":"2026-03-17T03:35:53.638998Z","data":{"status":"completed","warning_count":0}}
+{"type":"delivery.started","timestamp":"2026-03-17T03:35:53.639475Z","data":{"delivery_mode":"open-copy","target":"gemini"}}
+{"type":"delivery.completed","timestamp":"2026-03-17T03:35:53.639503Z","data":{"delivery_mode":"open-copy","pasted":false,"submitted":false,"target":"gemini"}}

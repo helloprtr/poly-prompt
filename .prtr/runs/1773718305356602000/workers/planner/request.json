@@ -1,0 +1,8 @@
+{
+  "evidence_refs": [
+    "evidence/repo_context.json",
+    "evidence/history.json",
+    "evidence/memory.json"
+  ],
+  "source": "source.md"
+}

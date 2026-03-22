@@ -1,0 +1,17 @@
+{
+  "summary": "Root cause: repo context is not actually empty; it only looks sparse because the collector currently stores git status lines only. If you want richer context, update internal/repoctx/repoctx.go to include a short git ...",
+  "touched_files": [
+    "internal/repoctx/repoctx.go",
+    "internal/repoctx/repoctx_test.go"
+  ],
+  "implementation_notes": [
+    "Use the clipboard answer as source intent, not as final code.",
+    "Prefer concrete file-by-file changes over abstract rewrites.",
+    "Validate behavior with focused regression tests after the patch."
+  ],
+  "constraints": [
+    "Respect current branch context: fix/code-review-v070.",
+    "Local changes in this checkout:\n  ?? .claude/\n  ?? .prtr/\n  ?? .superpowers/\n  ?? scripts/"
+  ],
+  "diff": "diff --git a/internal/repoctx/repoctx.go b/internal/repoctx/repoctx.go\n--- a/internal/repoctx/repoctx.go\n+++ b/internal/repoctx/repoctx.go\n@@\n- inspect the current implementation\n+ apply the change described by the patch bundle\n\ndiff --git a/internal/repoctx/repoctx_test.go b/internal/repoctx/repoctx_test.go\n--- a/internal/repoctx/repoctx_test.go\n+++ b/internal/repoctx/repoctx_test.go\n@@\n- inspect the current implementation\n+ apply the change described by the patch bundle"
+}

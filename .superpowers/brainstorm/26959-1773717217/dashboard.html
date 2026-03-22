@@ -1,0 +1,83 @@
+<h2>섹션 4: prtr dashboard</h2>
+<p class="subtitle">prtr만 쳤을 때 뜨는 홈 화면. 어떤 정보를 보여줄까?</p>
+
+<div class="split">
+
+  <div class="mockup">
+    <div class="mockup-header">A. 미니멀 — 상태 + 빠른 액션</div>
+    <div class="mockup-body" style="background:#0d1117;padding:20px;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.9;border-radius:8px">
+      <div style="color:#58a6ff;font-size:16px;font-weight:bold;margin-bottom:16px">⚡ prtr <span style="color:#484f58;font-size:12px;font-weight:normal">v0.8.0</span></div>
+
+      <div style="color:#8b949e;font-size:11px;margin-bottom:4px">CONTEXT</div>
+      <div style="color:#e6edf3">branch: <span style="color:#3fb950">fix/login-flow</span></div>
+      <div style="color:#e6edf3">target: <span style="color:#58a6ff">claude</span></div>
+      <div style="color:#e6edf3">watch: <span style="color:#3fb950">active</span></div>
+
+      <div style="margin-top:16px;color:#8b949e;font-size:11px;margin-bottom:4px">QUICK ACTIONS</div>
+      <div style="color:#e6edf3"><span style="color:#58a6ff">g</span>  go      <span style="color:#484f58">send a prompt</span></div>
+      <div style="color:#e6edf3"><span style="color:#58a6ff">t</span>  take    <span style="color:#484f58">next action from clipboard</span></div>
+      <div style="color:#e6edf3"><span style="color:#58a6ff">s</span>  swap    <span style="color:#484f58">change AI target</span></div>
+      <div style="color:#e6edf3"><span style="color:#58a6ff">h</span>  history <span style="color:#484f58">recent runs</span></div>
+      <div style="color:#e6edf3"><span style="color:#58a6ff">q</span>  quit</div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">B. 풀 대시보드 — 히스토리 + 상태 통합</div>
+    <div class="mockup-body" style="background:#0d1117;padding:16px;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.7;border-radius:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <span style="color:#58a6ff;font-size:14px;font-weight:bold">⚡ prtr</span>
+        <span style="color:#484f58">fix/login-flow · claude · watch ON</span>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px">
+        <div style="background:#161b22;border:1px solid #30363d;border-radius:6px;padding:8px;text-align:center">
+          <div style="color:#58a6ff;font-size:18px;font-weight:bold">12</div>
+          <div style="color:#8b949e;font-size:10px">오늘 전송</div>
+        </div>
+        <div style="background:#161b22;border:1px solid #30363d;border-radius:6px;padding:8px;text-align:center">
+          <div style="color:#3fb950;font-size:18px;font-weight:bold">3</div>
+          <div style="color:#8b949e;font-size:10px">deep 실행</div>
+        </div>
+        <div style="background:#161b22;border:1px solid #30363d;border-radius:6px;padding:8px;text-align:center">
+          <div style="color:#e3b341;font-size:18px;font-weight:bold">2</div>
+          <div style="color:#8b949e;font-size:10px">watch 제안</div>
+        </div>
+      </div>
+
+      <div style="color:#8b949e;font-size:10px;margin-bottom:6px">RECENT</div>
+      <div style="background:#161b22;border-radius:4px;padding:6px 8px;margin-bottom:4px;display:flex;justify-content:space-between">
+        <span style="color:#e6edf3">go fix "auth test 실패"</span>
+        <span style="color:#484f58">2m ago</span>
+      </div>
+      <div style="background:#161b22;border-radius:4px;padding:6px 8px;margin-bottom:4px;display:flex;justify-content:space-between">
+        <span style="color:#e6edf3">take patch --deep</span>
+        <span style="color:#484f58">18m ago</span>
+      </div>
+      <div style="background:#161b22;border-radius:4px;padding:6px 8px;display:flex;justify-content:space-between">
+        <span style="color:#e6edf3">swap gemini</span>
+        <span style="color:#484f58">1h ago</span>
+      </div>
+
+      <div style="margin-top:10px;color:#484f58;font-size:10px">↑↓ 선택  Enter 재실행  q 종료</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="options" style="margin-top:20px">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>미니멀 상태 화면</h3>
+      <p>빠르고 가볍다. 현재 상태 확인 + 키보드 단축키로 즉시 실행. 유지보수 쉬움.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>풀 대시보드</h3>
+      <p>히스토리 재실행, 통계, watch 제안 이력까지 한눈에. 스크린샷 임팩트 강함.</p>
+    </div>
+  </div>
+</div>

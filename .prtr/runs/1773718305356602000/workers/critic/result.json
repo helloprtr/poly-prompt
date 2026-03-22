@@ -1,0 +1,22 @@
+{
+  "top_risks": [
+    {
+      "title": "Behavior Drift",
+      "severity": "high",
+      "detail": "The follow-up may change behavior beyond the user's requested fix if the source answer mixed diagnosis and implementation.",
+      "confidence": "medium"
+    },
+    {
+      "title": "Local Context Risk",
+      "severity": "medium",
+      "detail": "Review the existing logic in internal/repoctx/repoctx.go before applying broad changes.",
+      "confidence": "medium"
+    }
+  ],
+  "missing_checks": [
+    "Confirm the exact file and symbol names before editing.",
+    "Check whether the clipboard answer assumed code that no longer exists.",
+    "Run the smallest regression test that reproduces the original problem."
+  ],
+  "overall_risk": "medium"
+}

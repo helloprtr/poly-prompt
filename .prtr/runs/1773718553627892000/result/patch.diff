@@ -1,0 +1,13 @@
+diff --git a/internal/repoctx/repoctx.go b/internal/repoctx/repoctx.go
+--- a/internal/repoctx/repoctx.go
++++ b/internal/repoctx/repoctx.go
+@@
+- inspect the current implementation
++ apply the change described by the patch bundle
+
+diff --git a/internal/repoctx/repoctx_test.go b/internal/repoctx/repoctx_test.go
+--- a/internal/repoctx/repoctx_test.go
++++ b/internal/repoctx/repoctx_test.go
+@@
+- inspect the current implementation
++ apply the change described by the patch bundle

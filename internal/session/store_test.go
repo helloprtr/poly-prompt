@@ -111,7 +111,7 @@ func TestStore_Complete(t *testing.T) {
 	}
 	_ = store.Save(s)
 
-	if err := store.Complete("s_done"); err != nil {
+	if err := store.Complete(s); err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
 

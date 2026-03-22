@@ -1,0 +1,10 @@
+{"type":"server-started","port":61316,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:61316","screen_dir":"/Users/koo/dev/translateCLI-brew/.superpowers/brainstorm/26959-1773717217"}
+{"type":"screen-added","file":"/Users/koo/dev/translateCLI-brew/.superpowers/brainstorm/26959-1773717217/watch-ux.html"}
+{"type":"screen-added","file":"/Users/koo/dev/translateCLI-brew/.superpowers/brainstorm/26959-1773717217/waiting.html"}
+{"type":"screen-added","file":"/Users/koo/dev/translateCLI-brew/.superpowers/brainstorm/26959-1773717217/watch-design.html"}
+{"source":"user-event","type":"click","text":"B\n    \n      컨텍스트 미리 조합 후 제안\n      더 투명하고 신뢰감 있다. 뭘 보내는지 보여준다. 약간 더 복잡.","choice":"b","id":null,"timestamp":1773717500660}
+{"type":"screen-added","file":"/Users/koo/dev/translateCLI-brew/.superpowers/brainstorm/26959-1773717217/deep-viz.html"}
+{"type":"screen-added","file":"/Users/koo/dev/translateCLI-brew/.superpowers/brainstorm/26959-1773717217/dashboard.html"}
+{"source":"user-event","type":"click","text":"A\n    \n      미니멀 상태 화면\n      빠르고 가볍다. 현재 상태 확인 + 키보드 단축키로 즉시 실행. 유지보수 쉬움.","choice":"a","id":null,"timestamp":1773717652344}
+{"type":"screen-updated","file":"/Users/koo/dev/translateCLI-brew/.superpowers/brainstorm/26959-1773717217/waiting.html"}
+{"type":"server-stopped","reason":"idle timeout"}

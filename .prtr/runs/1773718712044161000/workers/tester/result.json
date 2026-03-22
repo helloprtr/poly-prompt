@@ -1,0 +1,17 @@
+{
+  "test_cases": [
+    "Add or update one regression test that covers the primary failure path described in the source material.",
+    "Verify the happy path still passes after the change.",
+    "Add a test that cancels context early and verifies clean exit.",
+    "Add a regression test in internal/repoctx/repoctx_test.go that covers the primary failure path."
+  ],
+  "edge_cases": [
+    "Empty or nil inputs that were mentioned or implied by the original issue.",
+    "Boundary cases around existing conditionals, parsing, or branching logic."
+  ],
+  "verification_steps": [
+    "Run the smallest targeted test command first.",
+    "Re-run the original failing command if one was mentioned.",
+    "Review logs or output formatting for regressions after the patch."
+  ]
+}

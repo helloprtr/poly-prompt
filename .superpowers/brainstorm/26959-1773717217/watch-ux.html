@@ -1,0 +1,62 @@
+<h2>prtr watch — 자동 제안 UX</h2>
+<p class="subtitle">백그라운드에서 컨텍스트를 감지하고 제안할 때 어떤 방식이 맞아?</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="inline" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0d1117;padding:16px;font-family:monospace;font-size:13px;color:#58a6ff;border-radius:8px;min-height:120px">
+      <div style="color:#f85149">● npm test 2 failed</div>
+      <div style="color:#888;margin-top:8px">─────────────────────────</div>
+      <div style="background:#1f2937;border-left:3px solid #58a6ff;padding:8px 12px;margin-top:8px;border-radius:4px;color:#e6edf3">
+        <span style="color:#58a6ff">prtr</span> 에러 감지됨 — AI에 보낼까? <span style="color:#3fb950">[y]</span><span style="color:#888">/n</span>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. Inline 제안</h3>
+      <p>에러/이벤트 직후 터미널에 한 줄 제안. <code>y</code> 누르면 즉시 전송.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="sidebar" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0d1117;padding:16px;font-family:monospace;font-size:13px;border-radius:8px;min-height:120px;display:flex;gap:12px">
+      <div style="flex:1;color:#e6edf3">
+        <div style="color:#f85149">● npm test 2 failed</div>
+        <div style="color:#888">at UserAuth.test.js:42</div>
+        <div style="color:#888;margin-top:8px">$ _</div>
+      </div>
+      <div style="width:180px;background:#1f2937;border-radius:6px;padding:10px;font-size:11px">
+        <div style="color:#58a6ff;font-weight:bold;margin-bottom:6px">⚡ prtr suggest</div>
+        <div style="color:#3fb950;cursor:pointer">→ fix "test 2 failed"</div>
+        <div style="color:#888;margin-top:4px;cursor:pointer">→ debug 분석</div>
+        <div style="color:#888;margin-top:4px;cursor:pointer">→ 무시</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 플로팅 사이드패널</h3>
+      <p>터미널 옆에 작은 제안 패널. 클릭해서 선택. (iTerm2/Warp 스타일)</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="notify" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0d1117;padding:16px;border-radius:8px;min-height:120px;display:flex;align-items:center;justify-content:center">
+      <div style="background:#1c1c1e;border:1px solid #3a3a3c;border-radius:12px;padding:14px 18px;max-width:240px;box-shadow:0 4px 20px rgba(0,0,0,0.5)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <span style="font-size:18px">⚡</span>
+          <span style="color:#e6edf3;font-weight:600;font-size:13px">prtr</span>
+          <span style="color:#888;font-size:11px">방금 전</span>
+        </div>
+        <div style="color:#e6edf3;font-size:12px">테스트 2개 실패 감지.<br>AI에 fix 보낼까?</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. 시스템 알림</h3>
+      <p>macOS/Linux 네이티브 알림. 터미널과 분리된 비침투적 제안.</p>
+    </div>
+  </div>
+
+</div>
+
+<div class="section" style="margin-top:24px;background:#161b22;border-radius:8px;padding:16px;border:1px solid #30363d">
+  <p class="label">컨텍스트</p>
+  <p style="color:#8b949e;font-size:13px;margin:8px 0 0">prtr watch가 감지하는 이벤트: 테스트 실패, git conflict, 빌드 에러, crash log. 선택한 UX가 모든 이벤트에 동일하게 적용돼.</p>
+</div>
