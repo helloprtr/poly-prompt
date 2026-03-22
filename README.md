@@ -2,7 +2,7 @@
 
 [![Project Site](https://img.shields.io/badge/project%20site-live-ff7a1a?style=flat-square)](https://helloprtr.github.io/poly-prompt/)
 [![Docs Hub](https://img.shields.io/badge/docs-pages-58f2c5?style=flat-square)](https://helloprtr.github.io/poly-prompt/docs/)
-[![Latest Release](https://img.shields.io/badge/release-v1.0.0-1b2c49?style=flat-square)](https://github.com/helloprtr/poly-prompt/releases/tag/v1.0.0)
+[![Latest Release](https://img.shields.io/badge/release-v1.0.1-1b2c49?style=flat-square)](https://github.com/helloprtr/poly-prompt/releases/tag/v1.0.1)
 
 [English README](README.md) · [한국어 README](README.ko.md) · [Docs Hub](https://helloprtr.github.io/poly-prompt/docs/) · [Releases](https://github.com/helloprtr/poly-prompt/releases)
 
@@ -80,13 +80,16 @@ Sessions are stored locally at `~/.config/prtr/sessions/`. One active session pe
 ### Handoff
 When you run `prtr @gemini` or `prtr @codex`, prtr:
 1. Computes the git diff since the session base SHA
-2. Reads your last AI response (if captured)
+2. Reads your last AI response (auto-captured from the model's conversation log)
 3. Builds a structured handoff prompt with full context
 4. Copies it to your clipboard and opens the target app
 
 No manual context reconstruction needed.
 
-When you exit the AI TUI, prtr automatically reads the model's conversation log and saves the last response — so the next handoff prompt includes it without any manual copy-paste.
+**Auto-capture (v1.0.1):** When you exit Claude Code or Codex, prtr automatically reads the model's conversation log and saves the last response to `~/.config/prtr/last-response.json`. The next handoff picks it up with no copy-paste required.
+
+- Claude Code: reads `~/.claude/projects/<repo-slug>/*.jsonl`
+- Codex: reads `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`
 
 ### Checkpoint
 A progress note saved mid-session. Each checkpoint records the note text, the current git SHA, and a timestamp. Checkpoints are included in handoff prompts so the next AI knows exactly where you stopped.
