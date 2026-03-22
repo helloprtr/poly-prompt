@@ -10,3 +10,6 @@ site/dist/
 site/public/media/
 output/
 .env
+.prtr/
+.superpowers/
+scripts/__pycache__/

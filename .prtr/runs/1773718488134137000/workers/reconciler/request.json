@@ -1,5 +1,0 @@
-{
-  "patch_draft": "workers/patcher/result.json",
-  "risk_report": "workers/critic/result.json",
-  "test_plan": "workers/tester/result.json"
-}
