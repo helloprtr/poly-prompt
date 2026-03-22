@@ -131,9 +131,61 @@ func (a *App) readLastResponse() string {
 	return v.Response
 }
 
+// saveLastResponse writes resp to $XDG_CONFIG_HOME/prtr/last-response.json.
+// Best-effort: logs to stderr on failure but does not return an error.
+func (a *App) saveLastResponse(resp string) {
+	if strings.TrimSpace(resp) == "" {
+		return
+	}
+	base := strings.TrimSpace(a.lookupEnvOrDefault("XDG_CONFIG_HOME", ""))
+	if base == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			fmt.Fprintf(a.stderr, "auto-capture: resolve home: %v\n", err)
+			return
+		}
+		base = filepath.Join(home, ".config")
+	}
+	dir := filepath.Join(base, "prtr")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		fmt.Fprintf(a.stderr, "auto-capture: mkdir: %v\n", err)
+		return
+	}
+	path := filepath.Join(dir, "last-response.json")
+	data, err := json.Marshal(struct {
+		Response string `json:"response"`
+	}{Response: resp})
+	if err != nil {
+		fmt.Fprintf(a.stderr, "auto-capture: marshal: %v\n", err)
+		return
+	}
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		fmt.Fprintf(a.stderr, "auto-capture: write: %v\n", err)
+	}
+}
+
 // captureSessionOnExit runs after the TUI exits, updating last_activity in the session.
 // The git diff is NOT stored in the session — it is recomputed from base_git_sha at handoff time.
 func (a *App) captureSessionOnExit(sess session.Session) error {
+	// Auto-capture last AI response from model's JSONL file (best-effort).
+	// Skip if TargetModel is empty — session was not yet bound to a model.
+	if sess.TargetModel != "" {
+		if cwd, err := os.Getwd(); err == nil {
+			var resp string
+			switch sess.TargetModel {
+			case "claude":
+				resp = session.ReadClaudeResponse("", cwd)
+			case "codex":
+				resp = session.ReadCodexResponse("")
+				// default: no JSONL reader for this model yet
+			}
+			if resp != "" {
+				a.saveLastResponse(resp)
+			}
+		}
+		// os.Getwd() failure is silent — capture is best-effort
+	}
+
 	sess.LastActivity = time.Now().UTC()
 	if err := a.sessionStore.Update(sess); err != nil {
 		return fmt.Errorf("update session after exit: %w", err)

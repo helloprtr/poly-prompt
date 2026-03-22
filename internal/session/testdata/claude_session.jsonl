@@ -1,0 +1,4 @@
+{"parentUuid":"abc","message":{"role":"user","content":[{"type":"text","text":"fix this"}]}}
+{"parentUuid":"def","message":{"role":"assistant","content":[{"type":"text","text":"첫 번째 응답입니다."}]}}
+{"parentUuid":"ghi","message":{"role":"user","content":[{"type":"text","text":"더 해줘"}]}}
+{"parentUuid":"jkl","message":{"role":"assistant","content":[{"type":"text","text":"마지막 assistant 응답입니다."}]}}

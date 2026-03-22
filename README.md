@@ -86,6 +86,8 @@ When you run `prtr @gemini` or `prtr @codex`, prtr:
 
 No manual context reconstruction needed.
 
+When you exit the AI TUI, prtr automatically reads the model's conversation log and saves the last response — so the next handoff prompt includes it without any manual copy-paste.
+
 ### Checkpoint
 A progress note saved mid-session. Each checkpoint records the note text, the current git SHA, and a timestamp. Checkpoints are included in handoff prompts so the next AI knows exactly where you stopped.
 
