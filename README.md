@@ -8,49 +8,147 @@
 
 ![prtr banner](images/prtr-banner.png)
 
-**One line:** `prtr` is the AI Work Session Manager: start a focused work session, let Claude drive, checkpoint progress, and hand off cleanly to Gemini or Codex.
+**One line:** `prtr` is the AI Work Session Manager — start a focused work session, let Claude drive, checkpoint your progress, and hand off cleanly to Gemini or Codex.
 
-`prtr` keeps track of what you are working on across the AI loop. Start a session, checkpoint your progress, and hand off to another model — without rebuilding context by hand.
+`prtr` keeps track of what you are doing across the entire AI loop. Instead of rebuilding context by hand every time you switch tools or pick up where you left off, prtr holds your task goal, the files you care about, your progress notes, and the git diff — and builds the right prompt when you need it.
 
-## Try It in 60 Seconds
+## Install in 60 Seconds
 
 macOS with Homebrew:
 
 ```bash
 brew tap helloprtr/homebrew-tap
 brew install prtr
-prtr review internal/app/app.go
+prtr doctor        # verify setup
 ```
 
-Linux and Windows:
+Linux and Windows — download the right archive from [GitHub Releases](https://github.com/helloprtr/poly-prompt/releases), put `prtr` on your `PATH`.
 
-Download the right archive from [GitHub Releases](https://github.com/helloprtr/poly-prompt/releases), put `prtr` on your `PATH`, then run the same command above.
+## The Core Idea: Sessions
 
-Start a real session:
+A **session** is a focused work block tied to a git repository. When you run any session command, prtr:
+
+1. Prompts for your goal (or takes it from the command line)
+2. Saves a session file with your task, files, mode, and base git SHA
+3. Builds a structured start prompt and copies it to your clipboard
+4. Opens Claude (or your configured AI app)
+
+When you hand off or resume later, prtr recomputes the git diff since the session started and includes it in the prompt — so the AI picks up exactly where you left off.
+
+## Session Commands (Start Here)
 
 ```bash
-prtr edit internal/session/store.go   # start a focused edit session
-prtr checkpoint "store refactor done"  # save progress
-prtr @gemini                           # hand off to Gemini
-prtr done                              # mark complete
+prtr                              # resume active session, or start a new one
+prtr review [files...]            # start a code review session
+prtr edit [files...]              # start a focused edit session
+prtr fix [files...]               # start a bug-fix session
+prtr design [topic]               # start a design/architecture session
 ```
 
-No API key is required for `--dry-run` flows.
+**Manage your session:**
 
-## Session Commands
+```bash
+prtr checkpoint "refactor done"   # save a progress note (tied to current git SHA)
+prtr @gemini                      # hand off current session to Gemini
+prtr @codex                       # hand off current session to Codex
+prtr done                         # mark session complete
+prtr sessions                     # list sessions for this repo
+prtr status                       # show current session + git diff summary
+```
+
+**A full session from start to finish:**
+
+```bash
+prtr edit internal/app/app.go     # start — goal prompted interactively
+prtr checkpoint "split help.go"   # mid-session note
+prtr @gemini                      # hand off with full diff context
+prtr done                         # close session
+```
+
+## Key Concepts
+
+### Session
+A session tracks one focused task inside a git repo. It stores:
+- **Goal** — what you are trying to accomplish
+- **Files** — which files matter (optional)
+- **Mode** — `review`, `edit`, `fix`, or `design`
+- **Base git SHA** — the commit when the session started (used to compute the handoff diff)
+- **Checkpoints** — timestamped progress notes you add along the way
+
+Sessions are stored locally at `~/.config/prtr/sessions/`. One active session per repo at a time.
+
+### Handoff
+When you run `prtr @gemini` or `prtr @codex`, prtr:
+1. Computes the git diff since the session base SHA
+2. Reads your last AI response (if captured)
+3. Builds a structured handoff prompt with full context
+4. Copies it to your clipboard and opens the target app
+
+No manual context reconstruction needed.
+
+### Checkpoint
+A progress note saved mid-session. Each checkpoint records the note text, the current git SHA, and a timestamp. Checkpoints are included in handoff prompts so the next AI knows exactly where you stopped.
+
+### Work Capsule
+Beyond sessions, `prtr save` captures a full snapshot of your current work state — branch, HEAD SHA, last run, and open todos — so you can resume days later or on a different machine, with drift detection built in.
+
+```bash
+prtr save "auth refactor in progress"   # snapshot current state
+prtr list                               # list all capsules for this repo
+prtr resume                             # resume latest capsule with drift report
+prtr prune --older-than 30d             # clean up old capsules
+```
+
+## All Commands at a Glance
 
 | Command | What it does |
 |---|---|
-| `prtr` | Resume active session or start a new one |
-| `prtr review [files]` | Start a code review session |
-| `prtr edit [files]` | Start a focused edit session |
-| `prtr fix [files]` | Start a bug-fix session |
-| `prtr design [topic]` | Start a design session |
-| `prtr @gemini` / `@codex` | Hand off current session to another model |
-| `prtr checkpoint "note"` | Save a progress memo |
-| `prtr done` | Mark the session complete |
-| `prtr sessions` | List sessions for the current repo |
-| `prtr status` | Show current session state and git diff summary |
+| `prtr` | Resume active session or start new |
+| `prtr review [files]` | Code review session |
+| `prtr edit [files]` | Code edit session |
+| `prtr fix [files]` | Bug fix session |
+| `prtr design [topic]` | Design/architecture session |
+| `prtr @gemini` / `@codex` | Hand off to another AI model |
+| `prtr checkpoint "note"` | Save progress note |
+| `prtr done` | Mark session complete |
+| `prtr sessions` | List this repo's sessions |
+| `prtr status` | Current session + diff summary |
+| `prtr save [label]` | Snapshot work state (Work Capsule) |
+| `prtr resume [id]` | Resume a capsule with drift detection |
+| `prtr list` | List all capsules for this repo |
+| `prtr doctor` | Check setup (AI binaries, clipboard, config) |
+| `prtr setup` | Guided first-time configuration |
+
+### Still Available (Advanced)
+
+These classic commands remain fully functional:
+
+| Command | What it does |
+|---|---|
+| `prtr go [mode] [message]` | Fast-path to send any request to Claude/Codex/Gemini |
+| `prtr swap <app>` | Resend last prompt to another AI app |
+| `prtr take <action>` | Convert AI output to patch/test/commit/plan prompt |
+| `prtr take --deep` | Run 5-worker AI pipeline (planner, patcher, critic, tester, reconciler) |
+| `prtr again` | Replay the last run |
+| `prtr learn [paths]` | Build repo memory to protect project terms during translation |
+| `prtr inspect [message]` | Show assembled prompt and config without sending |
+| `prtr history` | Browse past runs |
+
+## Multilingual Support
+
+Write your goal in Korean (or any language). prtr translates via DeepL before sending. No API key is needed for English-only flows.
+
+```bash
+prtr edit                         # then type: "이 함수 성능 개선해줘"
+prtr go "왜 테스트가 깨지는지 찾아줘"
+```
+
+Configure with:
+
+```bash
+prtr setup        # set DeepL key, default language, default AI app
+prtr doctor       # verify everything works
+```
 
 ## Documentation
 
@@ -65,7 +163,5 @@ No API key is required for `--dry-run` flows.
 
 - Contribution guide: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Starter tasks: [good first issue](https://github.com/helloprtr/poly-prompt/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22)
-- Broader help: [help wanted](https://github.com/helloprtr/poly-prompt/issues?q=is%3Aopen+is%3Aissue+label%3A%22help+wanted%22)
-- Early ideas and workflow feedback: [Discussions](https://github.com/helloprtr/poly-prompt/discussions)
-
-If you maintain this repo, keep 3 to 5 small, current `good first issue` tickets live. The best starter issues explain the user pain clearly, define done criteria, and include one local verification command.
+- Help wanted: [help wanted](https://github.com/helloprtr/poly-prompt/issues?q=is%3Aopen+is%3Aissue+label%3A%22help+wanted%22)
+- Ideas and workflow feedback: [Discussions](https://github.com/helloprtr/poly-prompt/discussions)
