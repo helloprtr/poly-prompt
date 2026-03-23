@@ -8,16 +8,11 @@ import (
 	"os/exec"
 )
 
-var modelBinaryMap = map[string][]string{
-	"claude": {"claude"},
-	"gemini": {"gemini", "gemini-cli"},
-	"codex":  {"codex"},
-}
-
 // ModelBinaries returns ordered binary candidates for a model name.
+// Delegates to the provider registry in provider.go.
 func ModelBinaries(model string) []string {
-	if bins, ok := modelBinaryMap[model]; ok {
-		return bins
+	if p, ok := GetProvider(model); ok {
+		return p.Binaries
 	}
 	return []string{model}
 }
