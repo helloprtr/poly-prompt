@@ -172,12 +172,8 @@ func (a *App) captureSessionOnExit(sess session.Session) error {
 	if sess.TargetModel != "" {
 		if cwd, err := os.Getwd(); err == nil {
 			var resp string
-			switch sess.TargetModel {
-			case "claude":
-				resp = session.ReadClaudeResponse("", cwd)
-			case "codex":
-				resp = session.ReadCodexResponse("")
-				// default: no JSONL reader for this model yet
+			if p, ok := session.GetProvider(sess.TargetModel); ok {
+				resp = p.ReadResponse(cwd)
 			}
 			if resp != "" {
 				a.saveLastResponse(resp)

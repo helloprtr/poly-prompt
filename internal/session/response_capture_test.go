@@ -131,3 +131,91 @@ func TestReadCodexResponse_Integration(t *testing.T) {
 		t.Errorf("ReadCodexResponse: got %q, want %q", got, want)
 	}
 }
+
+func TestGeminiProjectHash(t *testing.T) {
+	tests := []struct {
+		cwd  string
+		want string
+	}{
+		{"/Users/koo", "0cf7ace52b89043c4b8b6f10e62e1e6ae36a7f709da5cd7d67bc9f8432b5f0bf"},
+		{"/home/user/project", "9dad1e4e08b0b11cbcd860257e8bdfa6b8e5f01790e10a6a0b1f4870c13e686b"},
+	}
+	for _, tt := range tests {
+		got := session.GeminiProjectHash(tt.cwd)
+		if got != tt.want {
+			t.Errorf("GeminiProjectHash(%q) = %q, want %q", tt.cwd, got, tt.want)
+		}
+	}
+}
+
+func TestReadGeminiResponseFromFile(t *testing.T) {
+	path := filepath.Join(testdataDir(), "gemini_session.json")
+	got := session.ReadGeminiResponseFromFile(path)
+	want := "Gemini 최종 응답입니다."
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestReadGeminiResponseFromFile_Empty(t *testing.T) {
+	got := session.ReadGeminiResponseFromFile("/nonexistent/path.json")
+	if got != "" {
+		t.Errorf("expected empty string, got %q", got)
+	}
+}
+
+func TestReadGeminiResponse_Integration(t *testing.T) {
+	geminiDir := t.TempDir()
+	cwd := "/Users/test/myrepo"
+	hash := session.GeminiProjectHash(cwd)
+	chatsDir := filepath.Join(geminiDir, hash, "chats")
+	if err := os.MkdirAll(chatsDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	sessionPath := filepath.Join(chatsDir, "session-2026-03-24T10-00-aabbccdd.json")
+	content := `{"messages":[{"type":"user","content":"q"},{"type":"gemini","content":"통합테스트 Gemini 응답"}]}`
+	if err := os.WriteFile(sessionPath, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	got := session.ReadGeminiResponse(geminiDir, cwd)
+	want := "통합테스트 Gemini 응답"
+	if got != want {
+		t.Errorf("ReadGeminiResponse: got %q, want %q", got, want)
+	}
+}
+
+func TestReadGeminiResponse_PicksLatestSession(t *testing.T) {
+	geminiDir := t.TempDir()
+	cwd := "/Users/test/sortrepo"
+	hash := session.GeminiProjectHash(cwd)
+	chatsDir := filepath.Join(geminiDir, hash, "chats")
+	if err := os.MkdirAll(chatsDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	// Older session
+	older := filepath.Join(chatsDir, "session-2026-03-24T09-00-aaaaaaaa.json")
+	if err := os.WriteFile(older, []byte(`{"messages":[{"type":"gemini","content":"오래된 응답"}]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// Newer session (lexicographically later filename)
+	newer := filepath.Join(chatsDir, "session-2026-03-24T10-00-bbbbbbbb.json")
+	if err := os.WriteFile(newer, []byte(`{"messages":[{"type":"gemini","content":"최신 응답"}]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	got := session.ReadGeminiResponse(geminiDir, cwd)
+	want := "최신 응답"
+	if got != want {
+		t.Errorf("ReadGeminiResponse picked wrong session: got %q, want %q", got, want)
+	}
+}
+
+func TestReadGeminiResponse_NoSessions(t *testing.T) {
+	geminiDir := t.TempDir()
+	got := session.ReadGeminiResponse(geminiDir, "/no/such/project")
+	if got != "" {
+		t.Errorf("expected empty string, got %q", got)
+	}
+}

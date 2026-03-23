@@ -2,6 +2,14 @@
 
 All notable product-facing changes to `prtr` are documented in this file.
 
+## [1.0.2] — 2026-03-24
+
+### Changed
+- Provider routing unified: model binaries and response-capture functions now registered in a single `provider.go` registry. Adding a new AI model requires changes to one file only.
+
+### Added
+- Gemini response capture: after exiting a Gemini CLI session, the last response is automatically saved and included in the next handoff prompt (previously silently skipped).
+
 ## [1.0.1] - 2026-03-23
 
 ### Added
