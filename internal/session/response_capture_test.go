@@ -185,6 +185,33 @@ func TestReadGeminiResponse_Integration(t *testing.T) {
 	}
 }
 
+func TestReadGeminiResponse_PicksLatestSession(t *testing.T) {
+	geminiDir := t.TempDir()
+	cwd := "/Users/test/sortrepo"
+	hash := session.GeminiProjectHash(cwd)
+	chatsDir := filepath.Join(geminiDir, hash, "chats")
+	if err := os.MkdirAll(chatsDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	// Older session
+	older := filepath.Join(chatsDir, "session-2026-03-24T09-00-aaaaaaaa.json")
+	if err := os.WriteFile(older, []byte(`{"messages":[{"type":"gemini","content":"오래된 응답"}]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// Newer session (lexicographically later filename)
+	newer := filepath.Join(chatsDir, "session-2026-03-24T10-00-bbbbbbbb.json")
+	if err := os.WriteFile(newer, []byte(`{"messages":[{"type":"gemini","content":"최신 응답"}]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	got := session.ReadGeminiResponse(geminiDir, cwd)
+	want := "최신 응답"
+	if got != want {
+		t.Errorf("ReadGeminiResponse picked wrong session: got %q, want %q", got, want)
+	}
+}
+
 func TestReadGeminiResponse_NoSessions(t *testing.T) {
 	geminiDir := t.TempDir()
 	got := session.ReadGeminiResponse(geminiDir, "/no/such/project")

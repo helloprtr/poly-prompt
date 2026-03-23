@@ -194,7 +194,7 @@ func GeminiProjectHash(cwd string) string {
 
 // ReadGeminiResponseFromFile reads a Gemini CLI session JSON file and returns
 // the text content of the last "gemini"-typed message. Returns "" on any error.
-// Messages containing toolCalls are treated as valid capture targets (best-effort).
+// Only the content field is read; other message fields (e.g. toolCalls) are ignored.
 func ReadGeminiResponseFromFile(path string) string {
 	f, err := os.Open(path)
 	if err != nil {
