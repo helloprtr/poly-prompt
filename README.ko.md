@@ -2,7 +2,7 @@
 
 [![Project Site](https://img.shields.io/badge/project%20site-live-ff7a1a?style=flat-square)](https://helloprtr.github.io/poly-prompt/)
 [![Docs Hub](https://img.shields.io/badge/docs-pages-58f2c5?style=flat-square)](https://helloprtr.github.io/poly-prompt/docs/)
-[![Latest Release](https://img.shields.io/badge/release-v1.0.1-1b2c49?style=flat-square)](https://github.com/helloprtr/poly-prompt/releases/tag/v1.0.1)
+[![Latest Release](https://img.shields.io/badge/release-v1.0.2-1b2c49?style=flat-square)](https://github.com/helloprtr/poly-prompt/releases/tag/v1.0.2)
 
 [English README](README.md) · [한국어 README](README.ko.md) · [문서 허브](https://helloprtr.github.io/poly-prompt/docs/) · [릴리스](https://github.com/helloprtr/poly-prompt/releases)
 
@@ -69,10 +69,11 @@ prtr @codex
 
 현재 세션의 목표, 파일 범위, 체크포인트, 시작 이후의 git diff, 마지막 AI 응답까지 엮어서 새 모델로 넘깁니다. 1.0.0에서 가장 실전적인 기능 중 하나입니다.
 
-**자동 응답 캡처 (v1.0.1):** Claude Code 또는 Codex TUI를 닫으면 prtr이 자동으로 대화 로그를 읽어 마지막 응답을 `~/.config/prtr/last-response.json`에 저장합니다. 다음 핸드오프 시 별도 복사 없이 자동으로 컨텍스트에 포함됩니다.
+**자동 응답 캡처 (v1.0.2):** Claude Code, Codex 또는 Gemini CLI를 닫으면 prtr이 자동으로 대화 로그를 읽어 마지막 응답을 `~/.config/prtr/last-response.json`에 저장합니다. 다음 핸드오프 시 별도 복사 없이 자동으로 컨텍스트에 포함됩니다.
 
 - Claude Code: `~/.claude/projects/<repo-slug>/*.jsonl`
 - Codex: `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`
+- Gemini CLI: `~/.gemini/tmp/<project-hash>/chats/session-*.json`
 
 ### 4. 상태 확인
 
