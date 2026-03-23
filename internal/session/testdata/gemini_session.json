@@ -1,0 +1,30 @@
+{
+  "sessionId": "test-session-id",
+  "projectHash": "testhash",
+  "startTime": "2026-03-24T10:00:00.000Z",
+  "lastUpdated": "2026-03-24T10:05:00.000Z",
+  "messages": [
+    {
+      "id": "msg-1",
+      "type": "user",
+      "content": "테스트 질문입니다."
+    },
+    {
+      "id": "msg-2",
+      "type": "gemini",
+      "content": "Gemini 마지막 응답입니다.",
+      "thoughts": []
+    },
+    {
+      "id": "msg-3",
+      "type": "user",
+      "content": "후속 질문입니다."
+    },
+    {
+      "id": "msg-4",
+      "type": "gemini",
+      "content": "Gemini 최종 응답입니다.",
+      "toolCalls": [{"name": "read_file", "status": "completed"}]
+    }
+  ]
+}

@@ -42,6 +42,3 @@ func KnownProviders() []string {
 	sort.Strings(names)
 	return names
 }
-
-// ReadGeminiResponse is a placeholder; full implementation in Task 2.
-func ReadGeminiResponse(geminiDir, cwd string) string { return "" }

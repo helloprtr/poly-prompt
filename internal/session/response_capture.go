@@ -2,6 +2,8 @@ package session
 
 import (
 	"bufio"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -181,4 +183,75 @@ func findLatestCodexRollout(baseDir string) string {
 	// Sort descending by filename (timestamp prefix guarantees correct order).
 	sort.Sort(sort.Reverse(sort.StringSlice(allFiles)))
 	return allFiles[0]
+}
+
+// GeminiProjectHash computes the project hash Gemini CLI uses for its
+// session directory: hex(sha256(cwd)). Mirrors ClaudeProjectSlug.
+func GeminiProjectHash(cwd string) string {
+	sum := sha256.Sum256([]byte(cwd))
+	return hex.EncodeToString(sum[:])
+}
+
+// ReadGeminiResponseFromFile reads a Gemini CLI session JSON file and returns
+// the text content of the last "gemini"-typed message. Returns "" on any error.
+// Messages containing toolCalls are treated as valid capture targets (best-effort).
+func ReadGeminiResponseFromFile(path string) string {
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+
+	type geminiMessage struct {
+		Type    string `json:"type"`
+		Content string `json:"content"`
+	}
+	type geminiSession struct {
+		Messages []geminiMessage `json:"messages"`
+	}
+
+	var sess geminiSession
+	if err := json.NewDecoder(f).Decode(&sess); err != nil {
+		return ""
+	}
+	var lastText string
+	for _, m := range sess.Messages {
+		if m.Type == "gemini" && strings.TrimSpace(m.Content) != "" {
+			lastText = m.Content
+		}
+	}
+	return lastText
+}
+
+// ReadGeminiResponse finds the latest Gemini CLI session for the given cwd and
+// returns the last gemini response. geminiDir defaults to ~/.gemini/tmp when empty.
+// cwd should be os.Getwd(), not the git root.
+func ReadGeminiResponse(geminiDir, cwd string) string {
+	if geminiDir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return ""
+		}
+		geminiDir = filepath.Join(home, ".gemini", "tmp")
+	}
+	hash := GeminiProjectHash(cwd)
+	chatsDir := filepath.Join(geminiDir, hash, "chats")
+	entries, err := os.ReadDir(chatsDir)
+	if err != nil {
+		return ""
+	}
+	// Collect session-*.json files and sort descending by name.
+	// Filename format: session-<YYYY-MM-DDTHH-MM>-<uuid-prefix>.json
+	// Lexicographic descending order = most recent first.
+	var sessions []string
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasPrefix(e.Name(), "session-") && strings.HasSuffix(e.Name(), ".json") {
+			sessions = append(sessions, filepath.Join(chatsDir, e.Name()))
+		}
+	}
+	if len(sessions) == 0 {
+		return ""
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(sessions)))
+	return ReadGeminiResponseFromFile(sessions[0])
 }
