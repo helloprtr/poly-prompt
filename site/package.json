@@ -13,7 +13,7 @@
     "prepreview": "npm run sync-media"
   },
   "devDependencies": {
-    "@astrojs/sitemap": "^3.7.1",
+    "@astrojs/sitemap": "^3.7.2",
     "astro": "^6.0.8"
   }
 }
